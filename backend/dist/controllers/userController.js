@@ -5,6 +5,7 @@ exports.createUserController = createUserController;
 exports.updateUserController = updateUserController;
 exports.deleteUserController = deleteUserController;
 exports.getUserProfileController = getUserProfileController;
+exports.changePasswordController = changePasswordController;
 const User_1 = require("../models/User");
 async function getAllUsersController(req, res) {
     try {
@@ -199,6 +200,13 @@ async function deleteUserController(req, res) {
                 message: 'Impossible de supprimer l\'administrateur principal'
             });
         }
+        // Empêcher un utilisateur de supprimer son propre compte
+        if (req.user && userId === req.user.userId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Impossible de supprimer votre propre compte'
+            });
+        }
         // Supprimer l'utilisateur via une requête SQL directe
         const { query } = require('../utils/database');
         const result = await query('DELETE FROM users WHERE id = $1 RETURNING id, username', [userId]);
@@ -255,6 +263,80 @@ async function getUserProfileController(req, res) {
         res.status(500).json({
             success: false,
             message: 'Erreur serveur lors de la récupération du profil'
+        });
+    }
+}
+async function changePasswordController(req, res) {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const userId = req.user?.userId;
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Utilisateur non authentifié'
+            });
+        }
+        // Validation des entrées
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({
+                success: false,
+                message: 'Le mot de passe actuel et le nouveau mot de passe sont requis'
+            });
+        }
+        if (newPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: 'Le nouveau mot de passe doit contenir au moins 6 caractères'
+            });
+        }
+        if (currentPassword === newPassword) {
+            return res.status(400).json({
+                success: false,
+                message: 'Le nouveau mot de passe doit être différent de l\'ancien'
+            });
+        }
+        // Récupérer l'utilisateur avec son mot de passe
+        const { query } = require('../utils/database');
+        const result = await query('SELECT id, username, email, password, role_id FROM users WHERE id = $1', [userId]);
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Utilisateur non trouvé'
+            });
+        }
+        const user = result.rows[0];
+        const bcrypt = require('bcryptjs');
+        // Vérifier le mot de passe actuel
+        const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+        if (!isCurrentPasswordValid) {
+            return res.status(400).json({
+                success: false,
+                message: 'Le mot de passe actuel est incorrect'
+            });
+        }
+        // Hasher le nouveau mot de passe
+        const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+        // Mettre à jour le mot de passe
+        const updateResult = await query('UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, username, email, updated_at', [hashedNewPassword, userId]);
+        if (updateResult.rowCount === 0) {
+            return res.status(500).json({
+                success: false,
+                message: 'Erreur lors de la mise à jour du mot de passe'
+            });
+        }
+        res.status(200).json({
+            success: true,
+            message: 'Mot de passe changé avec succès',
+            data: {
+                user: updateResult.rows[0]
+            }
+        });
+    }
+    catch (error) {
+        console.error('Erreur lors du changement de mot de passe:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur serveur lors du changement de mot de passe'
         });
     }
 }

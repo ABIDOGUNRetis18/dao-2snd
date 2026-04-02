@@ -1,4 +1,8 @@
-# Logs
+# ==========================================
+# 🚀 DAO Project - Enhanced .gitignore
+# ==========================================
+
+# 📋 Logs and Debug Files
 logs
 *.log
 npm-debug.log*
@@ -6,19 +10,542 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+debug.log*
+.DS_Store
 
-node_modules
-dist
-dist-ssr
-*.local
+# 📦 Dependencies and Build Outputs
+node_modules/
+node_modules/*
+dist/
+dist-ssr/
+build/
+.out/
+.output/
+.nuxt/
+.next/
+.cache/
+.parcel-cache/
+.vite/
+.astro/
 
-# Editor directories and files
+# 🏗️ Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+
+# 📦 Package Managers
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.npm
+.yarn-integrity
+
+# 🔧 TypeScript and JavaScript
+*.tsbuildinfo
+*.d.ts.map
+*.js.map
+*.mjs.map
+*.cjs.map
+lib/
+types/
+coverage/
+*.lcov
+.nyc_output/
+
+# 🎨 CSS and Styling
+*.css.map
+*.scss.map
+*.sass.map
+*.less.map
+.sass-cache/
+.stylelintcache
+
+# 🧪 Testing and Coverage
+coverage/
+*.coverage
+.nyc_output/
+junit.xml
+test-results/
+playwright-report/
+test-results.xml
+
+# 🗄️ Database and Data
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+database/
+db/
+data/
+backups/
+
+# 🖼️ Assets and Media
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.ico
+*.svg
+*.webp
+*.avif
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+assets/
+public/uploads/
+uploads/
+static/media/
+
+# 📝 Documentation and Notes
+*.md
+!README.md
+!CHANGELOG.md
+!CONTRIBUTING.md
+docs/
+notes/
+TODO.md
+NOTES.md
+
+# 🔐 Security and Secrets
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+private/
+credentials/
+auth/
+tokens/
+
+# 🛠️ IDE and Editor Files
+.vscode/
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+!.vscode/settings.json
+.idea/
+.idea/*
+*.swp
+*.swo
+*~
+.fleet/
+.sublime-project
+.sublime-workspace
+.atom/
+.brackets.json
+.eslintcache
+
+# 🐳 Docker and Containerization
+Dockerfile
+docker-compose.yml
+docker-compose.override.yml
+.dockerignore
+.docker/
+
+# ☁️ Cloud and Deployment
+.vercel/
+.netlify/
+.firebase/
+.aws/
+.azure/
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+appveyor.yml
+
+# 📊 Analytics and Monitoring
+*.analytics
+.google-services.json
+service-account.json
+amplify/
+.sentryclirc
+
+# 🎯 Development Tools
+.eslintcache
+.stylelintcache
+.prettierignore
+.turbo
+.husky/
+.lintstagedrc*
+.staged*
+.commitlintrc*
+.releaserc*
+
+# 📱 Mobile and Native
+cordova/
+platforms/
+plugins/
+www/
+*.apk
+*.ipa
+*.mobileprovision
+
+# 🌐 Browser and Web
+.wasm
+.worker.js
+*.webmanifest
+manifest.json
+
+# 📦 Package Management
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# 🔄 Version Control
+.git/
+.gitignore
+.gitattributes
+.gitmodules
+
+# 🎨 Temporary and OS Files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# 📊 Performance and Profiling
+*.cpuprofile
+*.heapsnapshot
+*.heapdump
+profile/
+profiler/
+
+# 🌍 Localization and i18n
+locales/
+i18n/
+lang/
+*.po
+*.mo
+.pot
+
+# 📦 Package Configuration
+package.json
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+bower.json
+
+# 🎯 Framework Specific
+# React
+.eslintcache
+.eslintrc*
+.prettierrc*
+.stylelintrc*
+
+# Vue
+.vuerc
+.vuepress/
+
+# Angular
+.angular/
+.ngcache/
+
+# Next.js
+.next/
+
+# Nuxt.js
+.nuxt/
+
+# Svelte
+.svelte-kit/
+
+# Astro
+.astro/
+
+# 🗄️ Backend Specific
+# Node.js
+lib-cov
+*.lcov
+coverage/
+.nyc_output
+.grunt
+bower_components
+.lock-wscript
+build/Release
+jspm_packages/
+typings/
+node_modules/
+.npm
+.node_repl_history
+*.tsbuildinfo
+.eslintcache
+
+# Python (si utilisé)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Java (si utilisé)
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+target/
+.mvn/
+dependency-reduced-pom.xml
+build/
+out/
+generated-sources/
+.apt_generated/
+.apt_generated_tests/
+.staging/
+.mvn/wrapper/maven-wrapper.jar
+
+# PHP (si utilisé)
+vendor/
+composer.lock
+.php_cs.cache
+.php_cs.cache.*
+.phpunit.result.cache
+.phpunit.result.cache.*
+
+# Ruby (si utilisé)
+*.gem
+.bundle/
+.ruby-version
+.ruby-gemset
+.ruby-consistent
+.ruby-consistent-cache
+.ruby-consistent-cache-*
+.ruby-consistent-cache-*.*
+
+# Go (si utilisé)
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+go.work.sum
+
+# Rust (si utilisé)
+target/
+Cargo.lock
+**/*.rs.bk
+
+# C/C++ (si utilisé)
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.pdb
+*.ilk
+*.exp
+*.map
+*.dSYM/
+
+# 📱 Mobile Development
+# React Native
+android/app/build/
+ios/build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+
+# Flutter
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub-cache/build
+*.apk
+*.ipa
+*.ipa.*
+*.aab
+
+# 🎮 Game Development
+# Unity
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+
+# Unreal Engine
+/Binaries/
+/Build/
+/DerivedDataCache/
+/Intermediate/
+/Saved/
+.vscode/
+*.vcxproj*
+*.sln*
+
+# 📊 Data Science
+# Jupyter Notebook
+.ipynb_checkpoints
+*.pyc
+__pycache__/
+
+# R
+.Rhistory
+.RData
+.Ruserdata
+
+# MATLAB
+*.asv
+*.slxc
+*.slx
+*.mdlpx
+*.autosave
+
+# 🎨 Design and Graphics
+# Photoshop
+*.psd
+*.psb
+*.ait
+
+# Illustrator
+*.ai
+*.ait
+
+# InDesign
+*.indd
+*.indt
+
+# Sketch
+*.sketch
+
+# Figma
+*.fig
+*.figjam
+
+# 📹 Video and Audio
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.mp3
+*.wav
+*.flac
+*.aac
+*.ogg
+
+# 📚 Documentation Generators
+docs/_build/
+site/
+.jekyll/
+.sphinx/
+.hugo/
+.gatsby/
+
+# 🧪 Testing Frameworks
+.cypress/
+.playwright/
+.testcafe/
+wdio/
+
+# 📊 Monitoring and Analytics
+.sentry-cli/
+.datadog/
+.newrelic/
+
+# 🌐 CDN and Static Assets
+.cdn/
+.static/
+.assets/
+
+# 🔧 Build Tools and Bundlers
+.webpack/
+.rollup.cache/
+.parcel-cache/
+.esbuild/
+.swc/
+.turbo/
+.vite/
+
+# 📦 Package Managers Lock Files (tous)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+composer.lock
+Gemfile.lock
+Pipfile.lock
+poetry.lock
+Cargo.lock
+go.mod
+go.sum
+requirements.txt
+requirements-dev.txt
+environment.yml
+Pipfile
+poetry.lock
+
+# 🎯 Project-Specific Files
+# Fichiers de configuration spécifiques au projet
+config/local.json
+config/development.json
+config/production.json
+scripts/local/
+backup/
+temp/
+tmp/
+*.backup
+*.old
+
+# ==========================================
+# 📝 Notes importantes
+# ==========================================
+# - Ce .gitignore est optimisé pour les projets full-stack
+# - Il couvre Node.js, React, TypeScript, et les bases de données
+# - Ajoutez des règles spécifiques si vous utilisez d'autres technologies
+# - Les fichiers avec ! sont explicitement inclus (ex: README.md)
+# ==========================================?

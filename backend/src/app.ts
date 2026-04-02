@@ -10,6 +10,11 @@ import { initializeDatabase } from './utils/database';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import daoRoutes from './routes/dao';
+import taskRoutes from './routes/tasks';
+import myTasksRoutes from './routes/myTasks';
+import taskProgressRoutes from './routes/taskProgress';
+import notificationsRoutes from './routes/notifications';
+import messagesRoutes from './routes/messages';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -26,6 +31,11 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/dao', daoRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/my-tasks', myTasksRoutes);
+app.use('/api/task-progress', taskProgressRoutes);
+app.use('/api/notifications', notificationsRoutes);
+app.use('/api/messages', messagesRoutes);
 
 // Route de test
 app.get('/api/test', (req, res) => {

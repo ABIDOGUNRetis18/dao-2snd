@@ -3,6 +3,7 @@ import { ArrowLeft, User, Mail, Shield, Calendar, Edit2, Save, X } from 'lucide-
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { API_BASE_URL, API_ENDPOINTS } from '../../config/api'
+import ChangePassword from '../../components/ChangePassword'
 
 interface UserProfile {
   id: number
@@ -22,6 +23,7 @@ export default function Profile() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [showChangePassword, setShowChangePassword] = useState(false)
   const navigate = useNavigate()
   const { user: currentUser, token } = useAuth()
 
@@ -135,6 +137,24 @@ export default function Profile() {
         [field]: value
       })
     }
+  }
+
+  const handleOpenChangePassword = () => {
+    setShowChangePassword(true)
+    setError('')
+    setSuccess('')
+  }
+
+  const handleCloseChangePassword = () => {
+    setShowChangePassword(false)
+  }
+
+  const handlePasswordChanged = () => {
+    setSuccess('Mot de passe changé avec succès !')
+    // Le message sera affiché pendant 3 secondes
+    setTimeout(() => {
+      setSuccess('')
+    }, 3000)
   }
 
   if (loading) {
@@ -397,7 +417,10 @@ export default function Profile() {
               <div className="mt-6 pt-6 border-t border-slate-200">
                 <h4 className="text-sm font-medium text-slate-700 mb-3">Actions rapides</h4>
                 <div className="space-y-2">
-                  <button className="w-full text-left px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
+                  <button 
+                    onClick={handleOpenChangePassword}
+                    className="w-full text-left px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
+                  >
                     Changer le mot de passe
                   </button>
                   {currentForm?.role_id !== 2 && (
@@ -411,6 +434,14 @@ export default function Profile() {
           </div>
         </div>
       </div>
+
+      {/* Modal de changement de mot de passe */}
+      {showChangePassword && (
+        <ChangePassword
+          onClose={handleCloseChangePassword}
+          onSuccess={handlePasswordChanged}
+        />
+      )}
     </div>
   )
 }

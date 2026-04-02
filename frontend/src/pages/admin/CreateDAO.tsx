@@ -4,7 +4,30 @@ import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 
+// Animation CSS pour le fadeIn
+const fadeInStyle = `
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .animate-fadeIn {
+    animation: fadeIn 0.3s ease-in;
+  }
+`;
+
 export default function CreateDAO() {
+  // Injecter l'animation CSS
+  useEffect(() => {
+    const styleElement = document.createElement('style');
+    styleElement.textContent = fadeInStyle;
+    document.head.appendChild(styleElement);
+    
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+  }, []);
+
   const [generatedNumber, setGeneratedNumber] = useState("");
   const [dateDepot, setDateDepot] = useState("");
   const [objet, setObjet] = useState("");
@@ -21,99 +44,171 @@ export default function CreateDAO() {
   >([]);
   const [error, setError] = useState<string | null>(null);
   const [membresOpen, setMembresOpen] = useState(false);
+  const [chefOpen, setChefOpen] = useState(false);
+  const [typeDaoOpen, setTypeDaoOpen] = useState(false);
   const membresRef = useRef<HTMLDivElement | null>(null);
   const membresButtonRef = useRef<HTMLButtonElement | null>(null);
+  const chefRef = useRef<HTMLDivElement | null>(null);
+  const chefButtonRef = useRef<HTMLButtonElement | null>(null);
+  const typeDaoRef = useRef<HTMLDivElement | null>(null);
+  const typeDaoButtonRef = useRef<HTMLButtonElement | null>(null);
   const [membresFlipUp, setMembresFlipUp] = useState(false);
+  const [chefFlipUp, setChefFlipUp] = useState(false);
+  const [typeDaoFlipUp, setTypeDaoFlipUp] = useState(false);
   const [groupement, setGroupement] = useState<string>("");
   const [nomPartenaire, setNomPartenaire] = useState("");
   const [typeDao, setTypeDao] = useState<string>("");
   const [typeDaoOptions, setTypeDaoOptions] = useState<Array<{ value: string; label: string; description: string }>>([]);
-  const [showAddTypeModal, setShowAddTypeModal] = useState(false);
-  const [newTypeCode, setNewTypeCode] = useState("");
-  const [typesExpanded, setTypesExpanded] = useState(true);
   const groupementOptions = [
     { value: "oui", label: "Oui", description: "DAO avec groupement d'entreprises" },
     { value: "non", label: "Non", description: "DAO sans groupement" }
   ];
 
-  useEffect(() => {
-    // Charger les types de DAO depuis l'API
-    loadDaoTypes();
-    
-    // Récupérer le prochain numéro DAO depuis la base de données
-    (async () => {
-      try {
-        console.log("=== DÉBOGAGE NUMÉRO DAO - DÉBUT ===");
-        console.log("AVANT appel API - generatedNumber:", generatedNumber);
-        
-        const res = await fetch("/api/dao/next-number");
-        console.log("Status API:", res.status);
-        
-        if (!res.ok) {
-          console.error("Erreur lors de la récupération du prochain numéro DAO:", await res.text());
-          // En cas d'erreur, utiliser un format par défaut
-          const year = new Date().getFullYear();
-          const num = `DAO-${year}-001`;
-          console.log("API erreur - Utilisation par défaut:", num);
-          setGeneratedNumber(num);
-          return;
-        }
-        
-        const data = await res.json();
-        console.log("Réponse API complète:", JSON.stringify(data, null, 2));
-        
-        if (data.success && data.numero) {
-          console.log("Prochain numéro DAO récupéré:", data.numero);
-          console.log("AVANT setGeneratedNumber - generatedNumber:", generatedNumber);
-          setGeneratedNumber(data.numero);
-          console.log("APRÈS setGeneratedNumber - generatedNumber:", generatedNumber);
-        } else {
-          // Si pas de numéro retourné, utiliser un format par défaut
-          const year = new Date().getFullYear();
-          const num = `DAO-${year}-001`;
-          console.log("API sans numéro - Utilisation par défaut:", num);
-          setGeneratedNumber(num);
-        }
-      } catch (error) {
-        console.error("Erreur lors de la récupération du numéro DAO:", error);
-        // En cas d'erreur, utiliser un format par défaut
-        const year = new Date().getFullYear();
-        const num = `DAO-${year}-001`;
-        console.log("Exception - Utilisation par défaut:", num);
-        setGeneratedNumber(num);
+  async function loadDaoTypes() {
+    try {
+      console.log("=== CHARGEMENT TYPES DAO - NOUVELLE API ===");
+      
+      const token = localStorage.getItem('token');
+      const res = await fetch("http://localhost:3001/api/dao/types", {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!res.ok) {
+        console.error("Erreur lors du chargement des types de DAO:", await res.text());
+        // Utiliser les données par défaut en cas d'erreur
+        const testTypes = [
+          { value: 'AAO', label: 'Appel d\'offres ouvert', description: 'Procédure de passation ouverte à tous les candidats' },
+          { value: 'AMI', label: 'Appel à manifestation d\'intérêt', description: 'Consultation préalable pour évaluer l\'intérêt du marché' },
+          { value: 'DC', label: 'Demande de concurrence', description: 'Procédure simplifiée pour les marchés de faible montant' },
+          { value: 'DP', label: 'Dialogue compétitif', description: 'Procédure complexe avec dialogue entre acheteur et candidats' }
+        ];
+        setTypeDaoOptions(testTypes);
+        return;
       }
       
-      console.log("=== DÉBOGAGE NUMÉRO DAO - FIN ===");
-    })();
+      const data = await res.json();
+      console.log("Données types DAO reçues:", data);
+      
+      // Gérer différentes structures de réponse possibles
+      let typesArray = [];
+      
+      if (data.success && data.data && data.data.types && Array.isArray(data.data.types)) {
+        typesArray = data.data.types;
+      }
+      // Si data est directement un tableau
+      else if (Array.isArray(data)) {
+        typesArray = data;
+      }
+      
+      console.log("Types array après traitement:", typesArray);
+      
+      if (typesArray.length > 0) {
+        const types = typesArray.map((type: any) => ({
+          value: type.code || type.value,
+          label: type.libelle || type.label,
+          description: type.description || ""
+        }));
+        console.log("Types transformés:", types);
+        setTypeDaoOptions(types);
+      } else {
+        // Utiliser les données par défaut si aucun type trouvé
+        console.log("Aucun type trouvé, utilisation des données par défaut");
+        const testTypes = [
+          { value: 'AAO', label: 'Appel d\'offres ouvert', description: 'Procédure de passation ouverte à tous les candidats' },
+          { value: 'AMI', label: 'Appel à manifestation d\'intérêt', description: 'Consultation préalable pour évaluer l\'intérêt du marché' },
+          { value: 'DC', label: 'Demande de concurrence', description: 'Procédure simplifiée pour les marchés de faible montant' },
+          { value: 'DP', label: 'Dialogue compétitif', description: 'Procédure complexe avec dialogue entre acheteur et candidats' }
+        ];
+        setTypeDaoOptions(testTypes);
+      }
+    } catch (err) {
+      console.error("Erreur lors du chargement des types de DAO:", err);
+      // Utiliser les données de test en cas d'erreur
+      const testTypes = [
+        { value: 'AAO', label: 'Appel d\'offres ouvert', description: 'Procédure de passation ouverte à tous les candidats' },
+        { value: 'AMI', label: 'Appel à manifestation d\'intérêt', description: 'Consultation préalable pour évaluer l\'intérêt du marché' },
+        { value: 'DC', label: 'Demande de concurrence', description: 'Procédure simplifiée pour les marchés de faible montant' },
+        { value: 'DP', label: 'Dialogue compétitif', description: 'Procédure complexe avec dialogue entre acheteur et candidats' }
+      ];
+      setTypeDaoOptions(testTypes);
+    }
+  }
 
-    // Charger utilisateurs (endpoint existant attendu : /api/users)
-    (async () => {
+  useEffect(() => {
+    // Charger les types de DAO depuis la nouvelle API
+    loadDaoTypes();
+    
+    // Charger toutes les données en parallèle
+    const loadData = async () => {
       try {
-        const res = await fetch("/api/users");
-        if (!res.ok) {
-          console.error("Erreur lors de la récupération des utilisateurs:", await res.text());
+        // Récupérer le prochain numéro DAO depuis la nouvelle API (prévisualisation)
+        (async () => {
+          try {
+            console.log("=== DÉBOGAGE NUMÉRO DAO - DÉBUT ===");
+            console.log("AVANT appel API - generatedNumber:", generatedNumber);
+            
+            const token = localStorage.getItem('token');
+            const res = await fetch("http://localhost:3001/api/dao/next-number", {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            console.log("Status API:", res.status);
+            
+            if (!res.ok) {
+              console.error("Erreur lors de la récupération du prochain numéro DAO:", await res.text());
+              // Fallback si erreur API
+              const year = new Date().getFullYear();
+              const num = `DAO-${year}-001`;
+              console.log("API erreur - Utilisation par défaut:", num);
+              setGeneratedNumber(num);
+              return;
+            }
+            
+            const data = await res.json();
+            console.log("Réponse API complète:", JSON.stringify(data, null, 2));
+            
+            if (data.success && data.numero) {
+              console.log("Prochain numéro DAO récupéré:", data.numero);
+              console.log("AVANT setGeneratedNumber - generatedNumber:", generatedNumber);
+              setGeneratedNumber(data.numero);
+              console.log("APRÈS setGeneratedNumber - generatedNumber:", generatedNumber);
+            } else {
+              // Fallback si pas de numéro retourné
+              const year = new Date().getFullYear();
+              const num = `DAO-${year}-001`;
+              console.log("API sans numéro - Utilisation par défaut:", num);
+              setGeneratedNumber(num);
+            }
+          } catch (error) {
+            console.error("Erreur lors de la récupération du numéro DAO:", error);
+            // Fallback en cas d'exception
+            const year = new Date().getFullYear();
+            const num = `DAO-${year}-001`;
+            console.log("Exception - Utilisation par défaut:", num);
+            setGeneratedNumber(num);
+          }
+          
+          console.log("=== DÉBOGAGE NUMÉRO DAO - FIN ===");
+        })();
+        
+        const [usersResponse] = await Promise.all([
+          fetch("http://localhost:3001/api/users", {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          })
+        ]);
+
+        // Traiter la réponse des utilisateurs
+        if (!usersResponse.ok) {
+          console.error("Erreur lors de la récupération des utilisateurs:", await usersResponse.text());
           return;
         }
-        const data = await res.json();
-        console.log("Données brutes de l'API:", JSON.stringify(data, null, 2));
+        
+        const usersData = await usersResponse.json();
+        console.log("Données brutes de l'API:", JSON.stringify(usersData, null, 2));
         
         // Vérifier la structure des données
-        const usersData = Array.isArray(data) ? data : (data.data || []);
-        console.log("Liste des utilisateurs (après extraction):", JSON.stringify(usersData, null, 2));
-        
-        // Afficher les clés du premier utilisateur (si disponible)
-        if (usersData.length > 0) {
-          console.log("Clés du premier utilisateur:", Object.keys(usersData[0]));
-          console.log("Valeurs du premier utilisateur:", JSON.stringify(usersData[0], null, 2));
-          
-          // Afficher les rôles disponibles
-          const roles = [...new Set(usersData.map((u: any) => ({
-            role_id: u.role_id,
-            roleName: u.roleName,
-            role: u.role                                                  
-          })))];
-          console.log("Rôles trouvés dans les données:", JSON.stringify(roles, null, 2));
-        }
+        const usersArray = Array.isArray(usersData) ? usersData : (usersData.data?.users || usersData.users || []);
+        console.log("Liste des utilisateurs (après extraction):", JSON.stringify(usersArray, null, 2));
         
         // Fonction pour obtenir le nom du rôle en fonction de l'ID
         const getRoleName = (roleId: string | number): string => {
@@ -129,158 +224,44 @@ export default function CreateDAO() {
         };
 
         console.log("=== DÉBOGAGE UTILISATEURS - DÉBUT ===");
-        console.log("Nombre total d'utilisateurs:", usersData.length);
+        console.log("Nombre total d'utilisateurs:", usersArray.length);
         
-        // Vérifier spécifiquement l'utilisateur 41
-        const user41 = usersData.find((u: any) => u.id === 41);
-        console.log("Utilisateur 41 trouvé:", user41);
-        if (user41) {
-          console.log("Détails utilisateur 41:", {
-            id: user41.id,
-            username: user41.username,
-            email: user41.email,
-            role_id: user41.role_id,
-            role: user41.role,
-            roleName: user41.roleName
-          });
-        }
-        
-        // Afficher tous les utilisateurs avec leurs rôles
-        console.log("Liste complète des utilisateurs:");
-        usersData.forEach((u: any, index: number) => {
-          console.log(`${index + 1}. ID: ${u.id}, Username: ${u.username}, Role ID: ${u.role_id}, Role: ${u.role}`);
-        });
-        
-        const membersList = usersData
+        const membersList = usersArray
           .filter((u: any) => {
             const roleId = Number(u.role_id || u.role);
-            // Exclure les rôles lecteur (5) et directeur (1)
-            const isExcluded = roleId === 1 || roleId === 5;
-            if (isExcluded) {
-              console.log(`Utilisateur exclu: ${u.username} (ID: ${u.id}, Rôle: ${roleId} - ${getRoleName(roleId)})`);
-            }
-            return !isExcluded;
-          })
-          .map((u: any) => {
-            const roleData = {
-              id: u.id,
-              username: u.username || u.email || `user-${u.id}`,
-              role: u.roleName || getRoleName(u.role_id || u.role),
-              role_id: u.role_id || u.role
-            };
-            
-            // Log spécifique pour l'utilisateur 41
-            if (u.id === 41) {
-              console.log("=== TRANSFORMATION UTILISATEUR 41 ===");
-              console.log("Données brutes:", u);
-              console.log("roleName:", u.roleName);
-              console.log("role_id:", u.role_id);
-              console.log("role:", u.role);
-              console.log("getRoleName result:", getRoleName(u.role_id || u.role));
-              console.log("Données transformées:", roleData);
-              console.log("=== FIN TRANSFORMATION UTILISATEUR 41 ===");
-            }
-            
-            return roleData;
-          });
-        
-        console.log("Liste des membres générée:", membersList);
-        console.log("=== DÉBOGAGE UTILISATEURS - FIN ===");
-        
-        setUsers(membersList);
-        
-        // Log pour vérifier après setUsers
-        setTimeout(() => {
-          console.log("=== VÉRIFICATION APRÈS SETUSERS ===");
-          console.log("State users actuel:", membersList.filter((u: any) => u.id === 41));
-          console.log("=== FIN VÉRIFICATION SETUSERS ===");
-        }, 100);
-
-        // Pour les chefs d'équipe (rôles 2 ou 3)
-        const teamLeadersList = usersData
-          .filter((u: any) => {
-            const roleId = Number(u.role_id || u.role);
-            return roleId === 2 || roleId === 3;
+            return roleId !== 1 && roleId !== 5; // Exclure Directeur et Lecteur
           })
           .map((u: any) => ({
-            id: u.id,
+            id: Number(u.id),
             username: u.username || u.email || `user-${u.id}`,
             role: getRoleName(u.role_id || u.role),
             role_id: u.role_id || u.role
           }));
+
+        const teamLeadersList = usersArray
+          .filter((u: any) => {
+            const roleId = Number(u.role_id || u.role);
+            return roleId === 2 || roleId === 3; // Admin et ChefProjet
+          })
+          .map((u: any) => ({
+            id: Number(u.id),
+            username: u.username || u.email || `user-${u.id}`,
+            role: getRoleName(u.role_id || u.role),
+            role_id: u.role_id || u.role
+          }));
+
+        console.log("Membres:", membersList);
         console.log("Chefs d'équipe:", teamLeadersList);
+        setUsers(membersList);
         setTeamLeaders(teamLeadersList);
-      } catch (err) {
-        console.error("Erreur lors du chargement des utilisateurs:", err);
-        // En cas d'erreur on laisse la liste vide
+        
+      } catch (error) {
+        console.error("Erreur lors du chargement des données:", error);
       }
-    })();
+    };
+
+    loadData();
   }, []);
-
-  async function loadDaoTypes() {
-    try {
-      console.log("Chargement des types de DAO...");
-      const res = await fetch("/api/dao-types");
-      if (!res.ok) {
-        console.error("Erreur lors de la récupération des types de DAO:", await res.text());
-        return;
-      }
-      const data = await res.json();
-      console.log("Données reçues:", data);
-      if (data.success && data.data) {
-        const types = data.data.map((type: any) => ({
-          value: type.code,
-          label: type.libelle,
-          description: type.description || ""
-        }));
-        console.log("Types transformés:", types);
-        setTypeDaoOptions(types);
-      }
-    } catch (err) {
-      console.error("Erreur lors du chargement des types de DAO:", err);
-    }
-  }
-
-  async function addNewType() {
-    try {
-      if (!newTypeCode) {
-        setError("Le code du type est requis");
-        return;
-      }
-
-      const res = await fetch("/api/dao-types", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          code: newTypeCode.toUpperCase(),
-        }),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        setError(errorData.message || "Erreur lors de la création du type");
-        return;
-      }
-
-      // Réinitialiser le formulaire
-      setNewTypeCode("");
-      setShowAddTypeModal(false);
-      setError(null);
-
-      // Recharger les types
-      await loadDaoTypes();
-      
-      // Sélectionner automatiquement le nouveau type
-      setTypeDao(newTypeCode.toUpperCase());
-      
-      alert("Type de DAO créé avec succès");
-    } catch (err) {
-      console.error("Error creating DAO type:", err);
-      setError("Erreur réseau lors de la création du type");
-    }
-  }
 
   const toggleMembre = (id: number) => {
     console.log("=== TOGGLE MEMBRE ===");
@@ -293,8 +274,13 @@ export default function CreateDAO() {
       : [...membres, String(id)];
     
     console.log("membres après:", s);
-    console.log("=== FIN TOGGLE MEMBRE ===");
     setMembres(s);
+  };
+
+  const toggleChef = (id: number) => {
+    // Pour le chef de projet, on ne peut en sélectionner qu'un seul
+    setChefEquipe(String(id));
+    setChefOpen(false);
   };
 
   // Fermer la liste des membres si clic à l'extérieur
@@ -305,6 +291,18 @@ export default function CreateDAO() {
         !membresRef.current.contains(e.target as Node)
       ) {
         setMembresOpen(false);
+      }
+      if (
+        chefRef.current &&
+        !chefRef.current.contains(e.target as Node)
+      ) {
+        setChefOpen(false);
+      }
+      if (
+        typeDaoRef.current &&
+        !typeDaoRef.current.contains(e.target as Node)
+      ) {
+        setTypeDaoOpen(false);
       }
     };
     document.addEventListener("mousedown", handler);
@@ -330,21 +328,46 @@ export default function CreateDAO() {
     setMembresOpen((v) => !v);
   };
 
+  const openChef = () => {
+    if (!chefButtonRef.current) {
+      setChefOpen((v) => !v);
+      return;
+    }
+    const rect = chefButtonRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const menuEstimatedHeight = 260;
+    if (spaceBelow < menuEstimatedHeight && spaceAbove > menuEstimatedHeight) {
+      setChefFlipUp(true);
+    } else {
+      setChefFlipUp(false);
+    }
+    setChefOpen((v) => !v);
+  };
+
+  const openTypeDao = () => {
+    if (!typeDaoButtonRef.current) {
+      setTypeDaoOpen((v) => !v);
+      return;
+    }
+    const rect = typeDaoButtonRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const menuEstimatedHeight = 260;
+    if (spaceBelow < menuEstimatedHeight && spaceAbove > menuEstimatedHeight) {
+      setTypeDaoFlipUp(true);
+    } else {
+      setTypeDaoFlipUp(false);
+    }
+    setTypeDaoOpen((v) => !v);
+  };
+
+  const toggleTypeDao = (value: string) => {
+    setTypeDao(value);
+    setTypeDaoOpen(false);
+  };
+
   const validate = () => {
-    console.log("=== DÉBUT VALIDATION ===");
-    console.log("dateDepot:", dateDepot);
-    console.log("typeDao:", typeDao);
-    console.log("objet:", objet);
-    console.log("description:", description);
-    console.log("reference:", reference);
-    console.log("autorite:", autorite);
-    console.log("chefEquipe:", chefEquipe);
-    console.log("membres:", membres);
-    console.log("membres.length:", membres.length);
-    console.log("groupement:", groupement);
-    console.log("nomPartenaire:", nomPartenaire);
-    console.log("=== FIN VALIDATION ===");
-    
     if (!dateDepot) return "La date de dépôt est requise.";
     if (!typeDao) return "Le type de DAO est requis.";
     if (!objet) return "L'objet est requis.";
@@ -373,45 +396,67 @@ export default function CreateDAO() {
       return;
     }
 
-    // Exemple de payload (le numéro sera généré côté serveur)
+    // Trouver le nom du chef de projet sélectionné
+    const selectedChef = teamLeaders.find(leader => leader.id === Number(chefEquipe));
+    const chefProjetNom = selectedChef ? selectedChef.username : '';
+
+    // Validation des champs requis
+    if (!reference.trim()) {
+      setError("La référence est requise");
+      return;
+    }
+    if (!objet.trim()) {
+      setError("L'objet est requis");
+      return;
+    }
+    if (!autorite.trim()) {
+      setError("L'autorité est requise");
+      return;
+    }
+    if (!chefEquipe) {
+      setError("Le chef de projet est requis");
+      return;
+    }
+
+    // Payload pour la nouvelle API (corrigé pour correspondre au backend)
     const payload = {
+      reference: reference.trim(),
+      objet: objet.trim(),
+      description: description.trim(),
+      autorite: autorite.trim(),
+      chef_id: Number(chefEquipe),
+      chef_projet_nom: chefProjetNom,
       date_depot: dateDepot,
-      typeDao,
-      objet,
-      description,
-      reference,
-      autorite,
-      chefEquipe,
-      membres,
-      groupement,
-      nomPartenaire: groupement === "oui" ? nomPartenaire : null,
+      type_dao: typeDao,
+      groupement: groupement,
+      nom_partenaire: groupement === "oui" ? nomPartenaire : null,
+      membres: membres,
     };
 
     console.log("=== PAYLOAD ENVOYÉ ===");
     console.log("Payload complet:", JSON.stringify(payload, null, 2));
-    console.log("membres dans payload:", membres);
-    console.log("membres.length dans payload:", membres.length);
-    console.log("=== FIN PAYLOAD ===");
 
     try {
-      const res = await fetch("/api/dao", {
+      const token = localStorage.getItem('token');
+      const response = await fetch("http://localhost:3001/api/dao", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) {
-        const errorData = await res.json();
+      if (!response.ok) {
+        const errorData = await response.json();
         setError(errorData.message || "Erreur lors de la création du DAO");
         return;
       }
 
-      const data = await res.json();
+      const data = await response.json();
       alert("DAO créé avec succès : " + data.numero);
       // Rediriger vers la liste des DAO
-      window.location.href = "/dash/admin";
+      window.location.href = "/admin";
     } catch (err) {
       console.error("Error creating DAO:", err);
       setError("Erreur réseau lors de la création du DAO");
@@ -463,58 +508,51 @@ export default function CreateDAO() {
             />
           </div>
 
-          <div>
+          <div className="relative" ref={typeDaoRef}>
             <label className="block text-sm font-medium text-slate-700 mb-2">Type de DAO *</label>
-            
-            <div className="flex items-center gap-2 mb-2">
-              <button
-                type="button"
-                className="p-1 text-slate-500 hover:bg-slate-100 rounded transition-colors"
-                onClick={() => setTypesExpanded(!typesExpanded)}
-                title={typesExpanded ? "Replier les types" : "Déplier les types"}
+            <button
+              ref={typeDaoButtonRef}
+              type="button"
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 text-left hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              onClick={openTypeDao}
+            >
+              {typeDao
+                ? typeDaoOptions.find(option => option.value === typeDao)?.value || "Type sélectionné"
+                : "Sélectionner un type de DAO..."}
+            </button>
+            {typeDaoOpen && (
+              <div
+                className="absolute z-50 w-full border border-slate-200 rounded-lg bg-white p-2 max-h-60 overflow-auto"
+                style={{
+                  ...(typeDaoFlipUp
+                    ? { bottom: "calc(100% + 8px)" }
+                    : { top: "calc(100% + 8px)" }),
+                }}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={typesExpanded ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                </svg>
-              </button>
-              <span className="text-slate-500 text-sm">Types disponibles</span>
-              <button
-                type="button"
-                className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                onClick={() => setShowAddTypeModal(true)}
-                title="Ajouter un nouveau type de DAO"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </button>
-            </div>
-            
-            {typesExpanded && (
-              <div className="border border-slate-200 rounded-lg p-3 bg-white">
+                {typeDaoOptions.length === 0 && (
+                  <div className="text-slate-500">Aucun type de DAO disponible</div>
+                )}
                 {typeDaoOptions.map((option) => (
-                  <div key={option.value} className="mb-2 last:mb-0">
-                    <label className="flex items-start gap-3 p-2 rounded hover:bg-slate-50 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="typeDao"
-                        value={option.value}
-                        checked={typeDao === option.value}
-                        onChange={() => setTypeDao(option.value)}
-                        className="mt-1 text-blue-600 focus:ring-blue-500"
-                      />
-                      <div className="flex-1">
-                        <div className="font-medium text-slate-900">
-                          {option.label}
-                        </div>
-                        <div className="text-sm text-slate-500">
-                          {option.description}
-                        </div>
-                      </div>
-                    </label>
-                  </div>
+                  <label
+                    key={option.value}
+                    className="flex items-center gap-2 p-2 rounded hover:bg-slate-50 cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      name="type-dao"
+                      checked={typeDao === option.value}
+                      onChange={() => toggleTypeDao(option.value)}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-slate-700 truncate">
+                      {option.value}
+                    </span>
+                  </label>
                 ))}
               </div>
+            )}
+            {typeDaoOptions.length === 0 && (
+              <p className="text-xs text-slate-500 mt-1">Chargement des types de DAO...</p>
             )}
           </div>
 
@@ -611,25 +649,52 @@ export default function CreateDAO() {
             />
           </div>
 
-          <div>
+          <div className="relative" ref={chefRef}>
             <label className="block text-sm font-medium text-slate-700 mb-2">Chef Projet *</label>
-            <select
-              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer"
-              value={chefEquipe}
-              onChange={(e) => setChefEquipe(e.target.value)}
-              required
+            <button
+              ref={chefButtonRef}
+              type="button"
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 text-left hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              onClick={openChef}
             >
-              <option value="">Sélectionnez un chef Projet</option>
-              {teamLeaders.length > 0 ? (
-                teamLeaders.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.username} ({user.role})
-                  </option>
-                ))
-              ) : (
-                <option disabled>Aucun chef d'équipe disponible</option>
-              )}
-            </select>
+              {chefEquipe
+                ? teamLeaders.find(leader => leader.id === Number(chefEquipe))?.username || "Chef sélectionné"
+                : "Sélectionner un chef de projet..."}
+            </button>
+            {chefOpen && (
+              <div
+                className="absolute z-50 w-full border border-slate-200 rounded-lg bg-white p-2 max-h-60 overflow-auto"
+                style={{
+                  ...(chefFlipUp
+                    ? { bottom: "calc(100% + 8px)" }
+                    : { top: "calc(100% + 8px)" }),
+                }}
+              >
+                {teamLeaders.length === 0 && (
+                  <div className="text-slate-500">Aucun chef de projet disponible</div>
+                )}
+                {teamLeaders.map((leader) => (
+                  <label
+                    key={leader.id}
+                    className="flex items-center gap-2 p-2 rounded hover:bg-slate-50 cursor-pointer"
+                  >
+                    <input
+                      type="radio"
+                      name="chef-projet"
+                      checked={chefEquipe === String(leader.id)}
+                      onChange={() => toggleChef(leader.id)}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-slate-700 truncate">
+                      {leader.username} ({leader.role})
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+            {teamLeaders.length === 0 && (
+              <p className="text-xs text-slate-500 mt-1">Chargement des chefs d'équipe...</p>
+            )}
           </div>
 
           <div className="relative" ref={membresRef}>
@@ -699,67 +764,6 @@ export default function CreateDAO() {
           </div>
         </div>
       </form>
-
-      {/* Modal pour ajouter un nouveau type de DAO */}
-      {showAddTypeModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg border border-slate-200 shadow-lg max-w-md w-full mx-4">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200">
-              <h3 className="text-lg font-medium text-slate-900">Ajouter un nouveau type de DAO</h3>
-              <button
-                type="button"
-                className="text-slate-400 hover:text-slate-600"
-                onClick={() => {
-                  setShowAddTypeModal(false);
-                  setNewTypeCode("");
-                  setError(null);
-                }}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="p-4">
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-slate-700 mb-2">Code du type de DAO *</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  value={newTypeCode}
-                  onChange={(e) => setNewTypeCode(e.target.value)}
-                  placeholder="Ex: NOUVEAU"
-                  maxLength={20}
-                  required
-                />
-                <p className="text-xs text-slate-500 mt-1">
-                  Lettres majuscules et chiffres uniquement
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 p-4 border-t border-slate-200">
-              <button
-                type="button"
-                className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium rounded-lg transition-colors"
-                onClick={() => {
-                  setShowAddTypeModal(false);
-                  setNewTypeCode("");
-                  setError(null);
-                }}
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-colors"
-                onClick={addNewType}
-              >
-                Créer le type
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       </div>
     </div>
   )

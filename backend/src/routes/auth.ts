@@ -10,6 +10,9 @@ router.post('/login', login);
 // Route pour obtenir le profil de l'utilisateur connecté
 router.get('/profile', authenticateToken, getProfile);
 
+// Route pour obtenir l'utilisateur connecté (alias de /profile)
+router.get('/me', authenticateToken, getProfile);
+
 // Route de déconnexion
 router.post('/logout', authenticateToken, logout);
 

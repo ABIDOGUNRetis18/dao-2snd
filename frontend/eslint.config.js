@@ -20,4 +20,20 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // Ignorer les fichiers CSS pour éviter les warnings @apply
+    files: ['**/*.css'],
+    languageOptions: {
+      parser: null, // Désactiver le parser pour les fichiers CSS
+    },
+    rules: {},
+  },
+  {
+    // Ignorer les fichiers dans le dossier styles
+    files: ['src/styles/**/*'],
+    languageOptions: {
+      parser: null,
+    },
+    rules: {},
+  },
 ])

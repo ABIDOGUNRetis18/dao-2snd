@@ -13,6 +13,11 @@ const database_1 = require("./utils/database");
 const auth_1 = __importDefault(require("./routes/auth"));
 const users_1 = __importDefault(require("./routes/users"));
 const dao_1 = __importDefault(require("./routes/dao"));
+const tasks_1 = __importDefault(require("./routes/tasks"));
+const myTasks_1 = __importDefault(require("./routes/myTasks"));
+const taskProgress_1 = __importDefault(require("./routes/taskProgress"));
+const notifications_1 = __importDefault(require("./routes/notifications"));
+const messages_1 = __importDefault(require("./routes/messages"));
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3001;
 // Middlewares
@@ -26,6 +31,11 @@ app.use(express_1.default.urlencoded({ extended: true }));
 app.use('/api/auth', auth_1.default);
 app.use('/api/users', users_1.default);
 app.use('/api/dao', dao_1.default);
+app.use('/api/tasks', tasks_1.default);
+app.use('/api/my-tasks', myTasks_1.default);
+app.use('/api/task-progress', taskProgress_1.default);
+app.use('/api/notifications', notifications_1.default);
+app.use('/api/messages', messages_1.default);
 // Route de test
 app.get('/api/test', (req, res) => {
     res.json({

@@ -4,7 +4,8 @@ import {
   createUserController, 
   updateUserController,
   deleteUserController,
-  getUserProfileController 
+  getUserProfileController,
+  changePasswordController
 } from '../controllers/userController';
 import { authenticateToken, requireAdminOrDirector } from '../middleware/auth';
 
@@ -17,6 +18,9 @@ router.use(authenticateToken);
 
 // Route pour obtenir le profil de l'utilisateur connecté
 router.get('/profile', getUserProfileController);
+
+// Route pour changer le mot de passe (accessible par tous les utilisateurs authentifiés)
+router.put('/change-password', changePasswordController);
 
 // Routes pour la gestion des utilisateurs - nécessitent des droits admin/directeur
 router.use(requireAdminOrDirector);

@@ -9,6 +9,8 @@ const router = (0, express_1.Router)();
 router.use(auth_1.authenticateToken);
 // Route pour obtenir le profil de l'utilisateur connecté
 router.get('/profile', userController_1.getUserProfileController);
+// Route pour changer le mot de passe (accessible par tous les utilisateurs authentifiés)
+router.put('/change-password', userController_1.changePasswordController);
 // Routes pour la gestion des utilisateurs - nécessitent des droits admin/directeur
 router.use(auth_1.requireAdminOrDirector);
 // Obtenir tous les utilisateurs

@@ -15,7 +15,27 @@ export default function Login() {
   // Rediriger si déjà authentifié
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      navigate('/admin')
+      // Rediriger selon le rôle de l'utilisateur
+      const user = JSON.parse(localStorage.getItem('user') || '{}')
+      switch (user.role_id) {
+        case 1: // Directeur Général
+          navigate('/directeur-general')
+          break
+        case 2: // Administrateur
+          navigate('/admin')
+          break
+        case 3: // Chef de Projet
+          navigate('/chef-projet')
+          break
+        case 4: // Membre d'Équipe
+          navigate('/membre-equipe')
+          break
+        case 5: // Lecteur
+          navigate('/lecteur')
+          break
+        default:
+          navigate('/admin')
+      }
     }
   }, [isLoading, isAuthenticated, navigate])
 
@@ -38,7 +58,28 @@ export default function Login() {
 
     try {
       await login(username, password)
-      navigate('/admin')
+      
+      // Rediriger selon le rôle de l'utilisateur
+      const user = JSON.parse(localStorage.getItem('user') || '{}')
+      switch (user.role_id) {
+        case 1: // Directeur Général
+          navigate('/directeur-general')
+          break
+        case 2: // Administrateur
+          navigate('/admin')
+          break
+        case 3: // Chef de Projet
+          navigate('/chef-projet')
+          break
+        case 4: // Membre d'Équipe
+          navigate('/membre-equipe')
+          break
+        case 5: // Lecteur
+          navigate('/lecteur')
+          break
+        default:
+          navigate('/admin')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue')
     } finally {

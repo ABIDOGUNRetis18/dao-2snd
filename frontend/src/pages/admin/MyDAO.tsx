@@ -1,250 +1,278 @@
-import { useState } from 'react'
-import { Search, Filter, Eye, Edit, Trash2, Calendar, User, Building2, FileText, CheckCircle, Clock, AlertCircle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 
-export default function MyDAO() {
-  const [daos] = useState([
-    {
-      id: 'DAO-2026-001',
-      reference: 'AMI-2025-SYSINFO',
-      objet: 'Développement application de gestion',
-      type: 'Normal',
-      dateDepot: '2024-03-15',
-      statut: 'En cours',
-      autorite: 'Ministère du Digital',
-      chefProjet: 'Jean Dupont',
-      description: 'Développement d\'une application web moderne pour la gestion des processus administratifs'
-    },
-    {
-      id: 'DAO-2026-002', 
-      reference: 'AMI-2025-INFRA',
-      objet: 'Infrastructure cloud sécurisée',
-      type: 'Additif',
-      dateDepot: '2024-03-20',
-      statut: 'Validé',
-      autorite: 'Direction des Systèmes',
-      chefProjet: 'Marie Martin',
-      description: 'Mise en place d\'une infrastructure cloud haute disponibilité'
-    },
-    {
-      id: 'DAO-2026-003',
-      reference: 'AMI-2025-SECUR',
-      objet: 'Audit de sécurité renforcé',
-      type: 'Normal',
-      dateDepot: '2024-03-25',
-      statut: 'En attente',
-      autorite: 'Agence Nationale de Sécurité',
-      chefProjet: 'Pierre Durand',
-      description: 'Audit complet de la sécurité des systèmes d\'information'
+interface DAO {
+  id: number
+  numero: string
+  objet: string
+  reference: string
+  date_depot: string
+  autorite: string
+  chef_projet_nom: string
+  statut: 'EN_ATTENTE' | 'EN_COURS' | 'A_RISQUE' | 'TERMINEE' | 'ARCHIVE'
+}
+
+const STATUTS = [
+  { value: '', label: 'Tous les statuts' },
+  { value: 'EN_ATTENTE', label: 'En attente' },
+  { value: 'EN_COURS',   label: 'En cours' },
+  { value: 'A_RISQUE',   label: 'À risque' },
+  { value: 'TERMINEE',   label: 'Terminée' },
+  { value: 'ARCHIVE',    label: 'Archivé' },
+]
+
+const getStatutBadge = (statut: string) => {
+  switch (statut) {
+    case 'EN_ATTENTE': return { label: 'En attente', bg: 'bg-yellow-100 text-yellow-700' }
+    case 'EN_COURS':   return { label: 'En cours',   bg: 'bg-blue-100 text-blue-700' }
+    case 'A_RISQUE':   return { label: 'À risque',   bg: 'bg-red-100 text-red-600' }
+    case 'TERMINEE':   return { label: 'Terminée',   bg: 'bg-green-100 text-green-700' }
+    case 'ARCHIVE':    return { label: 'Archivé',    bg: 'bg-gray-100 text-gray-500' }
+    default:           return { label: statut,       bg: 'bg-gray-100 text-gray-500' }
+  }
+}
+
+export default function MesDAOs() {
+  const navigate = useNavigate()
+  const [daos, setDaos] = useState<DAO[]>([])
+  const [daoTasks, setDaoTasks] = useState<{[key: number]: any[]}>({})
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [statutFilter, setStatutFilter] = useState('')
+  const [showStatutMenu, setShowStatutMenu] = useState(false)
+
+  useEffect(() => {
+    loadDaos()
+  }, [])
+
+  const loadDaos = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch('http://localhost:3001/api/dao/mes-daos', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (!response.ok) {
+        console.error('Erreur lors du chargement des DAO')
+        return
+      }
+      
+      const data = await response.json()
+      if (data.success) {
+        setDaos(data.data.daos || [])
+        // Charger les tâches pour chaque DAO
+        await loadTasksForAllDaos(data.data.daos || [])
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des DAO:', error)
+    } finally {
+      setLoading(false)
     }
-  ])
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filterStatus, setFilterStatus] = useState('Tous')
+  }
 
-  const filteredDaos = daos.filter(dao => {
-    const matchesSearch = dao.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          dao.objet.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          dao.id.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesFilter = filterStatus === 'Tous' || dao.statut === filterStatus
-    return matchesSearch && matchesFilter
+  const loadTasksForAllDaos = async (daos: DAO[]) => {
+    const token = localStorage.getItem('token')
+    const tasksData: {[key: number]: any[]} = {}
+    
+    for (const dao of daos) {
+      try {
+        const response = await fetch(`http://localhost:3001/api/dao/${dao.id}/tasks`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          tasksData[dao.id] = data.data.tasks || []
+        }
+      } catch (error) {
+        console.error(`Erreur lors du chargement des tâches pour DAO ${dao.id}:`, error)
+        tasksData[dao.id] = []
+      }
+    }
+    
+    setDaoTasks(tasksData)
+  }
+
+  // Fonction getDAOStatus - Logique basée sur la progression des tâches
+  const getDAOStatus = (dao: DAO) => {
+    const tasks = daoTasks[dao.id] || [];
+    
+    // Si pas de tâches assignées, le DAO ne peut pas être terminé
+    if (tasks.length === 0) {
+      // Logique basée sur la date de dépôt pour les DAO sans tâches
+      if (!dao.date_depot) {
+        return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
+      }
+      
+      const dateDepot = new Date(dao.date_depot);
+      const today = new Date();
+      const diffDays = Math.floor((dateDepot.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (diffDays >= 4) {
+        return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
+      }
+      
+      if (diffDays <= 3) {
+        return { label: "À risque", className: "px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800" };
+      }
+      
+      return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
+    }
+    
+    // Calculer la progression globale basée sur les tâches
+    const completedTasks = tasks.filter(task => task.statut === 'termine').length;
+    const globalProgress = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+    
+    // Logique basée sur la progression des tâches
+    if (globalProgress === 100) {
+      return { label: "Terminée", className: "px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800" };
+    }
+    
+    // Si progression < 100%, utiliser la logique de date pour déterminer "En cours" vs "À risque"
+    if (!dao.date_depot) {
+      return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
+    }
+    
+    const dateDepot = new Date(dao.date_depot);
+    const today = new Date();
+    const diffDays = Math.floor((dateDepot.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (diffDays >= 4) {
+      return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
+    }
+    
+    if (diffDays <= 3) {
+      return { label: "À risque", className: "px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800" };
+    }
+    
+    return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
+  }
+
+  const filtered = daos.filter(dao => {
+    const q = search.toLowerCase()
+    const matchSearch =
+      dao.numero?.toLowerCase().includes(q) ||
+      dao.objet?.toLowerCase().includes(q) ||
+      dao.chef_projet_nom?.toLowerCase().includes(q) ||
+      dao.autorite?.toLowerCase().includes(q)
+    const matchStatut = statutFilter === '' || dao.statut === statutFilter
+    return matchSearch && matchStatut
   })
 
-  const getStatutColor = (statut: string) => {
-    switch (statut) {
-      case 'Validé': return 'bg-green-100 text-green-800 border-green-200'
-      case 'En cours': return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'En attente': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      case 'Rejeté': return 'bg-red-100 text-red-800 border-red-200'
-      default: return 'bg-gray-100 text-gray-800 border-gray-200'
-    }
-  }
-
-  const getStatutIcon = (statut: string) => {
-    switch (statut) {
-      case 'Validé': return <CheckCircle className="h-4 w-4" />
-      case 'En cours': return <Clock className="h-4 w-4" />
-      case 'En attente': return <AlertCircle className="h-4 w-4" />
-      case 'Rejeté': return <AlertCircle className="h-4 w-4" />
-      default: return <Clock className="h-4 w-4" />
-    }
-  }
+  const activeStatutLabel = STATUTS.find(s => s.value === statutFilter)?.label || 'Tous les statuts'
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-800">Mes DAO</h1>
-          <p className="text-slate-500 text-sm">Gérez vos dossiers d'appel d'offres</p>
-        </div>
-      </div>
+    <div className="min-h-screen bg-slate-100 font-sans">
+      <div className="max-w-5xl mx-auto px-4 pt-6 space-y-4">
 
-      {/* Filtres et recherche */}
-      <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          {/* Recherche */}
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Rechercher par référence, objet ou numéro..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
+        {/* ── HEADER CARD ── */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-6 py-4 flex items-center gap-4">
+          <h1 className="text-lg font-bold text-slate-800 flex-shrink-0">Mes DAO</h1>
+
+          <div className="flex-1" />
+
+          {/* Search */}
+          <input
+            type="text"
+            placeholder="Rechercher (n°, objet, équipe...)"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-72 px-4 py-2 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition"
+          />
+
+          {/* Statut filter */}
+          <div className="relative">
+            <button
+              onClick={() => setShowStatutMenu(v => !v)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors flex items-center gap-2 whitespace-nowrap"
+            >
+              {activeStatutLabel}
+              <svg className="h-3.5 w-3.5 opacity-70" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd"/>
+              </svg>
+            </button>
+
+            {showStatutMenu && (
+              <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-lg border border-slate-100 py-1 z-20">
+                {STATUTS.map(s => (
+                  <button
+                    key={s.value}
+                    onClick={() => { setStatutFilter(s.value); setShowStatutMenu(false) }}
+                    className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-slate-50 ${
+                      statutFilter === s.value ? 'text-blue-600 font-semibold' : 'text-slate-700'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-
-          {/* Filtre statut */}
-          <div className="w-full md:w-48">
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer"
-              >
-                <option value="Tous">Tous les statuts</option>
-                <option value="Validé">Validé</option>
-                <option value="En cours">En cours</option>
-                <option value="En attente">En attente</option>
-                <option value="Rejeté">Rejeté</option>
-              </select>
-            </div>
-          </div>
         </div>
-      </div>
 
-      {/* Tableau des DAO */}
-      <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Numéro
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Référence
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Objet
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Statut
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Autorité
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Chef projet
-                </th>
-                <th className="px-6 py-4 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-slate-200">
-              {filteredDaos.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center">
-                      <FileText className="h-12 w-12 text-slate-400 mb-4" />
-                      <h3 className="text-sm font-medium text-slate-900 mb-1">Aucun DAO trouvé</h3>
-                      <p className="text-sm text-slate-500 mb-4">
-                        {searchTerm || filterStatus !== 'Tous' 
-                          ? 'Essayez de modifier vos filtres de recherche' 
-                          : 'Aucun DAO disponible pour le moment'}
+        {/* ── HINT ── */}
+        <p className="text-xs text-slate-400 px-1">Cliquer sur une carte pour ouvrir le détail</p>
+
+        {/* ── DAO CARDS ── */}
+        {loading ? (
+          <div className="text-center py-16 text-sm text-slate-400">Chargement...</div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-16 text-sm text-slate-400">
+            {search || statutFilter ? 'Aucun DAO ne correspond à votre recherche.' : 'Aucun DAO trouvé.'}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map(dao => {
+              const badge = getDAOStatus(dao)
+              return (
+                <div
+                  key={dao.id}
+                  onClick={() => navigate(`/admin/dao/${dao.id}/tasks`)}
+                  className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 cursor-pointer hover:shadow-md hover:border-blue-100 transition-all"
+                >
+                  {/* Top row */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h2 className="text-lg font-bold text-slate-800">N° {dao.numero}</h2>
+                      <p className="text-sm text-slate-400 mt-0.5">
+                        {dao.objet}{dao.reference ? ` - ${dao.reference}` : ''}
                       </p>
                     </div>
-                  </td>
-                </tr>
-              ) : (
-                filteredDaos.map((dao) => (
-                  <tr key={dao.id} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-slate-900">
-                        {dao.id}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-slate-700">
-                        {dao.reference}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-slate-700 max-w-xs truncate" title={dao.objet}>
-                        {dao.objet}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        dao.type === 'Normal' 
-                          ? 'bg-blue-100 text-blue-800' 
-                          : 'bg-purple-100 text-purple-800'
-                      }`}>
-                        {dao.type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center text-sm text-slate-600">
-                        <Calendar className="h-4 w-4 mr-2 text-slate-400" />
-                        {new Date(dao.dateDepot).toLocaleDateString('fr-FR')}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatutColor(dao.statut)}`}>
-                        {getStatutIcon(dao.statut)}
-                        <span className="ml-1">{dao.statut}</span>
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center text-sm text-slate-600">
-                        <Building2 className="h-4 w-4 mr-2 text-slate-400" />
-                        {dao.autorite}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center text-sm text-slate-600">
-                        <User className="h-4 w-4 mr-2 text-slate-400" />
-                        {dao.chefProjet}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Voir les détails"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        <button
-                          className="p-2 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
-                          title="Modifier"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Supprimer"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                    <span className={badge.className}>
+                      {badge.label}
+                    </span>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="border-t border-slate-50 my-3" />
+
+                  {/* Bottom row */}
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">Date dépôt</span>
+                    <span className="font-semibold text-slate-700">
+                      {dao.date_depot
+                        ? new Date(dao.date_depot).toLocaleDateString('fr-FR')
+                        : '—'}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-sm text-slate-500">
+                    Chef: <span className="text-slate-700 font-medium">{dao.chef_projet_nom || '—'}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
+
+      {/* Close dropdown on outside click */}
+      {showStatutMenu && (
+        <div className="fixed inset-0 z-10" onClick={() => setShowStatutMenu(false)} />
+      )}
     </div>
   )
 }
