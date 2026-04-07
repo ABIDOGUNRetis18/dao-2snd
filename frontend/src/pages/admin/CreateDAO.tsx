@@ -66,7 +66,6 @@ export default function CreateDAO() {
 
   async function loadDaoTypes() {
     try {
-      console.log("=== CHARGEMENT TYPES DAO - NOUVELLE API ===");
       
       const token = localStorage.getItem('token');
       const res = await fetch("http://localhost:3001/api/dao/types", {
@@ -87,7 +86,6 @@ export default function CreateDAO() {
       }
       
       const data = await res.json();
-      console.log("Données types DAO reçues:", data);
       
       // Gérer différentes structures de réponse possibles
       let typesArray = [];
@@ -100,7 +98,6 @@ export default function CreateDAO() {
         typesArray = data;
       }
       
-      console.log("Types array après traitement:", typesArray);
       
       if (typesArray.length > 0) {
         const types = typesArray.map((type: any) => ({
@@ -108,11 +105,9 @@ export default function CreateDAO() {
           label: type.libelle || type.label,
           description: type.description || ""
         }));
-        console.log("Types transformés:", types);
         setTypeDaoOptions(types);
       } else {
         // Utiliser les données par défaut si aucun type trouvé
-        console.log("Aucun type trouvé, utilisation des données par défaut");
         const testTypes = [
           { value: 'AAO', label: 'Appel d\'offres ouvert', description: 'Procédure de passation ouverte à tous les candidats' },
           { value: 'AMI', label: 'Appel à manifestation d\'intérêt', description: 'Consultation préalable pour évaluer l\'intérêt du marché' },
@@ -144,39 +139,30 @@ export default function CreateDAO() {
         // Récupérer le prochain numéro DAO depuis la nouvelle API (prévisualisation)
         (async () => {
           try {
-            console.log("=== DÉBOGAGE NUMÉRO DAO - DÉBUT ===");
-            console.log("AVANT appel API - generatedNumber:", generatedNumber);
             
             const token = localStorage.getItem('token');
             const res = await fetch("http://localhost:3001/api/dao/next-number", {
               headers: { 'Authorization': `Bearer ${token}` }
             });
             
-            console.log("Status API:", res.status);
             
             if (!res.ok) {
               console.error("Erreur lors de la récupération du prochain numéro DAO:", await res.text());
               // Fallback si erreur API
               const year = new Date().getFullYear();
               const num = `DAO-${year}-001`;
-              console.log("API erreur - Utilisation par défaut:", num);
               setGeneratedNumber(num);
               return;
             }
             
             const data = await res.json();
-            console.log("Réponse API complète:", JSON.stringify(data, null, 2));
             
             if (data.success && data.numero) {
-              console.log("Prochain numéro DAO récupéré:", data.numero);
-              console.log("AVANT setGeneratedNumber - generatedNumber:", generatedNumber);
               setGeneratedNumber(data.numero);
-              console.log("APRÈS setGeneratedNumber - generatedNumber:", generatedNumber);
             } else {
               // Fallback si pas de numéro retourné
               const year = new Date().getFullYear();
               const num = `DAO-${year}-001`;
-              console.log("API sans numéro - Utilisation par défaut:", num);
               setGeneratedNumber(num);
             }
           } catch (error) {
@@ -184,11 +170,9 @@ export default function CreateDAO() {
             // Fallback en cas d'exception
             const year = new Date().getFullYear();
             const num = `DAO-${year}-001`;
-            console.log("Exception - Utilisation par défaut:", num);
             setGeneratedNumber(num);
           }
           
-          console.log("=== DÉBOGAGE NUMÉRO DAO - FIN ===");
         })();
         
         const [usersResponse] = await Promise.all([
@@ -204,11 +188,9 @@ export default function CreateDAO() {
         }
         
         const usersData = await usersResponse.json();
-        console.log("Données brutes de l'API:", JSON.stringify(usersData, null, 2));
         
         // Vérifier la structure des données
         const usersArray = Array.isArray(usersData) ? usersData : (usersData.data?.users || usersData.users || []);
-        console.log("Liste des utilisateurs (après extraction):", JSON.stringify(usersArray, null, 2));
         
         // Fonction pour obtenir le nom du rôle en fonction de l'ID
         const getRoleName = (roleId: string | number): string => {
@@ -223,8 +205,6 @@ export default function CreateDAO() {
           }
         };
 
-        console.log("=== DÉBOGAGE UTILISATEURS - DÉBUT ===");
-        console.log("Nombre total d'utilisateurs:", usersArray.length);
         
         const membersList = usersArray
           .filter((u: any) => {
@@ -250,8 +230,6 @@ export default function CreateDAO() {
             role_id: u.role_id || u.role
           }));
 
-        console.log("Membres:", membersList);
-        console.log("Chefs d'équipe:", teamLeadersList);
         setUsers(membersList);
         setTeamLeaders(teamLeadersList);
         
@@ -264,16 +242,11 @@ export default function CreateDAO() {
   }, []);
 
   const toggleMembre = (id: number) => {
-    console.log("=== TOGGLE MEMBRE ===");
-    console.log("ID cliqué:", id);
-    console.log("membres avant:", membres);
-    console.log("membres.includes(String(id)):", membres.includes(String(id)));
     
     const s = membres.includes(String(id))
       ? membres.filter((m) => m !== String(id))
       : [...membres, String(id)];
     
-    console.log("membres après:", s);
     setMembres(s);
   };
 
@@ -433,8 +406,6 @@ export default function CreateDAO() {
       membres: membres,
     };
 
-    console.log("=== PAYLOAD ENVOYÉ ===");
-    console.log("Payload complet:", JSON.stringify(payload, null, 2));
 
     try {
       const token = localStorage.getItem('token');

@@ -584,31 +584,32 @@ export async function createDao(req: Request, res: Response) {
     
     const {
       date_depot,
-      typeDao,
+      type_dao,
       objet,
       description,
       reference,
       autorite,
-      chefEquipe,
+      chef_id,
+      chef_projet_nom,
       membres,
       groupement,
-      nomPartenaire
+      nom_partenaire
     } = req.body;
 
     // Validation complète des données
     const validationErrors = [];
     
     if (!date_depot) validationErrors.push("La date de dépôt est requise.");
-    if (!typeDao) validationErrors.push("Le type de DAO est requis.");
+    if (!type_dao) validationErrors.push("Le type de DAO est requis.");
     if (!objet) validationErrors.push("L'objet est requis.");
     if (!description || description.trim().length < 5) validationErrors.push("La description doit contenir au moins 5 caractères.");
     if (!reference) validationErrors.push("La référence est requise.");
     if (!autorite) validationErrors.push("L'autorité contractante est requise.");
-    if (!chefEquipe) validationErrors.push("Le chef d'équipe doit être assigné.");
+    if (!chef_id) validationErrors.push("Le chef d'équipe doit être assigné.");
     if (!membres || membres.length === 0) validationErrors.push("Au moins un membre d'équipe doit être sélectionné.");
     
     // Validation dynamique du groupement
-    if (groupement === "oui" && (!nomPartenaire || !nomPartenaire.trim())) {
+    if (groupement === "oui" && (!nom_partenaire || !nom_partenaire.trim())) {
       validationErrors.push("Le nom de l'entreprise partenaire est requis lorsque le groupement est sélectionné.");
     }
     
@@ -666,11 +667,11 @@ export async function createDao(req: Request, res: Response) {
       reference,
       autorite,
       'EN_COURS',              // Statut initial
-      Number(chefEquipe),
+      Number(chef_id),
       teamId,
       groupement || null,
-      groupement === "oui" ? nomPartenaire : null,
-      typeDao || null,
+      groupement === "oui" ? nom_partenaire : null,
+      type_dao || null,
     ]);
 
     const createdDao = daoResult.rows[0];
@@ -716,7 +717,7 @@ export async function createDao(req: Request, res: Response) {
     // 6. Récupération des informations du chef de projet pour notification
     const chefResult = await query(
       `SELECT username, email FROM users WHERE id = $1`,
-      [Number(chefEquipe)]
+      [Number(chef_id)]
     );
 
     const chefInfo = chefResult.rows[0];
