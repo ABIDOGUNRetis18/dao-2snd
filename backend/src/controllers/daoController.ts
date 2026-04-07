@@ -584,31 +584,32 @@ export async function createDao(req: Request, res: Response) {
     
     const {
       date_depot,
-      typeDao,
+      type_dao,
       objet,
       description,
       reference,
       autorite,
-      chefEquipe,
+      chef_id,
+      chef_projet_nom,
       membres,
       groupement,
-      nomPartenaire
+      nom_partenaire
     } = req.body;
 
     // Validation complète des données
     const validationErrors = [];
     
     if (!date_depot) validationErrors.push("La date de dépôt est requise.");
-    if (!typeDao) validationErrors.push("Le type de DAO est requis.");
+    if (!type_dao) validationErrors.push("Le type de DAO est requis.");
     if (!objet) validationErrors.push("L'objet est requis.");
     if (!description || description.trim().length < 5) validationErrors.push("La description doit contenir au moins 5 caractères.");
     if (!reference) validationErrors.push("La référence est requise.");
     if (!autorite) validationErrors.push("L'autorité contractante est requise.");
-    if (!chefEquipe) validationErrors.push("Le chef d'équipe doit être assigné.");
+    if (!chef_id) validationErrors.push("Le chef d'équipe doit être assigné.");
     if (!membres || membres.length === 0) validationErrors.push("Au moins un membre d'équipe doit être sélectionné.");
     
     // Validation dynamique du groupement
-    if (groupement === "oui" && (!nomPartenaire || !nomPartenaire.trim())) {
+    if (groupement === "oui" && (!nom_partenaire || !nom_partenaire.trim())) {
       validationErrors.push("Le nom de l'entreprise partenaire est requis lorsque le groupement est sélectionné.");
     }
     
@@ -619,19 +620,9 @@ export async function createDao(req: Request, res: Response) {
       });
     }
 
-    console.log('✅ Validation passée');
+    console.log('Validation passée');
 
-    // 1. Création de l'équipe
-    const teamId = `TEAM-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const teamCode = `TEAM-${Date.now()}`;
-    
-    await query(
-      "INSERT INTO teams (id, team_code) VALUES ($1, $2)",
-      [teamId, teamCode]
-    );
-    console.log('✅ Équipe créée:', teamId);
-
-    // 2. Génération atomique du numéro DAO (réelle)
+    // 1. Génération atomique du numéro DAO
     const year = new Date().getFullYear();
     console.log("=== GÉNÉRATION ATOMIQUE DU NUMÉRO DAO - DÉBUT ===");
     
@@ -649,13 +640,12 @@ export async function createDao(req: Request, res: Response) {
     console.log("Année:", year);
     console.log("Séquence atomique:", nextSeq);
     console.log("Numéro généré (réel):", generatedNumero);
-    console.log("=== GÉNÉRATION ATOMIQUE DU NUMÉRO DAO - TERMINÉ ===");
 
-    // 3. Insertion du DAO
+    // 2. Insertion du DAO
     const daoResult = await query(`
       INSERT INTO daos (
         numero, date_depot, objet, description, reference, autorite, 
-        statut, chef_id, team_id, groupement, nom_partenaire, type_dao, created_at
+        statut, chef_id, chef_projet_nom, groupement, nom_partenaire, type_dao, created_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP)
       RETURNING *
     `, [
@@ -665,27 +655,26 @@ export async function createDao(req: Request, res: Response) {
       description,
       reference,
       autorite,
-      'EN_COURS',              // Statut initial
-      Number(chefEquipe),
-      teamId,
+      'actif',                 // Statut initial
+      Number(chef_id),
+      chef_projet_nom,
       groupement || null,
-      groupement === "oui" ? nomPartenaire : null,
-      typeDao || null,
+      groupement === "oui" ? nom_partenaire : null,
+      type_dao || null,
     ]);
 
     const createdDao = daoResult.rows[0];
-    console.log('✅ DAO inséré:', createdDao.numero);
 
-    // 4. Ajout des membres à l'équipe
+    // 3. Ajout des membres à l'équipe DAO
     for (const memberId of membres) {
       await query(
-        "INSERT INTO team_members (team_id, user_id) VALUES ($1, $2)",
-        [teamId, Number(memberId)]
+        "INSERT INTO dao_members (dao_id, user_id, assigned_by) VALUES ($1, $2, $3)",
+        [createdDao.id, Number(memberId), Number(chef_id)]
       );
     }
-    console.log('✅ Membres ajoutés à l\'équipe:', membres.length);
+    console.log('Membres ajoutés à l\'équipe DAO:', membres.length);
 
-    // 5. Création des tâches par défaut (15 tâches)
+    // 4. Création des tâches par défaut (15 tâches)
     const defaultTasks = [
       'Résumé sommaire DAO et Création du drive',
       'Demande de caution et garanties',
@@ -706,27 +695,27 @@ export async function createDao(req: Request, res: Response) {
 
     for (const taskName of defaultTasks) {
       await query(
-        `INSERT INTO task (dao_id, nom, statut, progress) 
+        `INSERT INTO tasks (dao_id, titre, statut, progress) 
          VALUES ($1, $2, 'a_faire', 0)`,
         [createdDao.id, taskName]
       );
     }
-    console.log('✅ Tâches par défaut créées:', defaultTasks.length);
+    console.log('Tâches par défaut créées:', defaultTasks.length);
 
-    // 6. Récupération des informations du chef de projet pour notification
+    // 5. Récupération des informations du chef de projet pour notification
     const chefResult = await query(
       `SELECT username, email FROM users WHERE id = $1`,
-      [Number(chefEquipe)]
+      [Number(chef_id)]
     );
 
     const chefInfo = chefResult.rows[0];
     if (chefInfo) {
-      console.log('✅ Chef de projet identifié:', chefInfo.username);
+      console.log('Chef de projet identifié:', chefInfo.username);
       // TODO: Implémenter l'envoi d'email
       // await sendDaoCreationEmail(objet, chefInfo.username, chefInfo.email);
     }
 
-    // 7. Retourner la réponse complète
+    // 6. Retourner la réponse complète
     res.status(201).json({
       success: true,
       message: 'DAO créé avec succès',
@@ -735,19 +724,15 @@ export async function createDao(req: Request, res: Response) {
           ...createdDao,
           numero: generatedNumero
         },
-        team: {
-          id: teamId,
-          code: teamCode,
-          membres: membres
-        },
+        membres: membres,
         chef: chefInfo
       }
     });
 
-    console.log('🎉 DAO créé avec succès - Numéro:', generatedNumero);
+    console.log('DAO créé avec succès - Numéro:', generatedNumero);
 
   } catch (error) {
-    console.error('❌ Erreur lors de la création du DAO:', error);
+    console.error('Erreur lors de la création du DAO:', error);
     res.status(500).json({
       success: false,
       message: 'Erreur serveur lors de la création du DAO'
