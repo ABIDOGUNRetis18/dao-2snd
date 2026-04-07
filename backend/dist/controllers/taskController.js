@@ -1,0 +1,302 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getTasksByDao = getTasksByDao;
+exports.createTask = createTask;
+exports.assignTask = assignTask;
+exports.updateTask = updateTask;
+exports.deleteTask = deleteTask;
+exports.getMyTasks = getMyTasks;
+exports.updateTaskStatus = updateTaskStatus;
+exports.updateTaskProgress = updateTaskProgress;
+const database_1 = require("../utils/database");
+async function getTasksByDao(req, res) {
+    try {
+        const { id } = req.params;
+        // Récupérer les tâches pour un DAO spécifique depuis la table task avec le nom des utilisateurs assignés
+        const result = await (0, database_1.query)(`
+      SELECT 
+        t.id,
+        t.nom as titre,
+        t.progress,
+        t.statut,
+        t.assigned_to,
+        u.username as assigned_username,
+        u.email as assigned_email,
+        CURRENT_TIMESTAMP as created_at,
+        CURRENT_TIMESTAMP as updated_at
+      FROM task t
+      LEFT JOIN users u ON t.assigned_to = u.id
+      WHERE t.dao_id = $1
+      ORDER BY t.id ASC
+    `, [id]);
+        // Formatter les données pour correspondre à l'interface attendue
+        const tasks = result.rows.map((task, index) => ({
+            id: task.id,
+            id_task: task.id,
+            nom: task.titre,
+            progress: task.progress || 0,
+            statut: task.statut,
+            assigned_to: task.assigned_to,
+            assigned_username: task.assigned_username,
+            assigned_email: task.assigned_email,
+            created_at: task.created_at,
+            updated_at: task.updated_at
+        }));
+        res.status(200).json({
+            success: true,
+            data: {
+                tasks
+            }
+        });
+    }
+    catch (error) {
+        console.error('Erreur lors de la récupération des tâches:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur serveur lors de la récupération des tâches'
+        });
+    }
+}
+async function createTask(req, res) {
+    try {
+        const { nom, titre } = req.body;
+        const { id: daoId } = req.params;
+        // Accepter nom ou titre
+        const taskTitle = titre || nom;
+        // Validation des entrées
+        if (!taskTitle || !daoId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Le titre de la tâche et l\'ID du DAO sont requis'
+            });
+        }
+        const result = await (0, database_1.query)(`
+      INSERT INTO task (nom, dao_id)
+      VALUES ($1, $2)
+      RETURNING id, nom, dao_id
+    `, [taskTitle, daoId]);
+        res.status(201).json({
+            success: true,
+            message: 'Tâche créée avec succès',
+            data: {
+                task: result.rows[0]
+            }
+        });
+    }
+    catch (error) {
+        console.error('Erreur lors de la création de la tâche:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur serveur lors de la création de la tâche'
+        });
+    }
+}
+async function assignTask(req, res) {
+    try {
+        const { taskId } = req.params;
+        const { assigned_to } = req.body;
+        // Mettre à jour l'assignation dans la table task
+        const result = await (0, database_1.query)(`
+      UPDATE task 
+      SET assigned_to = $1
+      WHERE id = $2
+      RETURNING *
+    `, [assigned_to, taskId]);
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Tâche non trouvée'
+            });
+        }
+        res.status(200).json({
+            success: true,
+            message: 'Tâche assignée avec succès',
+            data: {
+                task: result.rows[0]
+            }
+        });
+    }
+    catch (error) {
+        console.error('Erreur lors de l\'assignation de la tâche:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur serveur lors de l\'assignation de la tâche'
+        });
+    }
+}
+async function updateTask(req, res) {
+    try {
+        const { id } = req.params;
+        const { titre, description, statut, priorite, date_echeance, assigned_to, progress } = req.body;
+        const result = await (0, database_1.query)(`
+      UPDATE tasks 
+      SET titre = $1,
+          description = $2,
+          statut = $3,
+          priorite = $4,
+          date_echeance = $5,
+          assigned_to = $6,
+          progress = $7,
+          updated_at = NOW()
+      WHERE id = $8
+      RETURNING *
+    `, [titre, description, statut, priorite, date_echeance, assigned_to, progress, id]);
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Tâche non trouvée'
+            });
+        }
+        res.status(200).json({
+            success: true,
+            message: 'Tâche mise à jour avec succès',
+            data: {
+                task: result.rows[0]
+            }
+        });
+    }
+    catch (error) {
+        console.error('Erreur lors de la mise à jour de la tâche:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur serveur lors de la mise à jour de la tâche'
+        });
+    }
+}
+async function deleteTask(req, res) {
+    try {
+        const { id } = req.params;
+        const result = await (0, database_1.query)('DELETE FROM task WHERE id = $1 RETURNING id, nom', [id]);
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Tâche non trouvée'
+            });
+        }
+        res.status(200).json({
+            success: true,
+            message: 'Tâche supprimée avec succès',
+            data: {
+                deletedTask: result.rows[0]
+            }
+        });
+    }
+    catch (error) {
+        console.error('Erreur lors de la suppression de la tâche:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur serveur lors de la suppression de la tâche'
+        });
+    }
+}
+async function getMyTasks(req, res) {
+    try {
+        const userId = req.user?.userId;
+        const result = await (0, database_1.query)(`
+      SELECT 
+        t.id,
+        t.id_task,
+        t.nom,
+        t.dao_id,
+        d.numero as dao_numero,
+        d.objet as dao_objet,
+        t.statut,
+        t.progress,
+        t.assigned_to,
+        u.username as assigned_username,
+        u.email as assigned_email,
+        d.chef_projet_nom,
+        t.created_at,
+        t.updated_at,
+        NULL as priority, // La table task n'a pas de colonne priority
+        NULL as due_date   // La table task n'a pas de colonne due_date
+      FROM task t
+      JOIN daos d ON t.dao_id = d.id
+      LEFT JOIN users u ON t.assigned_to = u.id
+      WHERE t.assigned_to = $1
+      ORDER BY t.created_at DESC
+    `, [userId]);
+        res.status(200).json({
+            success: true,
+            data: {
+                tasks: result.rows
+            }
+        });
+    }
+    catch (error) {
+        console.error('Erreur lors de la récupération des tâches de l\'utilisateur:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur serveur lors de la récupération des tâches de l\'utilisateur'
+        });
+    }
+}
+async function updateTaskStatus(req, res) {
+    try {
+        const { id } = req.params;
+        const { statut } = req.body;
+        // Calculer le progress en fonction du statut
+        let progress = 0;
+        if (statut === 'termine')
+            progress = 100;
+        else if (statut === 'en_cours')
+            progress = 50;
+        else if (statut === 'a_faire')
+            progress = 0;
+        const result = await (0, database_1.query)('UPDATE task SET statut = $1, progress = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *', [statut, progress, id]);
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Tâche non trouvée'
+            });
+        }
+        res.status(200).json({
+            success: true,
+            message: 'Statut de la tâche mis à jour avec succès',
+            data: {
+                task: result.rows[0]
+            }
+        });
+    }
+    catch (error) {
+        console.error('Erreur lors de la mise à jour du statut de la tâche:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur serveur lors de la mise à jour du statut de la tâche'
+        });
+    }
+}
+async function updateTaskProgress(req, res) {
+    try {
+        const { id } = req.params;
+        const { progress } = req.body;
+        // Calculer le statut en fonction du progress
+        let statut = 'a_faire';
+        if (progress === 100)
+            statut = 'termine';
+        else if (progress > 0)
+            statut = 'en_cours';
+        const result = await (0, database_1.query)('UPDATE task SET progress = $1, statut = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *', [progress, statut, id]);
+        if (result.rowCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Tâche non trouvée'
+            });
+        }
+        res.status(200).json({
+            success: true,
+            message: 'Progression de la tâche mise à jour avec succès',
+            data: {
+                task: result.rows[0]
+            }
+        });
+    }
+    catch (error) {
+        console.error('Erreur lors de la mise à jour de la progression de la tâche:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur serveur lors de la mise à jour de la progression de la tâche'
+        });
+    }
+}
+//# sourceMappingURL=taskController.js.map
