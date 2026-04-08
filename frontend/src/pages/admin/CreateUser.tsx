@@ -47,10 +47,13 @@ export default function CreateUser() {
 
   // Charger les utilisateurs au montage du composant
   useEffect(() => {
+    if (!token) return
     fetchUsers()
-  }, [])
+  }, [token])
 
   const fetchUsers = async () => {
+    if (!token) return
+
     try {
       const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USERS}`, {
         headers: {
@@ -62,6 +65,10 @@ export default function CreateUser() {
         const data = await response.json()
         setUsers(data.data.users || [])
       } else {
+        if (response.status === 401) {
+          setError('Session expirée. Veuillez vous reconnecter.')
+          return
+        }
         console.error('Erreur lors de la récupération des utilisateurs')
       }
     } catch (error) {
@@ -112,7 +119,7 @@ export default function CreateUser() {
     setFormData({
       username: user.username,
       email: user.email,
-      password: '', // Ne pas pré-remplir le mot de passe
+      password: '',
       role_id: user.role_id
     })
     setShowEditForm(true)
@@ -141,11 +148,6 @@ export default function CreateUser() {
         username: formData.username,
         email: formData.email,
         role_id: parseInt(formData.role_id.toString())
-      }
-
-      // Ajouter le mot de passe seulement s'il est fourni
-      if (formData.password) {
-        payload.password = formData.password
       }
 
       const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.USERS}/${editingUser.id}`, {
@@ -186,13 +188,8 @@ export default function CreateUser() {
     setSuccess('')
 
     // Validation
-    if (!formData.username || !formData.email || !formData.password) {
-      setError('Tous les champs sont requis')
-      return
-    }
-
-    if (formData.password.length < 6) {
-      setError('Le mot de passe doit contenir au moins 6 caractères')
+    if (!formData.username || !formData.email) {
+      setError('Le nom d\'utilisateur et l\'email sont requis')
       return
     }
 
@@ -200,7 +197,8 @@ export default function CreateUser() {
 
     try {
       const payload = {
-        ...formData,
+        username: formData.username,
+        email: formData.email,
         role_id: parseInt(formData.role_id.toString())
       }
 
@@ -216,7 +214,7 @@ export default function CreateUser() {
       const data = await response.json()
 
       if (response.ok) {
-        setSuccess('Utilisateur créé avec succès !')
+        setSuccess(data.message || 'Utilisateur créé avec succès !')
         setFormData({
           username: '',
           email: '',
@@ -333,20 +331,6 @@ export default function CreateUser() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Mot de passe *
-                </label>
-                <input
-                  type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Min 6 caractères"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
                   Rôle *
                 </label>
                 <select
@@ -364,6 +348,9 @@ export default function CreateUser() {
                 </select>
               </div>
             </div>
+            <p className="text-xs text-slate-500">
+              Un mot de passe temporaire sera généré automatiquement et envoyé par email à l'utilisateur.
+            </p>
             <div className="flex gap-3 justify-end">
               <button
                 type="button"

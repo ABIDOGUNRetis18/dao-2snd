@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import AdminLayout from '../layouts/AdminLayout'
-import ChefProjetLayout from '../layouts/ChefProjetLayout'
 
 interface User {
   id: number
@@ -18,7 +16,6 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
   const navigate = useNavigate()
   const location = useLocation()
   const [loading, setLoading] = useState(true)
-  const [checked, setChecked] = useState(false)
 
   useEffect(() => {
     const checkUserRoleAndRedirect = async () => {
@@ -45,8 +42,8 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
               (user.role_id === 1 && location.pathname === '/directeur-general') ||
               (user.role_id === 2 && (location.pathname === '/admin' || location.pathname.startsWith('/admin/'))) ||
               (user.role_id === 3 && (location.pathname === '/chef-projet' || location.pathname.startsWith('/chef-projet/'))) ||
-              (user.role_id === 4 && location.pathname === '/membre-equipe') ||
-              (user.role_id === 5 && location.pathname === '/lecteur')
+              (user.role_id === 4 && (location.pathname === '/membre-equipe' || location.pathname.startsWith('/membre-equipe/'))) ||
+              (user.role_id === 5 && (location.pathname === '/lecteur' || location.pathname.startsWith('/lecteur/')))
 
             if (!isOnCorrectPage) {
               // Rediriger selon le rôle exact
@@ -81,7 +78,6 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
         navigate('/')
       } finally {
         setLoading(false)
-        setChecked(true)
       }
     }
 
@@ -96,15 +92,5 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
     )
   }
 
-  // Vérifier si c'est une route admin ou chef-projet (qui utilisent Outlet)
-  const isAdminRoute = location.pathname.startsWith('/admin')
-  const isChefProjetRoute = location.pathname.startsWith('/chef-projet')
-  
-  if (isAdminRoute || isChefProjetRoute) {
-    // Ces routes utilisent leur propre layout avec Outlet, pas besoin de wrapping supplémentaire
-    return <>{children}</>
-  }
-
-  // Pour les autres rôles, rendre directement les enfants
   return <>{children}</>
 }

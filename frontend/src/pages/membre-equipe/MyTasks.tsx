@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Search, ArrowLeft, Calendar, User, FileText, Clock, AlertTriangle, CheckCircle, TrendingUp, BarChart3 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
+import { API_ENDPOINTS, apiGet, apiPut } from '../../config/api'
 
 interface Task {
   id: number
@@ -43,32 +44,16 @@ export default function MembreEquipeMyTasks() {
 
   const loadMyTasks = async () => {
     try {
-      const token = localStorage.getItem('token')
-      if (!token) {
-        navigate('/login')
-        return
-      }
-
       // Récupérer les informations de l'utilisateur connecté
-      const userResponse = await fetch('http://localhost:3001/api/auth/me', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-
-      if (userResponse.ok) {
-        const userData = await userResponse.json()
-        setUser(userData.data.user)
+      const userRes = await apiGet(API_ENDPOINTS.PROFILE)
+      if (userRes.success) {
+        setUser(userRes.data?.user)
       }
 
       // Récupérer toutes les tâches assignées à cet utilisateur
-      const tasksResponse = await fetch('http://localhost:3001/api/tasks/my-tasks', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-
-      if (tasksResponse.ok) {
-        const tasksData = await tasksResponse.json()
-        if (tasksData.success) {
-          setTasks(tasksData.data.tasks || [])
-        }
+      const tasksRes = await apiGet(API_ENDPOINTS.TASK_MY_TASKS)
+      if (tasksRes.success) {
+        setTasks(tasksRes.data?.tasks || [])
       }
     } catch (error) {
       console.error('Erreur lors du chargement des tâches:', error)
@@ -79,18 +64,11 @@ export default function MembreEquipeMyTasks() {
 
   const updateTaskStatus = async (taskId: number, newStatus: string) => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`http://localhost:3001/api/tasks/${taskId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ statut: newStatus })
-      })
-
-      if (response.ok) {
-        // Mettre à jour la tâche localement
+      const res = await apiPut(
+        API_ENDPOINTS.TASK_STATUS(taskId),
+        { statut: newStatus }
+      )
+      if (res.success) {
         setTasks(tasks.map(task => 
           task.id === taskId 
             ? { ...task, statut: newStatus, progress: newStatus === 'termine' ? 100 : newStatus === 'en_cours' ? 50 : 0 }
@@ -104,18 +82,11 @@ export default function MembreEquipeMyTasks() {
 
   const updateTaskProgress = async (taskId: number, progress: number) => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`http://localhost:3001/api/tasks/${taskId}/progress`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ progress })
-      })
-
-      if (response.ok) {
-        // Mettre à jour la tâche localement
+      const res = await apiPut(
+        API_ENDPOINTS.TASK_PROGRESS(taskId),
+        { progress }
+      )
+      if (res.success) {
         setTasks(tasks.map(task => 
           task.id === taskId 
             ? { ...task, progress, statut: progress === 100 ? 'termine' : progress > 0 ? 'en_cours' : 'a_faire' }
@@ -168,7 +139,17 @@ export default function MembreEquipeMyTasks() {
       default: return 'text-gray-600 bg-gray-100'
     }
   }
+  const getProgressColor = (progress: number = 0) => {
+    if (progress < 33) return 'bg-red-500'
+    if (progress < 66) return 'bg-amber-500'
+    return 'bg-green-500'
+  }
 
+  const getProgressTextColor = (progress: number = 0) => {
+    if (progress < 33) return 'text-red-600'
+    if (progress < 66) return 'text-amber-600'
+    return 'text-green-600'
+  }
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -348,23 +329,32 @@ export default function MembreEquipeMyTasks() {
 
                 {/* Barre de progression */}
                 <div className="mb-4">
-                  <div className="flex items-center justify-between text-sm mb-1">
-                    <span className="text-slate-600">Progression</span>
-                    <span className="text-slate-800 font-medium">{task.progress || 0}%</span>
+                  <div className="flex items-center justify-between text-sm mb-2">
+                    <span className="text-slate-600 font-medium">Progression</span>
+                    <span className={`font-bold ${getProgressTextColor(task.progress || 0)}`}>{task.progress || 0}%</span>
                   </div>
-                  <div className="w-full bg-slate-200 rounded-full h-2">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={task.progress || 0}
+                      onChange={(e) => updateTaskProgress(task.id, parseInt(e.target.value))}
+                      className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                    />
+                  </div>
+                  <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden mt-2">
                     <div 
-                      className={`h-2 rounded-full transition-all ${
-                        (task.progress || 0) === 100 ? 'bg-green-500' :
-                        (task.progress || 0) > 0 ? 'bg-blue-500' : 'bg-gray-300'
-                      }`}
+                      className={`h-full rounded-full transition-all duration-300 ${getProgressColor(task.progress || 0)}`}
                       style={{ width: `${task.progress || 0}%` }}
                     />
                   </div>
                 </div>
 
-                {/* Actions */}
+                {/* Actions — Statut */}
                 <div className="flex items-center gap-2">
+                  <label className="text-sm text-slate-600">Statut:</label>
                   <select
                     className="px-3 py-1 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={task.statut || 'a_faire'}
@@ -374,18 +364,6 @@ export default function MembreEquipeMyTasks() {
                     <option value="en_cours">En cours</option>
                     <option value="termine">Terminé</option>
                   </select>
-                  
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="5"
-                    value={task.progress || 0}
-                    onChange={(e) => updateTaskProgress(task.id, parseInt(e.target.value))}
-                    className="flex-1"
-                  />
-                  
-                  <span className="text-sm text-slate-600 w-12 text-right">{task.progress || 0}%</span>
                 </div>
               </div>
             ))

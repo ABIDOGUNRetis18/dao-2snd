@@ -244,8 +244,46 @@ export async function getMyTasks(req: AuthenticatedRequest, res: Response) {
 
 export async function updateTaskStatus(req: Request, res: Response) {
   try {
-    const { id } = req.params;
+    const { taskId } = req.params;
     const { statut } = req.body;
+
+    // Récupérer la tâche cible
+    const currentTaskResult = await query(
+      'SELECT id, dao_id, assigned_to FROM task WHERE id = $1',
+      [taskId]
+    );
+
+    if (currentTaskResult.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tâche non trouvée'
+      });
+    }
+
+    const currentTask = currentTaskResult.rows[0];
+
+    // Récupérer la première tâche du DAO (ordre de création)
+    const firstTaskResult = await query(
+      'SELECT id, progress FROM task WHERE dao_id = $1 ORDER BY id ASC LIMIT 1',
+      [currentTask.dao_id]
+    );
+
+    const firstTask = firstTaskResult.rows[0];
+    const isStartingTask = statut === 'en_cours' || statut === 'termine';
+    const isNotFirstTask = firstTask && Number(currentTask.id) !== Number(firstTask.id);
+
+    // Règle métier: tant que la tâche 1 n'est pas à 100, les autres tâches assignées ne démarrent pas
+    if (
+      isStartingTask &&
+      isNotFirstTask &&
+      currentTask.assigned_to !== null &&
+      Number(firstTask.progress || 0) < 100
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'La tâche 1 doit être à 100% avant de démarrer les autres tâches assignées.'
+      });
+    }
 
     // Calculer le progress en fonction du statut
     let progress = 0;
@@ -255,7 +293,7 @@ export async function updateTaskStatus(req: Request, res: Response) {
 
     const result = await query(
       'UPDATE task SET statut = $1, progress = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *',
-      [statut, progress, id]
+      [statut, progress, taskId]
     );
 
     if (result.rowCount === 0) {
@@ -283,8 +321,52 @@ export async function updateTaskStatus(req: Request, res: Response) {
 
 export async function updateTaskProgress(req: Request, res: Response) {
   try {
-    const { id } = req.params;
+    const { taskId } = req.params;
     const { progress } = req.body;
+
+    if (progress === undefined || progress < 0 || progress > 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Le progress doit être entre 0 et 100'
+      });
+    }
+
+    // Récupérer la tâche cible
+    const currentTaskResult = await query(
+      'SELECT id, dao_id, assigned_to FROM task WHERE id = $1',
+      [taskId]
+    );
+
+    if (currentTaskResult.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tâche non trouvée'
+      });
+    }
+
+    const currentTask = currentTaskResult.rows[0];
+
+    // Récupérer la première tâche du DAO (ordre de création)
+    const firstTaskResult = await query(
+      'SELECT id, progress FROM task WHERE dao_id = $1 ORDER BY id ASC LIMIT 1',
+      [currentTask.dao_id]
+    );
+
+    const firstTask = firstTaskResult.rows[0];
+    const isNotFirstTask = firstTask && Number(currentTask.id) !== Number(firstTask.id);
+
+    // Règle métier: tant que la tâche 1 n'est pas à 100, les autres tâches assignées ne démarrent pas
+    if (
+      progress > 0 &&
+      isNotFirstTask &&
+      currentTask.assigned_to !== null &&
+      Number(firstTask.progress || 0) < 100
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'La tâche 1 doit être à 100% avant de démarrer les autres tâches assignées.'
+      });
+    }
 
     // Calculer le statut en fonction du progress
     let statut = 'a_faire';
@@ -293,7 +375,7 @@ export async function updateTaskProgress(req: Request, res: Response) {
 
     const result = await query(
       'UPDATE task SET progress = $1, statut = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *',
-      [progress, statut, id]
+      [progress, statut, taskId]
     );
 
     if (result.rowCount === 0) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, User, MessageCircle, Clock, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeft, User, MessageCircle, Clock } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 
 interface Task {
@@ -36,7 +36,6 @@ export default function DAODetails() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [expandedTask, setExpandedTask] = useState<number | null>(null)
 
   useEffect(() => {
     if (id) {
@@ -76,7 +75,7 @@ export default function DAODetails() {
     }
   }
 
-  // Grouper les tâches par membre assigné
+  // Grouper les tâches par membre assigné (les non-assignées sont ignorées)
   const tasksByMember = tasks.reduce((acc, task) => {
     if (task.assigned_to && task.assigned_username) {
       const memberKey = `${task.assigned_to}-${task.assigned_username}`;
@@ -89,17 +88,6 @@ export default function DAODetails() {
         }
       }
       acc[memberKey].tasks.push(task)
-    } else {
-      // Tâches non assignées
-      if (!acc['unassigned']) {
-        acc['unassigned'] = {
-          id: null,
-          username: 'Non assignées',
-          email: null,
-          tasks: []
-        }
-      }
-      acc['unassigned'].tasks.push(task)
     }
     return acc
   }, {} as Record<string, any>)
@@ -108,7 +96,7 @@ export default function DAODetails() {
   const membersWithProgress = Object.values(tasksByMember).map(member => ({
     ...member,
     totalTasks: member.tasks.length,
-    completedTasks: member.tasks.filter((t: any) => t.statut === 'termine').length,
+    completedTasks: member.tasks.filter((t: any) => t.statut === 'termine' || Number(t.progress || 0) >= 100).length,
     inProgressTasks: member.tasks.filter((t: any) => t.statut === 'en_cours').length,
     averageProgress: member.tasks.length > 0 
       ? Math.round(member.tasks.reduce((sum: number, t: any) => sum + (t.progress || 0), 0) / member.tasks.length)
@@ -134,17 +122,12 @@ export default function DAODetails() {
     }
   }
 
-  const getPrioriteBadge = (priorite: string) => {
-    switch (priorite) {
-      case 'haute':  return { label: 'Haute',  cls: 'bg-red-50 text-red-600' }
-      case 'moyenne':return { label: 'Moyenne',cls: 'bg-orange-50 text-orange-600' }
-      default:       return { label: 'Basse',  cls: 'bg-green-50 text-green-600' }
-    }
-  }
-
-  const completedTasks = tasks.filter(t => t.statut === 'termine').length
-  const totalTasks = tasks.length
-  const globalProgress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+  const assignedTasks = tasks.filter(t => t.assigned_to && t.assigned_username)
+  const completedAssignedTasks = assignedTasks.filter(t => t.statut === 'termine' || Number(t.progress || 0) >= 100).length
+  const totalAssignedTasks = assignedTasks.length
+  const globalProgress = totalAssignedTasks > 0
+    ? Math.round(assignedTasks.reduce((sum, t) => sum + Number(t.progress || 0), 0) / totalAssignedTasks)
+    : 0
 
   if (loading) return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -218,7 +201,7 @@ export default function DAODetails() {
 
           <div className="space-y-3">
             <div className="flex items-center justify-between text-sm text-slate-500">
-              <span>{completedTasks} / {totalTasks} tâches terminées</span>
+              <span>{completedAssignedTasks} / {totalAssignedTasks} tâches assignées terminées</span>
             </div>
 
             {/* Progress bar */}
@@ -245,9 +228,9 @@ export default function DAODetails() {
               <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-3">
                 <Clock className="h-5 w-5 text-slate-300" />
               </div>
-              <p className="text-sm text-slate-500 font-medium">Aucune tâche trouvée pour ce DAO.</p>
+              <p className="text-sm text-slate-500 font-medium">Aucune tâche assignée pour ce DAO.</p>
               <p className="text-xs text-slate-400 mt-1">
-                Les 15 tâches standards devraient être créées automatiquement lors de la création du DAO.
+                Assignez des tâches à des membres pour voir la progression détaillée.
               </p>
             </div>
           ) : (
@@ -293,7 +276,7 @@ export default function DAODetails() {
                       <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                       <span>Détail des tâches</span>
                     </div>
-                    {member.tasks.map((task: any, taskIndex) => {
+                    {member.tasks.map((task: any, taskIndex: number) => {
                       const tBadge = getTaskStatutBadge(task.statut)
                       const taskProgress = task.statut === 'termine' ? 100 : task.statut === 'en_cours' ? (task.progress || 50) : 0
 

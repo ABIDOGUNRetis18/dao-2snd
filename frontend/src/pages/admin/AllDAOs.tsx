@@ -81,104 +81,42 @@ export default function AllDAOs() {
     setDaoTasks(tasksData)
   }
 
-  // Fonction getDAOStatus - Logique basée sur la progression des tâches
+  // Statut piloté par la progression réelle (colonne task.progress)
   const getDAOStatus = (dao: DAO) => {
-    const tasks = daoTasks[dao.id] || [];
-    
-    // Si pas de tâches assignées, le DAO ne peut pas être terminé
-    if (tasks.length === 0) {
-      // Logique basée sur la date de dépôt pour les DAO sans tâches
-      if (!dao.date_depot) {
-        return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
-      }
-      
-      const dateDepot = new Date(dao.date_depot);
-      const today = new Date();
-      const diffDays = Math.floor((dateDepot.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      
-      if (diffDays >= 4) {
-        return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
-      }
-      
-      if (diffDays <= 3) {
-        return { label: "À risque", className: "px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800" };
-      }
-      
-      return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
-    }
-    
-    // Calculer la progression globale basée sur les tâches
-    const completedTasks = tasks.filter(task => task.statut === 'termine').length;
-    const globalProgress = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
-    
-    // Logique basée sur la progression des tâches
-    if (globalProgress === 100) {
-      return { label: "Terminée", className: "px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800" };
-    }
-    
-    // Si progression < 100%, utiliser la logique de date pour déterminer "En cours" vs "À risque"
-    if (!dao.date_depot) {
-      return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
-    }
-    
-    const dateDepot = new Date(dao.date_depot);
-    const today = new Date();
-    const diffDays = Math.floor((dateDepot.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (diffDays >= 4) {
-      return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
-    }
-    
-    if (diffDays <= 3) {
-      return { label: "À risque", className: "px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800" };
-    }
-    
-    return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
-  }
+    const progress = getProgression(dao)
 
-  const getStatutColor = (statut: string) => {
-    switch (statut) {
-      case 'EN_ATTENTE':
-        return 'bg-yellow-100 text-yellow-800'
-      case 'EN_COURS':
-        return 'bg-blue-100 text-blue-800'
-      case 'TERMINE':
-        return 'bg-green-100 text-green-800'
-      case 'A_RISQUE':
-      case 'EN_RETARD':
-        return 'bg-red-100 text-red-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
+    if (progress === 100) {
+      return { label: 'Terminée', className: 'px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800' }
     }
+
+    if (progress === 0) {
+      return { label: 'En attente', className: 'px-2 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-700' }
+    }
+
+    return { label: 'En cours', className: 'px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800' }
   }
 
   const getProgression = (dao: DAO) => {
-    const tasks = daoTasks[dao.id] || [];
-    if (tasks.length === 0) {
-      // Pour les DAO sans tâches, utiliser la logique de date
-      if (!dao.date_depot) return 25;
-      const diffDays = Math.floor((new Date(dao.date_depot).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-      if (diffDays >= 4) return 60;
-      if (diffDays <= 3) return 40;
-      return 25;
-    }
-    // Calculer la progression réelle basée sur les tâches
-    const completedTasks = tasks.filter(task => task.statut === 'termine').length;
-    return tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+    const tasks = daoTasks[dao.id] || []
+    if (tasks.length === 0) return 0
+
+    // Priorite aux taches assignees, sinon toutes les taches du DAO.
+    const assignedTasks = tasks.filter(task => task.assigned_to !== null)
+    const targetTasks = assignedTasks.length > 0 ? assignedTasks : tasks
+
+    const totalProgress = targetTasks.reduce((sum, task) => {
+      const value = Number(task.progress)
+      return sum + (Number.isFinite(value) ? value : 0)
+    }, 0)
+
+    return Math.round(totalProgress / targetTasks.length)
   }
 
   const getProgressionColor = (dao: DAO) => {
-    const status = getDAOStatus(dao).label;
-    switch (status) {
-      case 'Terminée':
-        return 'bg-green-500'
-      case 'En cours':
-        return 'bg-yellow-500'
-      case 'À risque':
-        return 'bg-red-500'
-      default:
-        return 'bg-gray-500'
-    }
+    const progress = getProgression(dao)
+    if (progress < 33) return 'bg-red-500'
+    if (progress < 66) return 'bg-amber-500'
+    return 'bg-green-500'
   }
 
   const handleDelete = async (daoId: number) => {

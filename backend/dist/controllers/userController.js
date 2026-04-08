@@ -7,6 +7,15 @@ exports.deleteUserController = deleteUserController;
 exports.getUserProfileController = getUserProfileController;
 exports.changePasswordController = changePasswordController;
 const User_1 = require("../models/User");
+const mailer_1 = require("../utils/mailer");
+function generateTemporaryPassword(length = 10) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+    let password = '';
+    for (let i = 0; i < length; i++) {
+        password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+}
 async function getAllUsersController(req, res) {
     try {
         const users = await (0, User_1.getAllUsers)();
@@ -28,12 +37,13 @@ async function getAllUsersController(req, res) {
 }
 async function createUserController(req, res) {
     try {
-        const { username, email, password, role_id, url_photo } = req.body;
+        const { username, email, role_id, url_photo } = req.body;
+        const temporaryPassword = generateTemporaryPassword();
         // Validation des entrées
-        if (!username || !email || !password || !role_id) {
+        if (!username || !email || !role_id) {
             return res.status(400).json({
                 success: false,
-                message: 'Le username, email, password et role_id sont requis'
+                message: 'Le username, email et role_id sont requis'
             });
         }
         // Validation de l'email
@@ -42,13 +52,6 @@ async function createUserController(req, res) {
             return res.status(400).json({
                 success: false,
                 message: 'L\'email n\'est pas valide'
-            });
-        }
-        // Validation du mot de passe
-        if (password.length < 6) {
-            return res.status(400).json({
-                success: false,
-                message: 'Le mot de passe doit contenir au moins 6 caractères'
             });
         }
         // Validation du role_id
@@ -78,15 +81,29 @@ async function createUserController(req, res) {
         const newUser = await (0, User_1.createUser)({
             username,
             email,
-            password,
+            password: temporaryPassword,
             role_id,
             url_photo: url_photo || null
         });
+        let emailSent = false;
+        try {
+            emailSent = await (0, mailer_1.sendWelcomePasswordEmail)({
+                to: email,
+                username,
+                password: temporaryPassword
+            });
+        }
+        catch (mailError) {
+            console.error('Erreur lors de l\'envoi de l\'email de bienvenue:', mailError);
+        }
         res.status(201).json({
             success: true,
-            message: 'Utilisateur créé avec succès',
+            message: emailSent
+                ? 'Utilisateur créé avec succès et email envoyé'
+                : 'Utilisateur créé avec succès (email non envoyé)',
             data: {
-                user: newUser
+                user: newUser,
+                emailSent
             }
         });
     }

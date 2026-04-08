@@ -1,8 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import Login from './pages/Login'
-import AdminLayout from './layouts/AdminLayout'
-import ChefProjetLayout from './layouts/ChefProjetLayout'
+import LayoutWrapper from './layouts/LayoutWrapper'
 import AdminDashboard from './pages/admin/Dashboard'
 import CreateUser from './pages/admin/CreateUser'
 import CreateDAO from './pages/admin/CreateDAO'
@@ -30,59 +29,41 @@ function App() {
       <Router>
         <Routes>
           <Route path="/" element={<Login />} />
-          
-          {/* Routes directes pour chaque rôle */}
-          <Route path="/directeur-general" element={
+
+          <Route element={
             <AuthenticatedLayout>
-              <DirecteurGeneral />
-            </AuthenticatedLayout>
-          } />
-          
-          <Route path="/chef-projet" element={
-            <AuthenticatedLayout>
-              <ChefProjetLayout />
+              <LayoutWrapper />
             </AuthenticatedLayout>
           }>
-            <Route index element={<ChefProjetDashboard />} />
-            <Route path="dashboard" element={<ChefProjetDashboard />} />
-            <Route path="mes-daos" element={<MesDAO />} />
-            <Route path="mes-taches" element={<MesTaches />} />
-            <Route path="dao/:id" element={<ChefProjetDAODetails />} />
-          </Route>
-          
-          <Route path="/membre-equipe" element={
-            <AuthenticatedLayout>
-              <MembreEquipe />
-            </AuthenticatedLayout>
-          }>
-            <Route index element={<MembreEquipeMyTasks />} />
-            <Route path="tasks" element={<MembreEquipeMyTasks />} />
-            <Route path="profile" element={<Profile />} />
-          </Route>
-          
-          <Route path="/lecteur" element={
-            <AuthenticatedLayout>
-              <Lecteur />
-            </AuthenticatedLayout>
-          } />
-          
-          {/* Routes admin pour l'administrateur */}
-          <Route path="/admin" element={
-            <AuthenticatedLayout>
-              <AdminLayout />
-            </AuthenticatedLayout>
-          }>
-            <Route index element={<AdminDashboard />} />
-            <Route path="create-user" element={<CreateUser />} />
-            <Route path="create-dao" element={<CreateDAO />} />
-            <Route path="edit-dao/:id" element={<EditDAO />} />
-            <Route path="dao/:id" element={<DAODetails />} />
-            <Route path="dao/:id/tasks" element={<DAOTasks />} />
-            <Route path="my-daos" element={<MyDAO />} />
-            <Route path="all-daos" element={<AllDAOs />} />
-            <Route path="my-tasks" element={<MyTasks />} />
-            <Route path="history" element={<FinishedDAOHistory />} />
-            <Route path="profile" element={<Profile />} />
+            <Route path="directeur-general" element={<DirecteurGeneral />} />
+
+            <Route path="chef-projet">
+              <Route index element={<ChefProjetDashboard />} />
+              <Route path="dashboard" element={<ChefProjetDashboard />} />
+              <Route path="mes-daos" element={<MesDAO />} />
+              <Route path="mes-taches" element={<MesTaches />} />
+              <Route path="dao/:id" element={<ChefProjetDAODetails />} />
+            </Route>
+
+            <Route path="membre-equipe" element={<MembreEquipe />} />
+            <Route path="membre-equipe/tasks" element={<MembreEquipeMyTasks />} />
+            <Route path="membre-equipe/profile" element={<Profile />} />
+
+            <Route path="lecteur" element={<Lecteur />} />
+
+            <Route path="admin">
+              <Route index element={<AdminDashboard />} />
+              <Route path="create-user" element={<CreateUser />} />
+              <Route path="create-dao" element={<CreateDAO />} />
+              <Route path="edit-dao/:id" element={<EditDAO />} />
+              <Route path="dao/:id" element={<DAODetails />} />
+              <Route path="dao/:id/tasks" element={<DAOTasks />} />
+              <Route path="my-daos" element={<MyDAO />} />
+              <Route path="all-daos" element={<AllDAOs />} />
+              <Route path="my-tasks" element={<MyTasks />} />
+              <Route path="history" element={<FinishedDAOHistory />} />
+              <Route path="profile" element={<Profile />} />
+            </Route>
           </Route>
         </Routes>
       </Router>

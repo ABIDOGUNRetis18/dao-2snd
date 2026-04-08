@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { ArrowLeft, ChevronDown, Check, X, Trash2 } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { API_ENDPOINTS, apiGet, apiPost, apiPut, apiDelete } from '../../config/api'
 
 interface User {
   id: number
   username: string
+  email?: string
   url_photo?: string
+  role_id?: number
 }
 
 interface TaskRow {
@@ -14,6 +17,8 @@ interface TaskRow {
   nom: string
   assigned_to: number | null
   assigned_username?: string
+  progress?: number
+  statut?: string
   membres?: User[]
 }
 
@@ -27,7 +32,27 @@ export default function DAOTasks() {
   const [newTaskName, setNewTaskName] = useState('')
   const [saving, setSaving]     = useState(false)
   const [openDropdown, setOpenDropdown] = useState<number | null>(null)
+  const [daoProgress, setDaoProgress] = useState(0)
+  const [daoStats, setDaoStats] = useState({ total_tasks: 0, assigned_tasks: 0, completed_tasks: 0 })
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  const isTaskCompleted = (task: TaskRow) =>
+    task.statut === 'termine' || Number(task.progress || 0) >= 100
+
+  const recalculateDaoMetrics = (taskList: TaskRow[]) => {
+    const assignedTasks = taskList.filter(t => t.assigned_to !== null)
+    const completedTasks = assignedTasks.filter(isTaskCompleted)
+    const averageProgress = assignedTasks.length > 0
+      ? Math.round(assignedTasks.reduce((sum, t) => sum + Number(t.progress || 0), 0) / assignedTasks.length)
+      : 0
+
+    setDaoProgress(averageProgress)
+    setDaoStats({
+      total_tasks: taskList.length,
+      assigned_tasks: assignedTasks.length,
+      completed_tasks: completedTasks.length
+    })
+  }
 
   useEffect(() => { loadAll() }, [id])
 
@@ -43,39 +68,32 @@ export default function DAOTasks() {
 
   const loadAll = async () => {
     try {
-      console.log('🔄 Chargement des tâches et membres assignables...')
-      const token = localStorage.getItem('token')
-      const headers = { 'Authorization': `Bearer ${token}` }
+      console.log('🔄 Chargement des tâches et membres du DAO...')
 
-      // Charger les tâches et les membres assignables au DAO
+      // Charger les tâches et les membres du DAO (déjà filtrés au backend)
       const [tasksRes, membersRes] = await Promise.all([
-        fetch(`http://localhost:3001/api/dao/${id}/tasks`, { headers }),
-        fetch(`http://localhost:3001/api/dao/${id}/members`, { headers }),
+        apiGet(API_ENDPOINTS.DAO_TASKS(id!)),
+        apiGet(API_ENDPOINTS.DAO_MEMBERS(id!)),
       ])
 
-      if (tasksRes.ok) {
-        const d = await tasksRes.json()
-        console.log('📋 Tâches reçues:', d.data.tasks)
-        if (d.success) setTasks(d.data.tasks || [])
+      if (tasksRes.success) {
+        console.log('📋 Tâches reçues:', tasksRes.data?.tasks)
+        const loadedTasks = tasksRes.data?.tasks || []
+        setTasks(loadedTasks)
+        // Récupérer la progression du DAO
+        setDaoProgress(tasksRes.data?.dao_progress || 0)
+        setDaoStats(tasksRes.data?.dao_stats || { total_tasks: 0, assigned_tasks: 0, completed_tasks: 0 })
+        // Sécurise l'affichage côté UI même si l'API n'a pas encore les nouveaux champs
+        recalculateDaoMetrics(loadedTasks)
       } else {
-        console.error('❌ Erreur chargement tâches:', await tasksRes.json())
+        console.error('❌ Erreur chargement tâches:', tasksRes.error)
       }
       
-      if (membersRes.ok) {
-        const d = await membersRes.json()
-        console.log('👥 Membres assignables reçus:', d.data.members)
-        if (d.success) {
-          // Inclure tous les membres assignables (admin, chef projet, membres d'équipe)
-          setUsers(d.data.members || [])
-        }
+      if (membersRes.success) {
+        console.log('👥 Membres du DAO reçus:', membersRes.data?.members)
+        setUsers(membersRes.data?.members || [])
       } else {
-        console.error('❌ Erreur chargement membres:', await membersRes.json())
-        // Fallback: charger tous les utilisateurs
-        const usersRes = await fetch(`http://localhost:3001/api/users`, { headers })
-        if (usersRes.ok) {
-          const d = await usersRes.json()
-          if (d.success) setUsers(d.data.users || [])
-        }
+        console.error('❌ Erreur chargement membres:', membersRes.error)
       }
     } catch (error) {
       console.error('❌ Erreur lors du chargement:', error)
@@ -88,23 +106,17 @@ export default function DAOTasks() {
     if (!newTaskName.trim()) return
     setSaving(true)
     try {
-      const token = localStorage.getItem('token')
       console.log('🔄 Création de la tâche:', newTaskName.trim())
       
-      const res = await fetch(`http://localhost:3001/api/tasks/dao/${id}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ nom: newTaskName.trim() }),
-      })
+      const responseData = await apiPost(
+        API_ENDPOINTS.TASK_CREATE_DAO(id!),
+        { nom: newTaskName.trim() }
+      )
       
-      const responseData = await res.json()
       console.log('📡 Réponse de l\'API:', responseData)
       
-      if (res.ok && responseData.success) {
-        console.log('✅ Tâche créée avec succès dans la base:', responseData.data.task)
+      if (responseData.success) {
+        console.log('Tâche créée avec succès dans la base:', responseData.data)
         setNewTaskName('')
         // Attendre un peu pour s'assurer que la base est mise à jour
         setTimeout(() => {
@@ -112,11 +124,11 @@ export default function DAOTasks() {
         }, 500)
       } else {
         console.error('❌ Erreur lors de la création:', responseData)
-        alert('Erreur lors de la création: ' + (responseData.message || 'Erreur inconnue'))
+        alert('Erreur lors de la création: ' + (responseData.error || 'Erreur inconnue'))
       }
     } catch (error) {
-      console.error('❌ Erreur réseau:', error)
-      alert('Erreur réseau: ' + (error instanceof Error ? error.message : 'Erreur inconnue'))
+      console.error('❌ Erreur:', error)
+      alert('Erreur: ' + (error instanceof Error ? error.message : 'Erreur inconnue'))
     } finally {
       setSaving(false)
     }
@@ -126,50 +138,78 @@ export default function DAOTasks() {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cette tâche ?')) return
     
     try {
-      const token = localStorage.getItem('token')
-      const res = await fetch(`http://localhost:3001/api/tasks/${taskId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
+      const res = await apiDelete(API_ENDPOINTS.TASK_DELETE(taskId))
       
-      if (res.ok) {
+      if (res.success) {
         console.log('✅ Tâche supprimée avec succès')
-        loadAll()
+        const updatedTasks = tasks.filter(t => t.id !== taskId)
+        setTasks(updatedTasks)
+        recalculateDaoMetrics(updatedTasks)
       } else {
-        const errorData = await res.json()
-        console.error('❌ Erreur lors de la suppression:', errorData)
-        alert('Erreur lors de la suppression: ' + (errorData.message || 'Erreur inconnue'))
+        console.error('❌ Erreur lors de la suppression:', res.error)
+        alert('Erreur lors de la suppression: ' + (res.error || 'Erreur inconnue'))
       }
     } catch (error) {
-      console.error('❌ Erreur réseau:', error)
-      alert('Erreur réseau: ' + (error instanceof Error ? error.message : 'Erreur inconnue'))
+      console.error('❌ Erreur:', error)
+      alert('Erreur: ' + (error instanceof Error ? error.message : 'Erreur inconnue'))
     }
   }
 
   const handleAssign = async (taskId: number, userId: number | null) => {
     try {
-      const token = localStorage.getItem('token')
-      await fetch(`http://localhost:3001/api/tasks/${taskId}/assign`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ assigned_to: userId }),
-      })
-      setTasks(prev => prev.map(t =>
+      await apiPut(
+        API_ENDPOINTS.TASK_ASSIGN(taskId),
+        { assigned_to: userId }
+      )
+      const updatedTasks = tasks.map(t =>
         t.id === taskId
           ? { ...t, assigned_to: userId, assigned_username: users.find(u => u.id === userId)?.username }
           : t
-      ))
+      )
+      setTasks(updatedTasks)
+
+      recalculateDaoMetrics(updatedTasks)
     } catch { /* silent */ }
     setOpenDropdown(null)
   }
 
+  const handleUpdateProgress = async (taskId: number, progress: number) => {
+    try {
+      const statut = progress >= 100 ? 'termine' : progress > 0 ? 'en_cours' : 'a_faire'
+      const res = await apiPut(
+        API_ENDPOINTS.TASK_PROGRESS(taskId),
+        { progress, statut }
+      )
+      if (res.success) {
+        const updatedTasks = tasks.map(t =>
+          t.id === taskId
+            ? { ...t, progress, statut }
+            : t
+        )
+        setTasks(updatedTasks)
+        recalculateDaoMetrics(updatedTasks)
+      } else {
+        alert(res.error || 'Mise à jour bloquée par la règle de progression du DAO')
+      }
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour:', error)
+    }
+  }
+
   const getInitials = (name: string) =>
     name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+
+  const getProgressColor = (progress: number = 0) => {
+    if (progress < 33) return 'bg-red-500'
+    if (progress < 66) return 'bg-amber-500'
+    return 'bg-green-500'
+  }
+
+  const getProgressTextColor = (progress: number = 0) => {
+    if (progress < 33) return 'text-red-600'
+    if (progress < 66) return 'text-amber-600'
+    return 'text-green-600'
+  }
 
   const COLORS = ['bg-blue-500','bg-green-500','bg-purple-500','bg-amber-500','bg-rose-500','bg-teal-500']
   const colorFor = (i: number) => COLORS[i % COLORS.length]
@@ -187,6 +227,36 @@ export default function DAOTasks() {
             <ArrowLeft className="h-5 w-5" />
           </button>
           <h1 className="text-lg font-bold text-slate-800">DAO N°{id}</h1>
+        </div>
+
+        {/* ── PROGRESSION DU DAO ── */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-semibold text-slate-700">Progression globale du DAO</h2>
+              <span className={`text-2xl font-bold ${getProgressTextColor(daoProgress)}`}>{daoProgress}%</span>
+            </div>
+            <div className="h-3 bg-slate-200 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${getProgressColor(daoProgress)}`}
+                style={{ width: `${daoProgress}%` }}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4 text-center text-sm">
+            <div>
+              <p className="text-slate-500">Total</p>
+              <p className="text-xl font-bold text-slate-800">{daoStats.total_tasks}</p>
+            </div>
+            <div>
+              <p className="text-slate-500">Assignées</p>
+              <p className="text-xl font-bold text-blue-600">{daoStats.assigned_tasks}</p>
+            </div>
+            <div>
+              <p className="text-slate-500">Terminées</p>
+              <p className="text-xl font-bold text-green-600">{daoStats.completed_tasks}</p>
+            </div>
+          </div>
         </div>
 
         {/* ── CREATE TASK ── */}
@@ -226,6 +296,7 @@ export default function DAOTasks() {
                   <tr className="bg-slate-50 border-b border-slate-100">
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 w-12">N°</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">Tache</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 w-40">Progression</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 w-48">Assigner à</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 w-48">Membres assignés</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 w-16">Actions</th>
@@ -242,6 +313,31 @@ export default function DAOTasks() {
 
                       {/* Tâche */}
                       <td className="px-4 py-3 text-slate-700 leading-snug">{task.nom}</td>
+
+                      {/* Progression */}
+                      <td className="px-4 py-3">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={task.progress || 0}
+                              onChange={(e) => handleUpdateProgress(task.id, parseInt(e.target.value))}
+                              className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                            />
+                            <span className={`text-xs font-bold w-10 text-right ${getProgressTextColor(task.progress || 0)}`}>
+                              {task.progress || 0}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-300 ${getProgressColor(task.progress || 0)}`}
+                              style={{ width: `${task.progress || 0}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
 
                       {/* Assigner à — dropdown */}
                       <td className="px-4 py-3 relative">

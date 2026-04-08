@@ -1,8 +1,9 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { 
-  LayoutDashboard, 
+import AppFooter from './footer'
+import {
+  LayoutDashboard,
   FileText,
   CheckSquare,
   Menu,
@@ -10,7 +11,6 @@ import {
   Bell,
   X,
   LogOut,
-  User,
   ChevronDown
 } from 'lucide-react'
 
@@ -29,13 +29,11 @@ export default function ChefProjetLayout() {
   const userMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    // Ne rediriger que si le chargement est terminé et que l'utilisateur n'est pas authentifié
     if (!isLoading && !isAuthenticated) {
       navigate('/')
     }
   }, [isLoading, isAuthenticated, navigate])
 
-  // Fermer le menu utilisateur si clic à l'extérieur
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
@@ -46,16 +44,12 @@ export default function ChefProjetLayout() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Obtenir l'initiale du nom pour l'avatar
-  const getInitial = (name: string) => {
-    return name.charAt(0).toUpperCase()
-  }
+  const getInitial = (name: string) => name.charAt(0).toUpperCase()
 
-  // Obtenir le nom du rôle à partir de role_id
   const getRoleName = (roleId: number) => {
     const roles = {
       1: 'directeur',
-      2: 'admin', 
+      2: 'admin',
       3: 'chef_projet',
       4: 'membre_equipe',
       5: 'lecteur'
@@ -68,7 +62,6 @@ export default function ChefProjetLayout() {
     navigate('/')
   }
 
-  // Afficher un écran de chargement pendant la vérification de l'authentification
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -80,19 +73,16 @@ export default function ChefProjetLayout() {
     )
   }
 
-  // Si l'utilisateur n'est pas authentifié après le chargement, ne rien afficher (la redirection se fera)
   if (!isAuthenticated) {
     return null
   }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="flex items-center justify-between px-4 py-3">
-          {/* Left side - Logo */}
           <div className="flex items-center gap-4">
-            <button 
+            <button
               className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
@@ -106,7 +96,6 @@ export default function ChefProjetLayout() {
             </Link>
           </div>
 
-          {/* Right side - Actions & User */}
           <div className="flex items-center gap-4">
             <button className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors relative">
               <MessageSquare className="h-5 w-5" />
@@ -146,7 +135,6 @@ export default function ChefProjetLayout() {
                 }`} />
               </button>
 
-              {/* Menu déroulant utilisateur */}
               {userMenuOpen && (
                 <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-slate-200 rounded-lg shadow-lg py-2 z-50">
                   <button
@@ -164,7 +152,6 @@ export default function ChefProjetLayout() {
       </header>
 
       <div className="flex flex-1">
-        {/* Sidebar - Desktop */}
         <aside className="hidden lg:flex w-64 bg-white border-r border-slate-200 flex-col">
           <nav className="flex-1 p-4 space-y-1">
             {menuItems.map((item) => {
@@ -188,7 +175,6 @@ export default function ChefProjetLayout() {
           </nav>
         </aside>
 
-        {/* Mobile Menu Overlay */}
         {mobileMenuOpen && (
           <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMobileMenuOpen(false)}>
             <div className="absolute left-0 top-0 h-full w-64 bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
@@ -223,11 +209,12 @@ export default function ChefProjetLayout() {
           </div>
         )}
 
-        {/* Main content */}
         <main className="flex-1 overflow-auto p-8">
           <Outlet />
         </main>
       </div>
+
+      <AppFooter />
     </div>
   )
 }

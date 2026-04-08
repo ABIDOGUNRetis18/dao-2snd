@@ -280,6 +280,14 @@ async function deleteDao(req, res) {
                 }
             }
         }
+        // Purger les données liées au DAO avant suppression pour éviter toute réutilisation accidentelle
+        await (0, database_1.query)('DELETE FROM task WHERE dao_id = $1', [id]);
+        await (0, database_1.query)('DELETE FROM tasks WHERE dao_id = $1', [id]).catch(() => {
+            console.log('Table legacy tasks absente ou déjà nettoyée pour le DAO:', id);
+        });
+        await (0, database_1.query)('DELETE FROM dao_members WHERE dao_id = $1', [id]).catch(() => {
+            console.log('Table dao_members absente ou déjà nettoyée pour le DAO:', id);
+        });
         // Supprimer le DAO
         const result = await (0, database_1.query)('DELETE FROM daos WHERE id = $1', [id]);
         res.status(200).json({
@@ -399,10 +407,10 @@ async function getMyDaos(req, res) {
 async function getDaoTasks(req, res) {
     try {
         const { id } = req.params;
-        const result = await (0, database_1.query)(`
-      SELECT 
+        let result = await (0, database_1.query)(`
+      SELECT
         t.id,
-        t.nom as titre,
+        t.nom,
         t.statut,
         t.progress,
         t.assigned_to,
@@ -413,22 +421,76 @@ async function getDaoTasks(req, res) {
       WHERE t.dao_id = $1
       ORDER BY t.id ASC
     `, [id]);
-        // Formatter les données pour correspondre à l'interface attendue
+        // Si aucune tâche n'existe dans `task`, migrer automatiquement depuis l'ancienne table `tasks`.
+        if (result.rowCount === 0) {
+            try {
+                const legacyResult = await (0, database_1.query)(`
+          SELECT id, titre, statut, progress, assigned_to
+          FROM tasks
+          WHERE dao_id = $1
+          ORDER BY id ASC
+        `, [id]);
+                if (legacyResult.rowCount > 0) {
+                    for (const legacyTask of legacyResult.rows) {
+                        await (0, database_1.query)(`INSERT INTO task (nom, dao_id, statut, progress, assigned_to)
+               VALUES ($1, $2, $3, $4, $5)`, [
+                            legacyTask.titre,
+                            Number(id),
+                            legacyTask.statut || 'a_faire',
+                            legacyTask.progress || 0,
+                            legacyTask.assigned_to || null
+                        ]);
+                    }
+                    result = await (0, database_1.query)(`
+            SELECT
+              t.id,
+              t.nom,
+              t.statut,
+              t.progress,
+              t.assigned_to,
+              u.username as assigned_username,
+              u.email as assigned_email
+            FROM task t
+            LEFT JOIN users u ON t.assigned_to = u.id
+            WHERE t.dao_id = $1
+            ORDER BY t.id ASC
+          `, [id]);
+                }
+            }
+            catch (legacyError) {
+                console.log('Table legacy tasks indisponible pour le DAO:', id);
+            }
+        }
         const tasks = result.rows.map((task) => ({
             id: task.id,
-            titre: task.titre,
+            id_task: task.id,
+            nom: task.nom,
             statut: task.statut,
             progress: task.progress || 0,
             assigned_to: task.assigned_to,
             assigned_username: task.assigned_username,
             assigned_email: task.assigned_email,
-            priorite: 'moyenne', // Valeur par défaut car la table task n'a pas de colonne priorite
-            date_echeance: null // Valeur par défaut car la table task n'a pas de colonne date_echeance
+            priorite: 'moyenne',
+            date_echeance: null
         }));
+        // Calculer la progression du DAO (sur les taches assignees uniquement)
+        const assignedTasks = tasks.filter((t) => t.assigned_to !== null);
+        const completedTasks = assignedTasks.filter((t) => t.statut === 'termine' || Number(t.progress || 0) >= 100);
+        const daoProgress = assignedTasks.length > 0
+            ? Math.round(assignedTasks.reduce((sum, t) => sum + Number(t.progress || 0), 0) /
+                assignedTasks.length)
+            : 0;
+        console.log(`📊 DAO ${id}: ${completedTasks.length}/${assignedTasks.length} tâches terminées = ${daoProgress}%`);
         res.status(200).json({
             success: true,
             data: {
-                tasks
+                tasks,
+                dao_progress: daoProgress,
+                dao_stats: {
+                    total_tasks: tasks.length,
+                    assigned_tasks: assignedTasks.length,
+                    completed_tasks: completedTasks.length
+                }
             }
         });
     }
@@ -443,9 +505,9 @@ async function getDaoTasks(req, res) {
 async function getDaoAssignableMembers(req, res) {
     try {
         const { id } = req.params;
-        // Récupérer les informations du DAO pour obtenir le chef de projet
+        // Vérifier que le DAO existe
         const daoResult = await (0, database_1.query)(`
-      SELECT chef_id, chef_projet_nom FROM daos WHERE id = $1
+      SELECT id FROM daos WHERE id = $1
     `, [id]);
         if (daoResult.rows.length === 0) {
             return res.status(404).json({
@@ -453,44 +515,23 @@ async function getDaoAssignableMembers(req, res) {
                 message: 'DAO non trouvé'
             });
         }
-        const dao = daoResult.rows[0];
-        // Récupérer tous les utilisateurs qui peuvent être assignés (Admin, Chef Projet, Membre Équipe)
-        const usersResult = await (0, database_1.query)(`
-      SELECT 
-        id,
-        username,
-        email,
-        role_id
-      FROM users
-      WHERE role_id IN (2, 3, 4) -- Admin, ChefProjet, MembreEquipe
-      ORDER BY role_id, username
-    `);
-        // Récupérer les membres déjà assignés à ce DAO
-        let assignedMembers = [];
-        try {
-            const membersResult = await (0, database_1.query)(`
-        SELECT user_id FROM dao_members WHERE dao_id = $1
-      `, [id]);
-            assignedMembers = membersResult.rows.map((row) => row.user_id);
-        }
-        catch (error) {
-            // Si la table dao_members n'existe pas, on continue sans membres assignés
-            console.log('Table dao_members non trouvée pour le DAO:', id);
-        }
-        // Marquer les utilisateurs comme assignés ou non
-        const assignableMembers = usersResult.rows.map((user) => ({
-            ...user,
-            isAssigned: assignedMembers.includes(user.id),
-            isChefProjet: user.id === dao.chef_id
-        }));
+        // Récupérer SEULEMENT les membres assignés au DAO
+        const membersResult = await (0, database_1.query)(`
+      SELECT
+        u.id,
+        u.username,
+        u.email,
+        u.role_id,
+        u.url_photo
+      FROM users u
+      INNER JOIN dao_members dm ON u.id = dm.user_id
+      WHERE dm.dao_id = $1
+      ORDER BY u.username
+    `, [id]);
         res.status(200).json({
             success: true,
             data: {
-                members: assignableMembers,
-                chefProjet: {
-                    id: dao.chef_id,
-                    username: dao.chef_projet_nom
-                }
+                members: membersResult.rows
             }
         });
     }
@@ -506,12 +547,12 @@ async function createDao(req, res) {
     try {
         console.log('=== DÉBUT CRÉATION DAO - LOGIQUE COMPLÈTE ===');
         console.log('Body reçu:', JSON.stringify(req.body, null, 2));
-        const { date_depot, typeDao, objet, description, reference, autorite, chefEquipe, membres, groupement, nomPartenaire } = req.body;
+        const { date_depot, type_dao, objet, description, reference, autorite, chef_id, chef_projet_nom, membres, groupement, nom_partenaire } = req.body;
         // Validation complète des données
         const validationErrors = [];
         if (!date_depot)
             validationErrors.push("La date de dépôt est requise.");
-        if (!typeDao)
+        if (!type_dao)
             validationErrors.push("Le type de DAO est requis.");
         if (!objet)
             validationErrors.push("L'objet est requis.");
@@ -521,12 +562,12 @@ async function createDao(req, res) {
             validationErrors.push("La référence est requise.");
         if (!autorite)
             validationErrors.push("L'autorité contractante est requise.");
-        if (!chefEquipe)
+        if (!chef_id)
             validationErrors.push("Le chef d'équipe doit être assigné.");
         if (!membres || membres.length === 0)
             validationErrors.push("Au moins un membre d'équipe doit être sélectionné.");
         // Validation dynamique du groupement
-        if (groupement === "oui" && (!nomPartenaire || !nomPartenaire.trim())) {
+        if (groupement === "oui" && (!nom_partenaire || !nom_partenaire.trim())) {
             validationErrors.push("Le nom de l'entreprise partenaire est requis lorsque le groupement est sélectionné.");
         }
         if (validationErrors.length > 0) {
@@ -535,13 +576,8 @@ async function createDao(req, res) {
                 message: validationErrors.join("; ")
             });
         }
-        console.log('✅ Validation passée');
-        // 1. Création de l'équipe
-        const teamId = `TEAM-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        const teamCode = `TEAM-${Date.now()}`;
-        await (0, database_1.query)("INSERT INTO teams (id, team_code) VALUES ($1, $2)", [teamId, teamCode]);
-        console.log('✅ Équipe créée:', teamId);
-        // 2. Génération atomique du numéro DAO (réelle)
+        console.log('Validation passée');
+        // 1. Génération atomique du numéro DAO
         const year = new Date().getFullYear();
         console.log("=== GÉNÉRATION ATOMIQUE DU NUMÉRO DAO - DÉBUT ===");
         // Méthode atomique avec séquence PostgreSQL
@@ -553,12 +589,11 @@ async function createDao(req, res) {
         console.log("Année:", year);
         console.log("Séquence atomique:", nextSeq);
         console.log("Numéro généré (réel):", generatedNumero);
-        console.log("=== GÉNÉRATION ATOMIQUE DU NUMÉRO DAO - TERMINÉ ===");
-        // 3. Insertion du DAO
+        // 2. Insertion du DAO
         const daoResult = await (0, database_1.query)(`
       INSERT INTO daos (
         numero, date_depot, objet, description, reference, autorite, 
-        statut, chef_id, team_id, groupement, nom_partenaire, type_dao, created_at
+        statut, chef_id, chef_projet_nom, groupement, nom_partenaire, type_dao, created_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP)
       RETURNING *
     `, [
@@ -568,21 +603,20 @@ async function createDao(req, res) {
             description,
             reference,
             autorite,
-            'EN_COURS', // Statut initial
-            Number(chefEquipe),
-            teamId,
+            'actif', // Statut initial
+            Number(chef_id),
+            chef_projet_nom,
             groupement || null,
-            groupement === "oui" ? nomPartenaire : null,
-            typeDao || null,
+            groupement === "oui" ? nom_partenaire : null,
+            type_dao || null,
         ]);
         const createdDao = daoResult.rows[0];
-        console.log('✅ DAO inséré:', createdDao.numero);
-        // 4. Ajout des membres à l'équipe
+        // 3. Ajout des membres à l'équipe DAO
         for (const memberId of membres) {
-            await (0, database_1.query)("INSERT INTO team_members (team_id, user_id) VALUES ($1, $2)", [teamId, Number(memberId)]);
+            await (0, database_1.query)("INSERT INTO dao_members (dao_id, user_id, assigned_by) VALUES ($1, $2, $3)", [createdDao.id, Number(memberId), Number(chef_id)]);
         }
-        console.log('✅ Membres ajoutés à l\'équipe:', membres.length);
-        // 5. Création des tâches par défaut (15 tâches)
+        console.log('Membres ajoutés à l\'équipe DAO:', membres.length);
+        // 4. Création des tâches par défaut (15 tâches)
         const defaultTasks = [
             'Résumé sommaire DAO et Création du drive',
             'Demande de caution et garanties',
@@ -601,19 +635,19 @@ async function createDao(req, res) {
             'Dépôt des offres et clôture'
         ];
         for (const taskName of defaultTasks) {
-            await (0, database_1.query)(`INSERT INTO task (dao_id, nom, statut, progress) 
+            await (0, database_1.query)(`INSERT INTO task (dao_id, nom, statut, progress)
          VALUES ($1, $2, 'a_faire', 0)`, [createdDao.id, taskName]);
         }
-        console.log('✅ Tâches par défaut créées:', defaultTasks.length);
-        // 6. Récupération des informations du chef de projet pour notification
-        const chefResult = await (0, database_1.query)(`SELECT username, email FROM users WHERE id = $1`, [Number(chefEquipe)]);
+        console.log('Tâches par défaut créées:', defaultTasks.length);
+        // 5. Récupération des informations du chef de projet pour notification
+        const chefResult = await (0, database_1.query)(`SELECT username, email FROM users WHERE id = $1`, [Number(chef_id)]);
         const chefInfo = chefResult.rows[0];
         if (chefInfo) {
-            console.log('✅ Chef de projet identifié:', chefInfo.username);
+            console.log('Chef de projet identifié:', chefInfo.username);
             // TODO: Implémenter l'envoi d'email
             // await sendDaoCreationEmail(objet, chefInfo.username, chefInfo.email);
         }
-        // 7. Retourner la réponse complète
+        // 6. Retourner la réponse complète
         res.status(201).json({
             success: true,
             message: 'DAO créé avec succès',
@@ -622,18 +656,14 @@ async function createDao(req, res) {
                     ...createdDao,
                     numero: generatedNumero
                 },
-                team: {
-                    id: teamId,
-                    code: teamCode,
-                    membres: membres
-                },
+                membres: membres,
                 chef: chefInfo
             }
         });
-        console.log('🎉 DAO créé avec succès - Numéro:', generatedNumero);
+        console.log('DAO créé avec succès - Numéro:', generatedNumero);
     }
     catch (error) {
-        console.error('❌ Erreur lors de la création du DAO:', error);
+        console.error('Erreur lors de la création du DAO:', error);
         res.status(500).json({
             success: false,
             message: 'Erreur serveur lors de la création du DAO'

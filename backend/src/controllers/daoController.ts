@@ -332,6 +332,15 @@ export async function deleteDao(req: Request, res: Response) {
       }
     }
 
+    // Purger les données liées au DAO avant suppression pour éviter toute réutilisation accidentelle
+    await query('DELETE FROM task WHERE dao_id = $1', [id]);
+    await query('DELETE FROM tasks WHERE dao_id = $1', [id]).catch(() => {
+      console.log('Table legacy tasks absente ou déjà nettoyée pour le DAO:', id);
+    });
+    await query('DELETE FROM dao_members WHERE dao_id = $1', [id]).catch(() => {
+      console.log('Table dao_members absente ou déjà nettoyée pour le DAO:', id);
+    });
+
     // Supprimer le DAO
     const result = await query('DELETE FROM daos WHERE id = $1', [id]);
 
@@ -466,10 +475,10 @@ export async function getDaoTasks(req: Request, res: Response) {
   try {
     const { id } = req.params;
 
-    const result = await query(`
-      SELECT 
+    let result = await query(`
+      SELECT
         t.id,
-        t.nom as titre,
+        t.nom,
         t.statut,
         t.progress,
         t.assigned_to,
@@ -481,23 +490,88 @@ export async function getDaoTasks(req: Request, res: Response) {
       ORDER BY t.id ASC
     `, [id]);
 
-    // Formatter les données pour correspondre à l'interface attendue
+    // Si aucune tâche n'existe dans `task`, migrer automatiquement depuis l'ancienne table `tasks`.
+    if (result.rowCount === 0) {
+      try {
+        const legacyResult = await query(`
+          SELECT id, titre, statut, progress, assigned_to
+          FROM tasks
+          WHERE dao_id = $1
+          ORDER BY id ASC
+        `, [id]);
+
+        if (legacyResult.rowCount > 0) {
+          for (const legacyTask of legacyResult.rows) {
+            await query(
+              `INSERT INTO task (nom, dao_id, statut, progress, assigned_to)
+               VALUES ($1, $2, $3, $4, $5)`,
+              [
+                legacyTask.titre,
+                Number(id),
+                legacyTask.statut || 'a_faire',
+                legacyTask.progress || 0,
+                legacyTask.assigned_to || null
+              ]
+            );
+          }
+
+          result = await query(`
+            SELECT
+              t.id,
+              t.nom,
+              t.statut,
+              t.progress,
+              t.assigned_to,
+              u.username as assigned_username,
+              u.email as assigned_email
+            FROM task t
+            LEFT JOIN users u ON t.assigned_to = u.id
+            WHERE t.dao_id = $1
+            ORDER BY t.id ASC
+          `, [id]);
+        }
+      } catch (legacyError) {
+        console.log('Table legacy tasks indisponible pour le DAO:', id);
+      }
+    }
+
     const tasks = result.rows.map((task: any) => ({
       id: task.id,
-      titre: task.titre,
+      id_task: task.id,
+      nom: task.nom,
       statut: task.statut,
       progress: task.progress || 0,
       assigned_to: task.assigned_to,
       assigned_username: task.assigned_username,
       assigned_email: task.assigned_email,
-      priorite: 'moyenne', // Valeur par défaut car la table task n'a pas de colonne priorite
-      date_echeance: null // Valeur par défaut car la table task n'a pas de colonne date_echeance
+      priorite: 'moyenne',
+      date_echeance: null
     }));
+
+    // Calculer la progression du DAO (sur les taches assignees uniquement)
+    const assignedTasks = tasks.filter((t: any) => t.assigned_to !== null);
+    const completedTasks = assignedTasks.filter((t: any) =>
+      t.statut === 'termine' || Number(t.progress || 0) >= 100
+    );
+    const daoProgress = assignedTasks.length > 0
+      ? Math.round(
+          assignedTasks.reduce((sum: number, t: any) => sum + Number(t.progress || 0), 0) /
+          assignedTasks.length
+        )
+      : 0;
+
+    console.log(`📊 DAO ${id}: ${completedTasks.length}/${assignedTasks.length} tâches terminées = ${daoProgress}%`);
 
     res.status(200).json({
       success: true,
       data: {
-        tasks
+        tasks,
+        dao_progress: daoProgress,
+        dao_stats: {
+          total_tasks: tasks.length,
+          assigned_tasks: assignedTasks.length,
+          completed_tasks: completedTasks.length
+        }
       }
     });
   } catch (error) {
@@ -513,9 +587,9 @@ export async function getDaoAssignableMembers(req: Request, res: Response) {
   try {
     const { id } = req.params;
 
-    // Récupérer les informations du DAO pour obtenir le chef de projet
+    // Vérifier que le DAO existe
     const daoResult = await query(`
-      SELECT chef_id, chef_projet_nom FROM daos WHERE id = $1
+      SELECT id FROM daos WHERE id = $1
     `, [id]);
 
     if (daoResult.rows.length === 0) {
@@ -525,47 +599,24 @@ export async function getDaoAssignableMembers(req: Request, res: Response) {
       });
     }
 
-    const dao = daoResult.rows[0];
-
-    // Récupérer tous les utilisateurs qui peuvent être assignés (Admin, Chef Projet, Membre Équipe)
-    const usersResult = await query(`
-      SELECT 
-        id,
-        username,
-        email,
-        role_id
-      FROM users
-      WHERE role_id IN (2, 3, 4) -- Admin, ChefProjet, MembreEquipe
-      ORDER BY role_id, username
-    `);
-
-    // Récupérer les membres déjà assignés à ce DAO
-    let assignedMembers = [];
-    try {
-      const membersResult = await query(`
-        SELECT user_id FROM dao_members WHERE dao_id = $1
-      `, [id]);
-      assignedMembers = membersResult.rows.map((row: any) => row.user_id);
-    } catch (error) {
-      // Si la table dao_members n'existe pas, on continue sans membres assignés
-      console.log('Table dao_members non trouvée pour le DAO:', id);
-    }
-
-    // Marquer les utilisateurs comme assignés ou non
-    const assignableMembers = usersResult.rows.map((user: any) => ({
-      ...user,
-      isAssigned: assignedMembers.includes(user.id),
-      isChefProjet: user.id === dao.chef_id
-    }));
+    // Récupérer SEULEMENT les membres assignés au DAO
+    const membersResult = await query(`
+      SELECT
+        u.id,
+        u.username,
+        u.email,
+        u.role_id,
+        u.url_photo
+      FROM users u
+      INNER JOIN dao_members dm ON u.id = dm.user_id
+      WHERE dm.dao_id = $1
+      ORDER BY u.username
+    `, [id]);
 
     res.status(200).json({
       success: true,
       data: {
-        members: assignableMembers,
-        chefProjet: {
-          id: dao.chef_id,
-          username: dao.chef_projet_nom
-        }
+        members: membersResult.rows
       }
     });
   } catch (error) {
@@ -695,7 +746,7 @@ export async function createDao(req: Request, res: Response) {
 
     for (const taskName of defaultTasks) {
       await query(
-        `INSERT INTO tasks (dao_id, titre, statut, progress) 
+        `INSERT INTO task (dao_id, nom, statut, progress)
          VALUES ($1, $2, 'a_faire', 0)`,
         [createdDao.id, taskName]
       );
