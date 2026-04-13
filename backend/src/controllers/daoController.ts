@@ -1,6 +1,6 @@
-import { Request, Response } from 'express';
-import { AuthenticatedRequest } from '../middleware/auth';
-import { query } from '../utils/database';
+import { Request, Response } from "express";
+import { AuthenticatedRequest } from "../middleware/auth";
+import { query } from "../utils/database";
 
 export async function getAllDaos(req: Request, res: Response) {
   try {
@@ -26,14 +26,14 @@ export async function getAllDaos(req: Request, res: Response) {
     res.status(200).json({
       success: true,
       data: {
-        daos: result.rows
-      }
+        daos: result.rows,
+      },
     });
   } catch (error) {
-    console.error('Erreur lors de la récupération des DAO:', error);
+    console.error("Erreur lors de la récupération des DAO:", error);
     res.status(500).json({
       success: false,
-      message: 'Erreur serveur lors de la récupération des DAO'
+      message: "Erreur serveur lors de la récupération des DAO",
     });
   }
 }
@@ -42,18 +42,18 @@ export async function getNextDaoNumber(req: Request, res: Response) {
   try {
     // Récupérer le dernier numéro de DAO
     const result = await query(
-      'SELECT reference FROM daos ORDER BY id DESC LIMIT 1'
+      "SELECT reference FROM daos ORDER BY id DESC LIMIT 1",
     );
 
-    let nextNumber = 'DAO-2026-001'; // Valeur par défaut
-    
+    let nextNumber = "DAO-2026-001"; // Valeur par défaut
+
     if (result.rows.length > 0) {
       const lastRef = result.rows[0].reference;
       // Extraire le numéro de la référence (ex: "DAO-2026-001" -> "001")
       const match = lastRef.match(/DAO-2026-(\d+)/);
       if (match) {
         const lastNum = parseInt(match[1]);
-        const nextNum = (lastNum + 1).toString().padStart(3, '0');
+        const nextNum = (lastNum + 1).toString().padStart(3, "0");
         nextNumber = `DAO-2026-${nextNum}`;
       }
     }
@@ -61,35 +61,33 @@ export async function getNextDaoNumber(req: Request, res: Response) {
     res.status(200).json({
       success: true,
       data: {
-        nextNumber
-      }
+        nextNumber,
+      },
     });
   } catch (error) {
-    console.error('Erreur lors de la récupération du numéro DAO:', error);
+    console.error("Erreur lors de la récupération du numéro DAO:", error);
     res.status(500).json({
       success: false,
-      message: 'Erreur serveur lors de la récupération du numéro DAO'
+      message: "Erreur serveur lors de la récupération du numéro DAO",
     });
   }
 }
 
 export async function getDaoTypes(req: Request, res: Response) {
   try {
-    const result = await query(
-      'SELECT * FROM dao_types ORDER BY libelle'
-    );
+    const result = await query("SELECT * FROM dao_types ORDER BY libelle");
 
     res.status(200).json({
       success: true,
       data: {
-        types: result.rows
-      }
+        types: result.rows,
+      },
     });
   } catch (error) {
-    console.error('Erreur lors de la récupération des types de DAO:', error);
+    console.error("Erreur lors de la récupération des types de DAO:", error);
     res.status(500).json({
       success: false,
-      message: 'Erreur serveur lors de la récupération des types de DAO'
+      message: "Erreur serveur lors de la récupération des types de DAO",
     });
   }
 }
@@ -98,7 +96,8 @@ export async function getDao(req: Request, res: Response) {
   try {
     const { id } = req.params;
 
-    const result = await query(`
+    const result = await query(
+      `
       SELECT 
         d.id,
         d.numero,
@@ -118,12 +117,14 @@ export async function getDao(req: Request, res: Response) {
       FROM daos d
       LEFT JOIN users u ON d.chef_id = u.id
       WHERE d.id = $1
-    `, [id]);
+    `,
+      [id],
+    );
 
     if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        message: 'DAO non trouvé'
+        message: "DAO non trouvé",
       });
     }
 
@@ -132,7 +133,8 @@ export async function getDao(req: Request, res: Response) {
     // Récupérer les membres d'équipe du DAO
     let members = [];
     try {
-      const membersResult = await query(`
+      const membersResult = await query(
+        `
         SELECT 
           dm.user_id,
           u.username,
@@ -143,32 +145,34 @@ export async function getDao(req: Request, res: Response) {
         JOIN users u ON dm.user_id = u.id
         WHERE dm.dao_id = $1
         ORDER BY dm.assigned_at ASC
-      `, [id]);
-      
+      `,
+        [id],
+      );
+
       members = membersResult.rows.map((member: any) => ({
         id: member.user_id,
         username: member.username,
         email: member.email,
         role_id: member.role_id,
-        assigned_at: member.assigned_at
+        assigned_at: member.assigned_at,
       }));
     } catch (error) {
       // Si la table dao_members n'existe pas encore, on continue sans membres
-      console.log('Table dao_members non trouvée ou vide pour le DAO:', id);
+      console.log("Table dao_members non trouvée ou vide pour le DAO:", id);
     }
 
     res.status(200).json({
       success: true,
       data: {
         dao: { ...dao, membres: members.map((m: any) => m.id) },
-        members: members
-      }
+        members: members,
+      },
     });
   } catch (error) {
-    console.error('Erreur lors de la récupération du DAO:', error);
+    console.error("Erreur lors de la récupération du DAO:", error);
     res.status(500).json({
       success: false,
-      message: 'Erreur serveur lors de la récupération du DAO'
+      message: "Erreur serveur lors de la récupération du DAO",
     });
   }
 }
@@ -187,7 +191,7 @@ export async function updateDao(req: Request, res: Response) {
       groupement,
       nom_partenaire,
       type_dao,
-      membres
+      membres,
     } = req.body;
 
     const result = await query(
@@ -203,13 +207,25 @@ export async function updateDao(req: Request, res: Response) {
         nom_partenaire = $9,
         type_dao = $10
       WHERE id = $11 RETURNING *`,
-      [objet, reference, description, autorite, chef_id, chef_projet_nom, date_depot, groupement, nom_partenaire, type_dao, id]
+      [
+        objet,
+        reference,
+        description,
+        autorite,
+        chef_id,
+        chef_projet_nom,
+        date_depot,
+        groupement,
+        nom_partenaire,
+        type_dao,
+        id,
+      ],
     );
 
     if (result.rowCount === 0) {
       return res.status(404).json({
         success: false,
-        message: 'DAO non trouvé'
+        message: "DAO non trouvé",
       });
     }
 
@@ -229,32 +245,35 @@ export async function updateDao(req: Request, res: Response) {
       `);
 
       // Supprimer tous les membres existants pour ce DAO
-      await query('DELETE FROM dao_members WHERE dao_id = $1', [id]);
+      await query("DELETE FROM dao_members WHERE dao_id = $1", [id]);
 
       // Ajouter les nouveaux membres
       for (const memberId of membres) {
-        await query(`
+        await query(
+          `
           INSERT INTO dao_members (dao_id, user_id, assigned_by)
           VALUES ($1, $2, $3)
           ON CONFLICT (dao_id, user_id) DO NOTHING
-        `, [id, memberId, chef_id]);
+        `,
+          [id, memberId, chef_id],
+        );
       }
       updatedMembers = membres;
     }
 
     res.status(200).json({
       success: true,
-      message: 'DAO modifié avec succès',
+      message: "DAO modifié avec succès",
       data: {
         dao: result.rows[0],
-        membres: updatedMembers
-      }
+        membres: updatedMembers,
+      },
     });
   } catch (error) {
-    console.error('Erreur lors de la modification du DAO:', error);
+    console.error("Erreur lors de la modification du DAO:", error);
     res.status(500).json({
       success: false,
-      message: 'Erreur serveur lors de la modification du DAO'
+      message: "Erreur serveur lors de la modification du DAO",
     });
   }
 }
@@ -264,99 +283,109 @@ export async function deleteDao(req: Request, res: Response) {
     const { id } = req.params;
 
     // Récupérer le numéro du DAO avant suppression
-    const daoResult = await query('SELECT numero FROM daos WHERE id = $1', [id]);
-    
+    const daoResult = await query("SELECT numero FROM daos WHERE id = $1", [
+      id,
+    ]);
+
     if (daoResult.rowCount === 0) {
       return res.status(404).json({
         success: false,
-        message: 'DAO non trouvé'
+        message: "DAO non trouvé",
       });
     }
 
     const daoNumero = daoResult.rows[0].numero;
-    console.log('🗑️ Suppression du DAO:', daoNumero);
+    console.log("🗑️ Suppression du DAO:", daoNumero);
 
     // Extraire l'année et la séquence du numéro
     const match = daoNumero.match(/DAO-(\d+)-(\d+)/);
     if (match && match[1] && match[2]) {
       const year = parseInt(match[1]);
       const deletedSeq = parseInt(match[2]);
-      
-      console.log('📍 Année:', year, 'Séquence supprimée:', deletedSeq);
-      
+
+      console.log("📍 Année:", year, "Séquence supprimée:", deletedSeq);
+
       // Compter tous les DAO pour cette année
       const allDaosResult = await query(
-        'SELECT COUNT(*) as count FROM daos WHERE numero LIKE $1',
-        [`DAO-${year}-%`]
+        "SELECT COUNT(*) as count FROM daos WHERE numero LIKE $1",
+        [`DAO-${year}-%`],
       );
       const totalDaos = allDaosResult.rows[0].count;
-      
-      console.log('📊 Total DAO pour cette année:', totalDaos);
-      
+
+      console.log("📊 Total DAO pour cette année:", totalDaos);
+
       if (totalDaos <= 1) {
         // Si c'est le dernier DAO, réinitialiser à 0
-        console.log('🔄 Dernier DAO supprimé, réinitialisation de la séquence...');
-        
-        await query(
-          'INSERT INTO dao_sequences (year, seq) VALUES ($1, $2) ON CONFLICT (year) DO UPDATE SET seq = $2',
-          [year, 0]
+        console.log(
+          "🔄 Dernier DAO supprimé, réinitialisation de la séquence...",
         );
-        
+
+        await query(
+          "INSERT INTO dao_sequences (year, seq) VALUES ($1, $2) ON CONFLICT (year) DO UPDATE SET seq = $2",
+          [year, 0],
+        );
+
         // Réinitialiser aussi la séquence d'ID PostgreSQL
-        await query('ALTER SEQUENCE daos_id_seq RESTART WITH 1');
-        
-        console.log('✅ Séquence réinitialisée à 0 et ID réinitialisé à 1');
+        await query("ALTER SEQUENCE daos_id_seq RESTART WITH 1");
+
+        console.log("✅ Séquence réinitialisée à 0 et ID réinitialisé à 1");
       } else {
         // Sinon, trouver la plus haute séquence restante
         const maxSeqResult = await query(
-          'SELECT numero FROM daos WHERE numero LIKE $1 ORDER BY numero DESC LIMIT 1',
-          [`DAO-${year}-%`]
+          "SELECT numero FROM daos WHERE numero LIKE $1 ORDER BY numero DESC LIMIT 1",
+          [`DAO-${year}-%`],
         );
-        
+
         if (maxSeqResult.rowCount > 0) {
           const maxNumero = maxSeqResult.rows[0].numero;
           const maxMatch = maxNumero.match(/DAO-(\d+)-(\d+)/);
-          
+
           if (maxMatch && maxMatch[2]) {
             const maxSeq = parseInt(maxMatch[2]);
-            console.log('📍 Plus haute séquence restante:', maxSeq);
-            
+            console.log("📍 Plus haute séquence restante:", maxSeq);
+
             await query(
-              'INSERT INTO dao_sequences (year, seq) VALUES ($1, $2) ON CONFLICT (year) DO UPDATE SET seq = $2',
-              [year, maxSeq]
+              "INSERT INTO dao_sequences (year, seq) VALUES ($1, $2) ON CONFLICT (year) DO UPDATE SET seq = $2",
+              [year, maxSeq],
             );
-            
-            console.log('✅ Séquence mise à jour à:', maxSeq);
+
+            console.log("✅ Séquence mise à jour à:", maxSeq);
           }
         }
       }
     }
 
     // Purger les données liées au DAO avant suppression pour éviter toute réutilisation accidentelle
-    await query('DELETE FROM task WHERE dao_id = $1', [id]);
-    await query('DELETE FROM tasks WHERE dao_id = $1', [id]).catch(() => {
-      console.log('Table legacy tasks absente ou déjà nettoyée pour le DAO:', id);
+    await query("DELETE FROM task WHERE dao_id = $1", [id]);
+    await query("DELETE FROM tasks WHERE dao_id = $1", [id]).catch(() => {
+      console.log(
+        "Table legacy tasks absente ou déjà nettoyée pour le DAO:",
+        id,
+      );
     });
-    await query('DELETE FROM dao_members WHERE dao_id = $1', [id]).catch(() => {
-      console.log('Table dao_members absente ou déjà nettoyée pour le DAO:', id);
+    await query("DELETE FROM dao_members WHERE dao_id = $1", [id]).catch(() => {
+      console.log(
+        "Table dao_members absente ou déjà nettoyée pour le DAO:",
+        id,
+      );
     });
 
     // Supprimer le DAO
-    const result = await query('DELETE FROM daos WHERE id = $1', [id]);
+    const result = await query("DELETE FROM daos WHERE id = $1", [id]);
 
     res.status(200).json({
       success: true,
-      message: 'DAO supprimé avec succès',
+      message: "DAO supprimé avec succès",
       data: {
         numero: daoNumero,
-        sequenceUpdated: true
-      }
+        sequenceUpdated: true,
+      },
     });
   } catch (error) {
-    console.error('Erreur lors de la suppression du DAO:', error);
+    console.error("Erreur lors de la suppression du DAO:", error);
     res.status(500).json({
       success: false,
-      message: 'Erreur serveur lors de la suppression du DAO'
+      message: "Erreur serveur lors de la suppression du DAO",
     });
   }
 }
@@ -366,29 +395,29 @@ export async function archiveDao(req: Request, res: Response) {
     const { id } = req.params;
 
     const result = await query(
-      'UPDATE daos SET statut = $1 WHERE id = $2 RETURNING *',
-      ['ARCHIVE', id]
+      "UPDATE daos SET statut = $1 WHERE id = $2 RETURNING *",
+      ["ARCHIVE", id],
     );
 
     if (result.rowCount === 0) {
       return res.status(404).json({
         success: false,
-        message: 'DAO non trouvé'
+        message: "DAO non trouvé",
       });
     }
 
     res.status(200).json({
       success: true,
-      message: 'DAO archivé avec succès',
+      message: "DAO archivé avec succès",
       data: {
-        dao: result.rows[0]
-      }
+        dao: result.rows[0],
+      },
     });
   } catch (error) {
-    console.error('Erreur lors de l\'archivage du DAO:', error);
+    console.error("Erreur lors de l'archivage du DAO:", error);
     res.status(500).json({
       success: false,
-      message: 'Erreur serveur lors de l\'archivage du DAO'
+      message: "Erreur serveur lors de l'archivage du DAO",
     });
   }
 }
@@ -398,7 +427,8 @@ export async function getMyDaos(req: AuthenticatedRequest, res: Response) {
     const userId = req.user?.userId; // Récupérer l'ID de l'utilisateur connecté depuis le token JWT
 
     // Récupérer les DAO où l'utilisateur est chef de projet
-    const chefDaosResult = await query(`
+    const chefDaosResult = await query(
+      `
       SELECT 
         d.id,
         d.numero,
@@ -416,12 +446,15 @@ export async function getMyDaos(req: AuthenticatedRequest, res: Response) {
       FROM daos d
       LEFT JOIN users u ON d.chef_id = u.id
       WHERE d.chef_id = $1
-    `, [userId]);
+    `,
+      [userId],
+    );
 
     // Récupérer les DAO où l'utilisateur est membre d'équipe
     let memberDaos = [];
     try {
-      const memberDaosResult = await query(`
+      const memberDaosResult = await query(
+        `
         SELECT 
           d.id,
           d.numero,
@@ -440,33 +473,40 @@ export async function getMyDaos(req: AuthenticatedRequest, res: Response) {
         JOIN daos d ON dm.dao_id = d.id
         LEFT JOIN users u ON d.chef_id = u.id
         WHERE dm.user_id = $1
-      `, [userId]);
-      
+      `,
+        [userId],
+      );
+
       memberDaos = memberDaosResult.rows;
     } catch (error) {
       // Si la table dao_members n'existe pas encore, on continue avec seulement les DAO de chef
-      console.log('Table dao_members non trouvée pour l\'utilisateur:', userId);
+      console.log("Table dao_members non trouvée pour l'utilisateur:", userId);
     }
 
     // Combiner les deux listes et supprimer les doublons
     const allDaos = [...chefDaosResult.rows, ...memberDaos];
-    
+
     // Supprimer les doublons (si un utilisateur est à la fois chef et membre)
-    const uniqueDaos = allDaos.filter((dao, index, self) => 
-      index === self.findIndex((d: any) => d.id === dao.id)
+    const uniqueDaos = allDaos.filter(
+      (dao, index, self) =>
+        index === self.findIndex((d: any) => d.id === dao.id),
     );
 
     res.status(200).json({
       success: true,
       data: {
-        daos: uniqueDaos
-      }
+        daos: uniqueDaos,
+      },
     });
   } catch (error) {
-    console.error('Erreur lors de la récupération des DAO de l\'utilisateur:', error);
+    console.error(
+      "Erreur lors de la récupération des DAO de l'utilisateur:",
+      error,
+    );
     res.status(500).json({
       success: false,
-      message: 'Erreur serveur lors de la récupération des DAO de l\'utilisateur'
+      message:
+        "Erreur serveur lors de la récupération des DAO de l'utilisateur",
     });
   }
 }
@@ -475,7 +515,8 @@ export async function getDaoTasks(req: Request, res: Response) {
   try {
     const { id } = req.params;
 
-    let result = await query(`
+    let result = await query(
+      `
       SELECT
         t.id,
         t.nom,
@@ -488,17 +529,22 @@ export async function getDaoTasks(req: Request, res: Response) {
       LEFT JOIN users u ON t.assigned_to = u.id
       WHERE t.dao_id = $1
       ORDER BY t.id ASC
-    `, [id]);
+    `,
+      [id],
+    );
 
     // Si aucune tâche n'existe dans `task`, migrer automatiquement depuis l'ancienne table `tasks`.
     if (result.rowCount === 0) {
       try {
-        const legacyResult = await query(`
+        const legacyResult = await query(
+          `
           SELECT id, titre, statut, progress, assigned_to
           FROM tasks
           WHERE dao_id = $1
           ORDER BY id ASC
-        `, [id]);
+        `,
+          [id],
+        );
 
         if (legacyResult.rowCount > 0) {
           for (const legacyTask of legacyResult.rows) {
@@ -508,14 +554,15 @@ export async function getDaoTasks(req: Request, res: Response) {
               [
                 legacyTask.titre,
                 Number(id),
-                legacyTask.statut || 'a_faire',
+                legacyTask.statut || "a_faire",
                 legacyTask.progress || 0,
-                legacyTask.assigned_to || null
-              ]
+                legacyTask.assigned_to || null,
+              ],
             );
           }
 
-          result = await query(`
+          result = await query(
+            `
             SELECT
               t.id,
               t.nom,
@@ -528,10 +575,12 @@ export async function getDaoTasks(req: Request, res: Response) {
             LEFT JOIN users u ON t.assigned_to = u.id
             WHERE t.dao_id = $1
             ORDER BY t.id ASC
-          `, [id]);
+          `,
+            [id],
+          );
         }
       } catch (legacyError) {
-        console.log('Table legacy tasks indisponible pour le DAO:', id);
+        console.log("Table legacy tasks indisponible pour le DAO:", id);
       }
     }
 
@@ -544,23 +593,28 @@ export async function getDaoTasks(req: Request, res: Response) {
       assigned_to: task.assigned_to,
       assigned_username: task.assigned_username,
       assigned_email: task.assigned_email,
-      priorite: 'moyenne',
-      date_echeance: null
+      priorite: "moyenne",
+      date_echeance: null,
     }));
 
     // Calculer la progression du DAO (sur les taches assignees uniquement)
     const assignedTasks = tasks.filter((t: any) => t.assigned_to !== null);
-    const completedTasks = assignedTasks.filter((t: any) =>
-      t.statut === 'termine' || Number(t.progress || 0) >= 100
+    const completedTasks = assignedTasks.filter(
+      (t: any) => t.statut === "termine" || Number(t.progress || 0) >= 100,
     );
-    const daoProgress = assignedTasks.length > 0
-      ? Math.round(
-          assignedTasks.reduce((sum: number, t: any) => sum + Number(t.progress || 0), 0) /
-          assignedTasks.length
-        )
-      : 0;
+    const daoProgress =
+      assignedTasks.length > 0
+        ? Math.round(
+            assignedTasks.reduce(
+              (sum: number, t: any) => sum + Number(t.progress || 0),
+              0,
+            ) / assignedTasks.length,
+          )
+        : 0;
 
-    console.log(`📊 DAO ${id}: ${completedTasks.length}/${assignedTasks.length} tâches terminées = ${daoProgress}%`);
+    console.log(
+      `📊 DAO ${id}: ${completedTasks.length}/${assignedTasks.length} tâches terminées = ${daoProgress}%`,
+    );
 
     res.status(200).json({
       success: true,
@@ -570,15 +624,15 @@ export async function getDaoTasks(req: Request, res: Response) {
         dao_stats: {
           total_tasks: tasks.length,
           assigned_tasks: assignedTasks.length,
-          completed_tasks: completedTasks.length
-        }
-      }
+          completed_tasks: completedTasks.length,
+        },
+      },
     });
   } catch (error) {
-    console.error('Erreur lors de la récupération des tâches du DAO:', error);
+    console.error("Erreur lors de la récupération des tâches du DAO:", error);
     res.status(500).json({
       success: false,
-      message: 'Erreur serveur lors de la récupération des tâches du DAO'
+      message: "Erreur serveur lors de la récupération des tâches du DAO",
     });
   }
 }
@@ -588,19 +642,23 @@ export async function getDaoAssignableMembers(req: Request, res: Response) {
     const { id } = req.params;
 
     // Vérifier que le DAO existe
-    const daoResult = await query(`
+    const daoResult = await query(
+      `
       SELECT id FROM daos WHERE id = $1
-    `, [id]);
+    `,
+      [id],
+    );
 
     if (daoResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        message: 'DAO non trouvé'
+        message: "DAO non trouvé",
       });
     }
 
     // Récupérer SEULEMENT les membres assignés au DAO
-    const membersResult = await query(`
+    const membersResult = await query(
+      `
       SELECT
         u.id,
         u.username,
@@ -611,28 +669,33 @@ export async function getDaoAssignableMembers(req: Request, res: Response) {
       INNER JOIN dao_members dm ON u.id = dm.user_id
       WHERE dm.dao_id = $1
       ORDER BY u.username
-    `, [id]);
+    `,
+      [id],
+    );
 
     res.status(200).json({
       success: true,
       data: {
-        members: membersResult.rows
-      }
+        members: membersResult.rows,
+      },
     });
   } catch (error) {
-    console.error('Erreur lors de la récupération des membres assignables:', error);
+    console.error(
+      "Erreur lors de la récupération des membres assignables:",
+      error,
+    );
     res.status(500).json({
       success: false,
-      message: 'Erreur serveur lors de la récupération des membres assignables'
+      message: "Erreur serveur lors de la récupération des membres assignables",
     });
   }
 }
 
 export async function createDao(req: Request, res: Response) {
   try {
-    console.log('=== DÉBUT CRÉATION DAO - LOGIQUE COMPLÈTE ===');
-    console.log('Body reçu:', JSON.stringify(req.body, null, 2));
-    
+    console.log("=== DÉBUT CRÉATION DAO - LOGIQUE COMPLÈTE ===");
+    console.log("Body reçu:", JSON.stringify(req.body, null, 2));
+
     const {
       date_depot,
       type_dao,
@@ -644,124 +707,144 @@ export async function createDao(req: Request, res: Response) {
       chef_projet_nom,
       membres,
       groupement,
-      nom_partenaire
+      nom_partenaire,
     } = req.body;
 
     // Validation complète des données
     const validationErrors = [];
-    
+
     if (!date_depot) validationErrors.push("La date de dépôt est requise.");
     if (!type_dao) validationErrors.push("Le type de DAO est requis.");
     if (!objet) validationErrors.push("L'objet est requis.");
-    if (!description || description.trim().length < 5) validationErrors.push("La description doit contenir au moins 5 caractères.");
+    if (!description || description.trim().length < 5)
+      validationErrors.push(
+        "La description doit contenir au moins 5 caractères.",
+      );
     if (!reference) validationErrors.push("La référence est requise.");
-    if (!autorite) validationErrors.push("L'autorité contractante est requise.");
+    if (!autorite)
+      validationErrors.push("L'autorité contractante est requise.");
     if (!chef_id) validationErrors.push("Le chef d'équipe doit être assigné.");
-    if (!membres || membres.length === 0) validationErrors.push("Au moins un membre d'équipe doit être sélectionné.");
-    
+    if (!membres || membres.length === 0)
+      validationErrors.push(
+        "Au moins un membre d'équipe doit être sélectionné.",
+      );
+
     // Validation dynamique du groupement
     if (groupement === "oui" && (!nom_partenaire || !nom_partenaire.trim())) {
-      validationErrors.push("Le nom de l'entreprise partenaire est requis lorsque le groupement est sélectionné.");
+      validationErrors.push(
+        "Le nom de l'entreprise partenaire est requis lorsque le groupement est sélectionné.",
+      );
     }
-    
+
     if (validationErrors.length > 0) {
       return res.status(400).json({
         success: false,
-        message: validationErrors.join("; ")
+        message: validationErrors.join("; "),
       });
     }
 
-    console.log('Validation passée');
+    console.log("Validation passée");
 
     // 1. Génération atomique du numéro DAO
     const year = new Date().getFullYear();
     console.log("=== GÉNÉRATION ATOMIQUE DU NUMÉRO DAO - DÉBUT ===");
-    
+
     // Méthode atomique avec séquence PostgreSQL
     const sequenceResult = await query(
       `INSERT INTO dao_sequences (year, seq) VALUES ($1, 1)
        ON CONFLICT (year) DO UPDATE SET seq = dao_sequences.seq + 1
        RETURNING seq`,
-      [year]
+      [year],
     );
-    
+
     const nextSeq = sequenceResult.rows[0].seq;
     const generatedNumero = `DAO-${year}-${String(nextSeq).padStart(3, "0")}`;
-    
+
     console.log("Année:", year);
     console.log("Séquence atomique:", nextSeq);
     console.log("Numéro généré (réel):", generatedNumero);
 
     // 2. Insertion du DAO
-    const daoResult = await query(`
+    const daoResult = await query(
+      `
       INSERT INTO daos (
         numero, date_depot, objet, description, reference, autorite, 
         statut, chef_id, chef_projet_nom, groupement, nom_partenaire, type_dao, created_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP)
       RETURNING *
-    `, [
-      generatedNumero,
-      date_depot,
-      objet,
-      description,
-      reference,
-      autorite,
-      'actif',                 // Statut initial
-      Number(chef_id),
-      chef_projet_nom,
-      groupement || null,
-      groupement === "oui" ? nom_partenaire : null,
-      type_dao || null,
-    ]);
+    `,
+      [
+        generatedNumero,
+        date_depot,
+        objet,
+        description,
+        reference,
+        autorite,
+        "actif", // Statut initial
+        Number(chef_id),
+        chef_projet_nom,
+        groupement || null,
+        groupement === "oui" ? nom_partenaire : null,
+        type_dao || null,
+      ],
+    );
 
     const createdDao = daoResult.rows[0];
 
     // 3. Ajout des membres à l'équipe DAO
     for (const memberId of membres) {
-      await query(
-        "INSERT INTO dao_members (dao_id, user_id, assigned_by) VALUES ($1, $2, $3)",
-        [createdDao.id, Number(memberId), Number(chef_id)]
+      // Vérifier si le membre n'existe pas déjà
+      const existingMember = await query(
+        "SELECT id FROM dao_members WHERE dao_id = $1 AND user_id = $2",
+        [createdDao.id, Number(memberId)],
       );
+
+      if (existingMember.rows.length === 0) {
+        await query(
+          "INSERT INTO dao_members (dao_id, user_id, assigned_by) VALUES ($1, $2, $3)",
+          [createdDao.id, Number(memberId), Number(chef_id)],
+        );
+      }
     }
-    console.log('Membres ajoutés à l\'équipe DAO:', membres.length);
+    console.log("Membres ajoutés à l'équipe DAO:", membres.length);
 
     // 4. Création des tâches par défaut (15 tâches)
     const defaultTasks = [
-      'Résumé sommaire DAO et Création du drive',
-      'Demande de caution et garanties',
-      'Identification et renseignement des profils dans le drive',
-      'Identification et renseignement des ABE dans le drive',
-      'Légalisation des ABE, diplômes, certificats, attestations et pièces administratives requis',
-      'Indication directive d\'élaboration de l\'offre financier',
-      'Elaboration de la méthodologie',
-      'Planification prévisionnelle',
-      'Identification des références précises des équipements et matériels',
-      'Demande de cotation',
-      'Elaboration du squelette des offres',
-      'Rédaction du contenu des OF et OT',
-      'Contrôle et validation des offres',
-      'Impression et présentation des offres (Valider l\'étiquette)',
-      'Dépôt des offres et clôture'
+      "Résumé sommaire DAO et Création du drive",
+      "Demande de caution et garanties",
+      "Identification et renseignement des profils dans le drive",
+      "Identification et renseignement des ABE dans le drive",
+      "Légalisation des ABE, diplômes, certificats, attestations et pièces administratives requis",
+      "Indication directive d'élaboration de l'offre financier",
+      "Elaboration de la méthodologie",
+      "Planification prévisionnelle",
+      "Identification des références précises des équipements et matériels",
+      "Demande de cotation",
+      "Elaboration du squelette des offres",
+      "Rédaction du contenu des OF et OT",
+      "Contrôle et validation des offres",
+      "Impression et présentation des offres (Valider l'étiquette)",
+      "Dépôt des offres et clôture",
     ];
 
     for (const taskName of defaultTasks) {
       await query(
         `INSERT INTO task (dao_id, nom, statut, progress)
          VALUES ($1, $2, 'a_faire', 0)`,
-        [createdDao.id, taskName]
+        [createdDao.id, taskName],
       );
     }
-    console.log('Tâches par défaut créées:', defaultTasks.length);
+    console.log("Tâches par défaut créées:", defaultTasks.length);
 
     // 5. Récupération des informations du chef de projet pour notification
     const chefResult = await query(
       `SELECT username, email FROM users WHERE id = $1`,
-      [Number(chef_id)]
+      [Number(chef_id)],
     );
 
     const chefInfo = chefResult.rows[0];
     if (chefInfo) {
-      console.log('Chef de projet identifié:', chefInfo.username);
+      console.log("Chef de projet identifié:", chefInfo.username);
       // TODO: Implémenter l'envoi d'email
       // await sendDaoCreationEmail(objet, chefInfo.username, chefInfo.email);
     }
@@ -769,24 +852,23 @@ export async function createDao(req: Request, res: Response) {
     // 6. Retourner la réponse complète
     res.status(201).json({
       success: true,
-      message: 'DAO créé avec succès',
+      message: "DAO créé avec succès",
       data: {
         dao: {
           ...createdDao,
-          numero: generatedNumero
+          numero: generatedNumero,
         },
         membres: membres,
-        chef: chefInfo
-      }
+        chef: chefInfo,
+      },
     });
 
-    console.log('DAO créé avec succès - Numéro:', generatedNumero);
-
+    console.log("DAO créé avec succès - Numéro:", generatedNumero);
   } catch (error) {
-    console.error('Erreur lors de la création du DAO:', error);
+    console.error("Erreur lors de la création du DAO:", error);
     res.status(500).json({
       success: false,
-      message: 'Erreur serveur lors de la création du DAO'
+      message: "Erreur serveur lors de la création du DAO",
     });
   }
 }

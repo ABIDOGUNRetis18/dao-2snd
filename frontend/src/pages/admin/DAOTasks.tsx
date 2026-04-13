@@ -318,14 +318,7 @@ export default function DAOTasks() {
                       <td className="px-4 py-3">
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
-                            <input
-                              type="range"
-                              min="0"
-                              max="100"
-                              value={task.progress || 0}
-                              onChange={(e) => handleUpdateProgress(task.id, parseInt(e.target.value))}
-                              className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
-                            />
+                            
                             <span className={`text-xs font-bold w-10 text-right ${getProgressTextColor(task.progress || 0)}`}>
                               {task.progress || 0}%
                             </span>
