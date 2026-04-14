@@ -15,6 +15,7 @@ export async function getAllDaos(req: Request, res: Response) {
         d.chef_id,
         d.chef_projet_nom,
         d.groupement,
+        d.nom_partenaire,
         d.statut,
         d.created_at,
         u.email as chef_projet_email
@@ -439,6 +440,7 @@ export async function getMyDaos(req: AuthenticatedRequest, res: Response) {
         d.chef_id,
         d.chef_projet_nom,
         d.groupement,
+        d.nom_partenaire,
         d.statut,
         d.created_at,
         u.email as chef_projet_email,
@@ -465,6 +467,7 @@ export async function getMyDaos(req: AuthenticatedRequest, res: Response) {
           d.chef_id,
           d.chef_projet_nom,
           d.groupement,
+          d.nom_partenaire,
           d.statut,
           d.created_at,
           u.email as chef_projet_email,

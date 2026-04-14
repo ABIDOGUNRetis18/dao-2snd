@@ -34,6 +34,7 @@ export default function DAOTasks() {
   const [openDropdown, setOpenDropdown] = useState<number | null>(null)
   const [daoProgress, setDaoProgress] = useState(0)
   const [daoStats, setDaoStats] = useState({ total_tasks: 0, assigned_tasks: 0, completed_tasks: 0 })
+  const [daoInfo, setDaoInfo] = useState<any>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const isTaskCompleted = (task: TaskRow) =>
@@ -68,16 +69,17 @@ export default function DAOTasks() {
 
   const loadAll = async () => {
     try {
-      console.log('🔄 Chargement des tâches et membres du DAO...')
+      console.log('Chargement des tâches et membres du DAO...')
 
-      // Charger les tâches et les membres du DAO (déjà filtrés au backend)
-      const [tasksRes, membersRes] = await Promise.all([
+      // Charger les tâches, les membres du DAO et les infos du DAO
+      const [tasksRes, membersRes, daoRes] = await Promise.all([
         apiGet(API_ENDPOINTS.DAO_TASKS(id!)),
         apiGet(API_ENDPOINTS.DAO_MEMBERS(id!)),
+        apiGet(`http://localhost:3001/api/dao/${id}`),
       ])
 
       if (tasksRes.success) {
-        console.log('📋 Tâches reçues:', tasksRes.data?.tasks)
+        console.log('Tâches reçues:', tasksRes.data?.tasks)
         const loadedTasks = tasksRes.data?.tasks || []
         setTasks(loadedTasks)
         // Récupérer la progression du DAO
@@ -86,17 +88,24 @@ export default function DAOTasks() {
         // Sécurise l'affichage côté UI même si l'API n'a pas encore les nouveaux champs
         recalculateDaoMetrics(loadedTasks)
       } else {
-        console.error('❌ Erreur chargement tâches:', tasksRes.error)
+        console.error('Erreur chargement tâches:', tasksRes.error)
       }
       
       if (membersRes.success) {
-        console.log('👥 Membres du DAO reçus:', membersRes.data?.members)
+        console.log('Membres du DAO reçus:', membersRes.data?.members)
         setUsers(membersRes.data?.members || [])
       } else {
-        console.error('❌ Erreur chargement membres:', membersRes.error)
+        console.error('Erreur chargement membres:', membersRes.error)
+      }
+
+      if (daoRes.success) {
+        console.log('Infos DAO reçues:', daoRes.data?.dao)
+        setDaoInfo(daoRes.data?.dao)
+      } else {
+        console.error('Erreur chargement infos DAO:', daoRes.error)
       }
     } catch (error) {
-      console.error('❌ Erreur lors du chargement:', error)
+      console.error('Erreur lors du chargement:', error)
     } finally { 
       setLoading(false) 
     }
@@ -227,6 +236,22 @@ export default function DAOTasks() {
             <ArrowLeft className="h-5 w-5" />
           </button>
           <h1 className="text-lg font-bold text-slate-800">DAO N°{id}</h1>
+          {daoInfo && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-500">Groupement:</span>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                daoInfo.groupement === "oui" 
+                  ? "bg-green-100 text-green-700" 
+                  : "bg-gray-100 text-gray-600"
+              }`}>
+                {daoInfo.groupement === "oui" ? (
+                  daoInfo.nom_partenaire || "Aucun nom"
+                ) : (
+                  "Non"
+                )}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* ── PROGRESSION DU DAO ── */}
