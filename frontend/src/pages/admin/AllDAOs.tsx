@@ -303,14 +303,12 @@ export default function AllDAOs() {
                   <span className="text-sm text-slate-700">
                     {dao.groupement === "oui" ? (
                       dao.nom_partenaire ? (
-                        <span style={{ whiteSpace: "pre-wrap" }}>
-                          {dao.nom_partenaire.replace(/,/g, ",\n")}
-                        </span>
+                        dao.nom_partenaire
                       ) : (
-                        "-"
+                        "Oui"
                       )
                     ) : (
-                      "-"
+                      dao.groupement === "non" ? "Non" : dao.groupement || "?"
                     )}
                   </span>
                 </div>

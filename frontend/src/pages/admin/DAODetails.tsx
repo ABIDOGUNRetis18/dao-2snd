@@ -180,6 +180,28 @@ export default function DAODetails() {
             </span>
           </div>
 
+          {/* Groupement */}
+          <div className="flex-shrink-0 text-center">
+            <p className="text-xs text-slate-400 mb-1">Groupement</p>
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
+              dao.groupement === "oui" 
+                ? "bg-green-100 text-green-700" 
+                : "bg-gray-100 text-gray-600"
+            }`}>
+              {dao.groupement === "oui" ? (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                  {dao.nom_partenaire || "Aucun nom"}
+                </>
+              ) : (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                  Non
+                </>
+              )}
+            </span>
+          </div>
+
           {/* Chat icon */}
           <button className="p-2.5 bg-blue-50 hover:bg-blue-100 text-blue-500 rounded-xl transition-colors flex-shrink-0">
             <MessageCircle className="h-5 w-5" />
