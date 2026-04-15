@@ -44,6 +44,7 @@ export default function DAODetails() {
     }
   }, [id])
 
+  
   const loadDao = async () => {
     try {
       const token = localStorage.getItem('token')

@@ -75,7 +75,7 @@ export default function DAOTasks() {
       const [tasksRes, membersRes, daoRes] = await Promise.all([
         apiGet(API_ENDPOINTS.DAO_TASKS(id!)),
         apiGet(API_ENDPOINTS.DAO_MEMBERS(id!)),
-        apiGet(`http://localhost:3001/api/dao/${id}`),
+        apiGet(API_ENDPOINTS.DAO_BY_ID(id!)),
       ])
 
       if (tasksRes.success) {
@@ -111,18 +111,19 @@ export default function DAOTasks() {
     }
   }
 
+  
   const handleSaveTask = async () => {
     if (!newTaskName.trim()) return
     setSaving(true)
     try {
-      console.log('🔄 Création de la tâche:', newTaskName.trim())
+      console.log('Création de la tâche:', newTaskName.trim())
       
       const responseData = await apiPost(
         API_ENDPOINTS.TASK_CREATE_DAO(id!),
         { nom: newTaskName.trim() }
       )
       
-      console.log('📡 Réponse de l\'API:', responseData)
+      console.log('Réponse de l\'API:', responseData)
       
       if (responseData.success) {
         console.log('Tâche créée avec succès dans la base:', responseData.data)
@@ -227,7 +228,7 @@ export default function DAOTasks() {
     <div className="min-h-screen bg-slate-100 font-sans">
       <div className="max-w-4xl mx-auto px-4 pt-6 space-y-5">
 
-        {/* ── HEADER ── */}
+        {/* HEADER */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-6 py-4 flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
@@ -310,21 +311,21 @@ export default function DAOTasks() {
 
         {/* ── TASKS TABLE ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6" ref={dropdownRef}>
-          <h2 className="text-sm font-semibold text-slate-700 mb-4">Taches du DAO</h2>
+          <h2 className="text-sm font-semibold text-slate-700 mb-4">Tâches du DAO</h2>
 
           {loading ? (
             <div className="text-center py-12 text-sm text-slate-400">Chargement...</div>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-slate-100">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto rounded-xl border border-slate-100">
+              <table className="w-full min-w-[800px] text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100">
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 w-12">N°</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">Tache</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 w-40">Progression</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 w-48">Assigner à</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 w-48">Membres assignés</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 w-16">Actions</th>
+                    <th className="text-left px-6 py-4 text-xs font-semibold text-slate-500 w-16">N°</th>
+                    <th className="text-left px-6 py-4 text-xs font-semibold text-slate-500 min-w-[300px]">Tâche</th>
+                    <th className="text-left px-6 py-4 text-xs font-semibold text-slate-500 w-48">Progression</th>
+                    <th className="text-left px-6 py-4 text-xs font-semibold text-slate-500 w-56">Assigner à</th>
+                    <th className="text-left px-6 py-4 text-xs font-semibold text-slate-500 w-56">Membre assigné</th>
+                    <th className="text-left px-6 py-4 text-xs font-semibold text-slate-500 w-20">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -334,13 +335,13 @@ export default function DAOTasks() {
                       className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors"
                     >
                       {/* N° */}
-                      <td className="px-4 py-3 text-slate-400 text-xs">{index + 1}</td>
+                      <td className="px-6 py-4 text-slate-400 text-xs font-medium">{index + 1}</td>
 
                       {/* Tâche */}
-                      <td className="px-4 py-3 text-slate-700 leading-snug">{task.nom}</td>
+                      <td className="px-6 py-4 text-slate-700 leading-relaxed font-medium">{task.nom}</td>
 
                       {/* Progression */}
-                      <td className="px-4 py-3">
+                      <td className="px-6 py-4">
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
                             
@@ -358,10 +359,10 @@ export default function DAOTasks() {
                       </td>
 
                       {/* Assigner à — dropdown */}
-                      <td className="px-4 py-3 relative">
+                      <td className="px-6 py-4 relative">
                         <button
                           onClick={() => setOpenDropdown(openDropdown === task.id ? null : task.id)}
-                          className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 transition-colors"
+                          className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 transition-colors py-1"
                         >
                           <span className={task.assigned_to ? 'text-slate-700 font-medium' : 'text-slate-400'}>
                             {task.assigned_username || 'Non assignée'}
@@ -400,25 +401,25 @@ export default function DAOTasks() {
                         )}
                       </td>
 
-                      {/* Membres assignés — avatar */}
-                      <td className="px-4 py-3">
+                      {/* Membre assigné - avatar */}
+                      <td className="px-6 py-4">
                         {task.assigned_to && task.assigned_username ? (
-                          <div className="flex items-center gap-2">
-                            <div className={`w-7 h-7 rounded-full ${colorFor(users.findIndex(u => u.id === task.assigned_to))} flex items-center justify-center text-white text-xs font-medium`}>
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-full ${colorFor(users.findIndex(u => u.id === task.assigned_to))} flex items-center justify-center text-white text-xs font-medium flex-shrink-0`}>
                               {getInitials(task.assigned_username)}
                             </div>
-                            <span className="text-sm text-slate-600 truncate">{task.assigned_username}</span>
+                            <span className="text-sm text-slate-600 font-medium">{task.assigned_username}</span>
                           </div>
                         ) : (
-                          <span className="text-xs text-slate-300">—</span>
+                          <span className="text-sm text-slate-300">-</span>
                         )}
                       </td>
 
-                      {/* Actions — bouton suppression */}
-                      <td className="px-4 py-3">
+                      {/* Actions - bouton suppression */}
+                      <td className="px-6 py-4">
                         <button
                           onClick={() => handleDeleteTask(task.id)}
-                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                          className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
                           title="Supprimer cette tâche"
                         >
                           <Trash2 className="h-4 w-4" />

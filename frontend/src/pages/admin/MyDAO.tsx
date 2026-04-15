@@ -9,28 +9,16 @@ interface DAO {
   date_depot: string
   autorite: string
   chef_projet_nom: string
-  statut: 'EN_ATTENTE' | 'EN_COURS' | 'A_RISQUE' | 'TERMINEE' | 'ARCHIVE'
+  statut: 'EN_COURS' | 'A_RISQUE' | 'TERMINEE'
 }
 
 const STATUTS = [
   { value: '', label: 'Tous les statuts' },
-  { value: 'EN_ATTENTE', label: 'En attente' },
   { value: 'EN_COURS',   label: 'En cours' },
   { value: 'A_RISQUE',   label: 'À risque' },
   { value: 'TERMINEE',   label: 'Terminée' },
-  { value: 'ARCHIVE',    label: 'Archivé' },
 ]
 
-const getStatutBadge = (statut: string) => {
-  switch (statut) {
-    case 'EN_ATTENTE': return { label: 'En attente', bg: 'bg-yellow-100 text-yellow-700' }
-    case 'EN_COURS':   return { label: 'En cours',   bg: 'bg-blue-100 text-blue-700' }
-    case 'A_RISQUE':   return { label: 'À risque',   bg: 'bg-red-100 text-red-600' }
-    case 'TERMINEE':   return { label: 'Terminée',   bg: 'bg-green-100 text-green-700' }
-    case 'ARCHIVE':    return { label: 'Archivé',    bg: 'bg-gray-100 text-gray-500' }
-    default:           return { label: statut,       bg: 'bg-gray-100 text-gray-500' }
-  }
-}
 
 export default function MesDAOs() {
   const navigate = useNavigate()
@@ -97,59 +85,57 @@ export default function MesDAOs() {
     setDaoTasks(tasksData)
   }
 
-  // Fonction getDAOStatus - Logique basée sur la progression des tâches
+  // Statut basé sur la logique simplifiée à 3 statuts
   const getDAOStatus = (dao: DAO) => {
-    const tasks = daoTasks[dao.id] || [];
+    // Utiliser le statut du DAO si disponible, sinon le calculer
+    const status = dao.statut || calculateStatus(dao)
     
-    // Si pas de tâches assignées, le DAO ne peut pas être terminé
+    switch (status) {
+      case 'EN_COURS':
+        return { label: 'En cours', className: 'px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800' }
+      case 'A_RISQUE':
+        return { label: 'À risque', className: 'px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800' }
+      case 'TERMINEE':
+        return { label: 'Terminée', className: 'px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800' }
+      default:
+        return { label: 'En cours', className: 'px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800' }
+    }
+  }
+
+  // Calculer le statut basé sur la logique métier simplifiée
+  const calculateStatus = (dao: DAO) => {
+    const tasks = daoTasks[dao.id] || []
+    
+    // Si aucune tâche, statut par défaut
     if (tasks.length === 0) {
-      // Logique basée sur la date de dépôt pour les DAO sans tâches
-      if (!dao.date_depot) {
-        return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
-      }
-      
-      const dateDepot = new Date(dao.date_depot);
-      const today = new Date();
-      const diffDays = Math.floor((dateDepot.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      
-      if (diffDays >= 4) {
-        return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
-      }
-      
-      if (diffDays <= 3) {
-        return { label: "À risque", className: "px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800" };
-      }
-      
-      return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
+      return 'EN_COURS'
     }
     
-    // Calculer la progression globale basée sur les tâches
-    const completedTasks = tasks.filter(task => task.statut === 'termine').length;
-    const globalProgress = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+    // Calculer la progression moyenne sur TOUTES les tâches
+    const totalProgress = tasks.reduce((sum, task) => 
+      sum + Number(task.progress || 0), 0)
+    const avgProgress = tasks.length > 0 ? totalProgress / tasks.length : 0
     
-    // Logique basée sur la progression des tâches
-    if (globalProgress === 100) {
-      return { label: "Terminée", className: "px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800" };
+    // Compter les tâches complétées (progress = 100 OU statut = 'termine')
+    const allCompletedTasks = tasks.filter(task => 
+      task.statut === 'termine' || Number(task.progress || 0) >= 100
+    )
+    
+    // TERMINEE : Toutes les tâches sont complétées ET progression moyenne = 100%
+    if (allCompletedTasks.length === tasks.length && Math.round(avgProgress) === 100) {
+      return 'TERMINEE'
     }
     
-    // Si progression < 100%, utiliser la logique de date pour déterminer "En cours" vs "À risque"
-    if (!dao.date_depot) {
-      return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
+    // Logique temporelle pour A_RISQUE (>=3 jours depuis la date de dépôt ET aucune progression)
+    const threeDaysAgo = new Date()
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
+    
+    if (avgProgress === 0 && dao.date_depot && new Date(dao.date_depot) < threeDaysAgo) {
+      return 'A_RISQUE'
     }
     
-    const dateDepot = new Date(dao.date_depot);
-    const today = new Date();
-    const diffDays = Math.floor((dateDepot.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (diffDays >= 4) {
-      return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
-    }
-    
-    if (diffDays <= 3) {
-      return { label: "À risque", className: "px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800" };
-    }
-    
-    return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
+    // Par défaut : EN_COURS
+    return 'EN_COURS'
   }
 
   const filtered = daos.filter(dao => {

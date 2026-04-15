@@ -133,7 +133,7 @@ export async function createTask(req: AuthenticatedRequest, res: Response) {
     `, [nom, daoId]);
 
     // 🎯 MISE À JOUR: Mettre à jour le statut du DAO si nécessaire
-    await updateDaoStatus(daoId);
+    await updateDaoStatus(Number(daoId));
 
     res.status(201).json({
       success: true,
@@ -201,7 +201,7 @@ export async function updateTaskProgress(req: AuthenticatedRequest, res: Respons
             details: "La première tâche du DAO doit être terminée (100%) avant de pouvoir modifier les autres tâches.",
             firstTaskId: taskInfo.first_task_id,
             firstTaskProgress: firstTaskProgress,
-            currentTaskId: parseInt(id),
+            currentTaskId: Number(id),
             can_override: true
           });
         }
@@ -342,7 +342,7 @@ export async function deleteTask(req: AuthenticatedRequest, res: Response) {
       success: true,
       message: 'Tâche supprimée avec succès',
       data: {
-        deleted_task_id: parseInt(id),
+        deleted_task_id: Number(id),
         remaining_tasks: taskInfo.total_tasks - 1,
         can_create_more: taskInfo.total_tasks - 1 < 15
       }
@@ -375,9 +375,9 @@ async function updateDaoStatus(daoId: number) {
     }
 
     // Calculer les statistiques
-    const totalProgress = allTasks.reduce((sum, task) => sum + (task.progress || 0), 0);
+    const totalProgress = allTasks.reduce((sum: number, task: any) => sum + (task.progress || 0), 0);
     const averageProgress = Math.round(totalProgress / allTasks.length);
-    const completedTasks = allTasks.filter(task => (task.progress || 0) === 100);
+    const completedTasks = allTasks.filter((task: any) => (task.progress || 0) === 100);
 
     // Déterminer le nouveau statut
     let newStatut;

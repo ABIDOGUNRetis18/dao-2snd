@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { query } from '../utils/database';
 import { AuthenticatedRequest } from '../middleware/auth';
+import { checkAndUpdateDaoStatus } from './daoController';
 
 export async function getTasksByDao(req: Request, res: Response) {
   try {
@@ -153,6 +154,13 @@ export async function updateTask(req: Request, res: Response) {
       });
     }
 
+    const updatedTask = result.rows[0];
+
+    // Vérifier automatiquement si le DAO doit être marqué comme terminé
+    if (updatedTask.dao_id) {
+      await checkAndUpdateDaoStatus(updatedTask.dao_id);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Tâche mise à jour avec succès',
@@ -173,13 +181,20 @@ export async function deleteTask(req: Request, res: Response) {
   try {
     const { id } = req.params;
 
-    const result = await query('DELETE FROM task WHERE id = $1 RETURNING id, nom', [id]);
+    const result = await query('DELETE FROM task WHERE id = $1 RETURNING id, nom, dao_id', [id]);
 
     if (result.rowCount === 0) {
       return res.status(404).json({
         success: false,
         message: 'Tâche non trouvée'
       });
+    }
+
+    const deletedTask = result.rows[0];
+
+    // Vérifier automatiquement si le DAO doit être marqué comme terminé
+    if (deletedTask.dao_id) {
+      await checkAndUpdateDaoStatus(deletedTask.dao_id);
     }
 
     res.status(200).json({

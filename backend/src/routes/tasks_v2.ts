@@ -1,11 +1,10 @@
 import { Router } from 'express';
+import { query } from '../utils/database';
 import { 
   getTasksByDao, 
   createTask, 
   updateTaskProgress, 
-  assignTask, 
-  deleteTask, 
-  getDaoTasksStats 
+  deleteTask 
 } from '../controllers/taskController_v2';
 import { authenticateToken } from '../middleware/auth';
 
@@ -19,17 +18,11 @@ router.use(authenticateToken);
 // Obtenir les tâches d'un DAO avec statut de blocage séquentiel
 router.get('/dao/:id', getTasksByDao);
 
-// Obtenir les statistiques des tâches d'un DAO
-router.get('/dao/:id/stats', getDaoTasksStats);
-
 // Créer une nouvelle tâche (avec contrôle de limite de 15 et logique séquentielle)
 router.post('/dao/:id', createTask);
 
 // Mettre à jour la progression d'une tâche (avec contrôle séquentiel)
 router.put('/:id/progress', updateTaskProgress);
-
-// Assigner une tâche (avec contrôle de déblocage)
-router.put('/:id/assign', assignTask);
 
 // Supprimer une tâche
 router.delete('/:id', deleteTask);

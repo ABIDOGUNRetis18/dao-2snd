@@ -1,0 +1,286 @@
+# ==========================================
+# 🚀 DAO Project - .gitignore Sécurisé
+# ==========================================
+
+# 📋 Logs and Debug Files
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+debug.log*
+.DS_Store
+
+# 📦 Dependencies and Build Outputs
+node_modules/
+node_modules/*
+dist/
+dist-ssr/
+build/
+.out/
+.output/
+.nuxt/
+.next/
+.cache/
+.parcel-cache/
+.vite/
+.astro/
+
+# 🏗️ Environment Variables - CRITICAL FOR SECURITY
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+
+# 🗄️ Database and Data
+*.db
+*.sqlite
+*.sqlite3
+database/
+db/
+data/
+backups/
+
+# 🔐 Security and Secrets - CRITICAL
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+private/
+credentials/
+auth/
+tokens/
+*.jks
+*.p8
+*.mobileprovision
+
+# 📦 Package Managers
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.npm
+.yarn-integrity
+
+# 🔧 TypeScript and JavaScript
+*.tsbuildinfo
+*.d.ts.map
+*.js.map
+*.mjs.map
+*.cjs.map
+lib/
+types/
+coverage/
+*.lcov
+.nyc_output/
+
+# 🎨 CSS and Styling
+*.css.map
+*.scss.map
+*.sass.map
+*.less.map
+.sass-cache/
+.stylelintcache
+
+# 🧪 Testing and Coverage
+coverage/
+*.coverage
+.nyc_output/
+junit.xml
+test-results/
+playwright-report/
+test-results.xml
+
+# 🖼️ Assets and Media
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.ico
+*.svg
+*.webp
+*.avif
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+assets/
+public/uploads/
+uploads/
+static/media/
+
+# 🛠️ IDE and Editor Files
+.vscode/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.idea/*
+*.swp
+*.swo
+*~
+.fleet/
+.sublime-project
+.sublime-workspace
+.atom/
+.brackets.json
+.eslintcache
+
+# 🐳 Docker and Containerization
+Dockerfile
+docker-compose.yml
+docker-compose.override.yml
+.dockerignore
+.docker/
+
+# ☁️ Cloud and Deployment
+.vercel/
+.netlify/
+.firebase/
+.aws/
+.azure/
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+appveyor.yml
+
+# 📊 Analytics and Monitoring
+*.analytics
+.google-services.json
+service-account.json
+amplify/
+.sentryclirc
+
+# 🎯 Development Tools
+.eslintcache
+.stylelintcache
+.prettierignore
+.turbo
+.husky/
+.lintstagedrc*
+.staged*
+.commitlintrc*
+.releaserc*
+
+# 📱 Mobile and Native
+cordova/
+platforms/
+plugins/
+www/
+*.apk
+*.ipa
+*.mobileprovision
+
+# 🌐 Browser and Web
+.wasm
+.worker.js
+*.webmanifest
+manifest.json
+
+# 🔄 Version Control
+.git/
+.gitattributes
+.gitmodules
+
+# 🎨 Temporary and OS Files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# 📊 Performance and Profiling
+*.cpuprofile
+*.heapsnapshot
+*.heapdump
+profile/
+profiler/
+
+# 🌍 Localization and i18n
+locales/
+i18n/
+lang/
+*.po
+*.mo
+.pot
+
+# 🎯 Framework Specific
+# React
+.eslintcache
+.eslintrc*
+.prettierrc*
+.stylelintrc*
+
+# Vue
+.vuerc
+.vuepress/
+
+# Angular
+.angular/
+.ngcache/
+
+# Next.js
+.next/
+
+# Nuxt.js
+.nuxt/
+
+# Svelte
+.svelte-kit/
+
+# Astro
+.astro/
+
+# 🗄️ Backend Specific
+# Node.js
+lib-cov
+*.lcov
+coverage/
+.nyc_output
+.grunt
+bower_components
+.lock-wscript
+build/Release
+jspm_packages/
+typings/
+node_modules/
+.npm
+.node_repl_history
+*.tsbuildinfo
+.eslintcache
+
+# 📝 Documentation
+*.md
+!README.md
+!CHANGELOG.md
+!CONTRIBUTING.md
+docs/
+notes/
+TODO.md
+NOTES.md
+
+# ==========================================
+# 📝 Notes de sécurité importantes
+# ==========================================
+# - TOUJOURS vérifier que .env* est bien ignoré
+# - JAMAIS committer de secrets ou de clés
+# - Vérifier régulièrement avec git status
+# - Utiliser git-secrets pour prévenir les commits accidentels
+# ==========================================

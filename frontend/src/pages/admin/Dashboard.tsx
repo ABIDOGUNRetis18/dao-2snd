@@ -5,92 +5,106 @@ export default function AdminDashboard() {
   const [daoData, setDaoData] = useState<any[]>([])
   const [daoTasks, setDaoTasks] = useState<{[key: number]: any[]}>({})
 
-  // Fonction getDAOStatus - Logique basée sur la progression des tâches
+  // Fonction getDAOStatus - Logique simplifiée à 3 statuts
   const getDAOStatus = (dao: any) => {
     const tasks = daoTasks[dao.id] || [];
     
-    // Si pas de tâches assignées, le DAO ne peut pas être terminé
+    // Si aucune tâche, statut par défaut
     if (tasks.length === 0) {
-      // Logique basée sur la date de dépôt pour les DAO sans tâches
-      if (!dao.date_depot) {
-        return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
-      }
-      
-      const dateDepot = new Date(dao.date_depot);
-      const today = new Date();
-      const diffDays = Math.floor((dateDepot.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      
-      if (diffDays >= 4) {
-        return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
-      }
-      
-      if (diffDays <= 3) {
-        return { label: "À risque", className: "px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800" };
-      }
-      
-      return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
+      return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800" };
     }
     
-    // Calculer la progression globale basée sur les tâches
-    const completedTasks = tasks.filter(task => task.statut === 'termine').length;
-    const globalProgress = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+    // Calculer la progression moyenne sur TOUTES les tâches
+    const totalProgress = tasks.reduce((sum, task) => 
+      sum + Number(task.progress || 0), 0);
+    const avgProgress = tasks.length > 0 ? totalProgress / tasks.length : 0;
     
-    // Logique basée sur la progression des tâches
-    if (globalProgress === 100) {
+    // Compter les tâches complétées (progress = 100 OU statut = 'termine')
+    const allCompletedTasks = tasks.filter(task => 
+      task.statut === 'termine' || Number(task.progress || 0) >= 100
+    );
+    
+    // TERMINEE : Toutes les tâches sont complétées ET progression moyenne = 100%
+    if (allCompletedTasks.length === tasks.length && Math.round(avgProgress) === 100) {
       return { label: "Terminée", className: "px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800" };
     }
     
-    // Si progression < 100%, utiliser la logique de date pour déterminer "En cours" vs "À risque"
-    if (!dao.date_depot) {
-      return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
-    }
+    // Logique temporelle pour A_RISQUE (>=3 jours depuis la date de dépôt ET aucune progression)
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
     
-    const dateDepot = new Date(dao.date_depot);
-    const today = new Date();
-    const diffDays = Math.floor((dateDepot.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (diffDays >= 4) {
-      return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
-    }
-    
-    if (diffDays <= 3) {
+    if (avgProgress === 0 && dao.date_depot && new Date(dao.date_depot) < threeDaysAgo) {
       return { label: "À risque", className: "px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800" };
     }
     
+    // Par défaut : EN_COURS
     return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
   }
 
-  // Statistiques calculées avec useMemo - basées sur la progression des tâches
+  // Statistiques calculées avec useMemo - logique simplifiée à 3 statuts
   const stats = useMemo(() => {
     return {
       totalDaos: daoData.length,
       completedDaos: daoData.filter(d => {
         const tasks = daoTasks[d.id] || [];
         if (tasks.length === 0) return false;
-        const completedTasks = tasks.filter(task => task.statut === 'termine').length;
-        return completedTasks === tasks.length;
+        
+        // Calculer la progression moyenne sur TOUTES les tâches
+        const totalProgress = tasks.reduce((sum, task) => 
+          sum + Number(task.progress || 0), 0);
+        const avgProgress = tasks.length > 0 ? totalProgress / tasks.length : 0;
+        
+        // Compter les tâches complétées (progress = 100 OU statut = 'termine')
+        const allCompletedTasks = tasks.filter(task => 
+          task.statut === 'termine' || Number(task.progress || 0) >= 100
+        );
+        
+        // TERMINEE : Toutes les tâches sont complétées ET progression moyenne = 100%
+        return allCompletedTasks.length === tasks.length && Math.round(avgProgress) === 100;
       }).length,
       inProgressDaos: daoData.filter(d => {
         const tasks = daoTasks[d.id] || [];
-        if (tasks.length === 0) {
-          // Pour les DAO sans tâches, utiliser la logique de date
-          if (!d.date_depot) return true;
-          const diffDays = Math.floor((new Date(d.date_depot).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-          return diffDays >= 4;
+        if (tasks.length === 0) return true; // Par défaut EN_COURS si aucune tâche
+        
+        // Calculer la progression moyenne
+        const totalProgress = tasks.reduce((sum, task) => 
+          sum + Number(task.progress || 0), 0);
+        const avgProgress = tasks.length > 0 ? totalProgress / tasks.length : 0;
+        
+        // Compter les tâches complétées
+        const allCompletedTasks = tasks.filter(task => 
+          task.statut === 'termine' || Number(task.progress || 0) >= 100
+        );
+        
+        // Si toutes les tâches sont terminées = TERMINEE
+        if (allCompletedTasks.length === tasks.length && Math.round(avgProgress) === 100) {
+          return false;
         }
-        const completedTasks = tasks.filter(task => task.statut === 'termine').length;
-        return completedTasks < tasks.length;
+        
+        // Logique temporelle pour A_RISQUE
+        const threeDaysAgo = new Date();
+        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+        
+        if (avgProgress === 0 && d.date_depot && new Date(d.date_depot) < threeDaysAgo) {
+          return false; // A_RISQUE
+        }
+        
+        return true; // EN_COURS
       }).length,
       atRiskDaos: daoData.filter(d => {
         const tasks = daoTasks[d.id] || [];
-        if (tasks.length === 0) {
-          // Pour les DAO sans tâches, utiliser la logique de date
-          if (!d.date_depot) return false;
-          const diffDays = Math.floor((new Date(d.date_depot).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-          return diffDays <= 3;
-        }
-        // Les DAO avec des tâches ne sont jamais "à risque" si elles ont des tâches assignées
-        return false;
+        if (tasks.length === 0) return false; // Pas de risque si aucune tâche
+        
+        // Calculer la progression moyenne
+        const totalProgress = tasks.reduce((sum, task) => 
+          sum + Number(task.progress || 0), 0);
+        const avgProgress = tasks.length > 0 ? totalProgress / tasks.length : 0;
+        
+        // A_RISQUE : Aucune progression ET plus de 3 jours depuis la date de dépôt
+        const threeDaysAgo = new Date();
+        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+        
+        return avgProgress === 0 && d.date_depot && new Date(d.date_depot) < threeDaysAgo;
       }).length,
     };
   }, [daoData, daoTasks]);

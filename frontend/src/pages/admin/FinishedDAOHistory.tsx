@@ -19,48 +19,33 @@ export default function FinishedDAOHistory() {
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
 
-  // Mock data pour le développement
-  const mockDaos: FinishedDAO[] = [
-    {
-      id: 1,
-      numero: 'DAO-2024-015',
-      objet: 'Refonte du site web institutionnel',
-      date_depot: '2024-03-15',
-      date_fin: '2024-12-20',
-      equipe: 'Équipe Web',
-      chef_projet: 'Jean Dupont',
-      statut: 'termine',
-      montant_total: 45000
-    },
-    {
-      id: 2,
-      numero: 'DAO-2024-012',
-      objet: 'Migration vers le cloud Azure',
-      date_depot: '2024-02-10',
-      date_fin: '2024-11-30',
-      equipe: 'Équipe Infrastructure',
-      chef_projet: 'Marie Martin',
-      statut: 'termine',
-      montant_total: 120000
-    },
-    {
-      id: 3,
-      numero: 'DAO-2024-008',
-      objet: 'Développement application mobile',
-      date_depot: '2024-01-20',
-      date_fin: '2024-08-15',
-      equipe: 'Équipe Mobile',
-      chef_projet: 'Pierre Durand',
-      statut: 'annule'
+  const loadFinishedDaos = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch('http://localhost:3001/api/dao/finished', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        console.error('Erreur lors du chargement des DAO terminés')
+        return
+      }
+
+      const data = await response.json()
+      if (data.success) {
+        setDaos(data.data.daos || [])
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des DAO terminés:', error)
+    } finally {
+      setLoading(false)
     }
-  ]
+  }
 
   useEffect(() => {
-    // Simulation de chargement des données
-    setTimeout(() => {
-      setDaos(mockDaos)
-      setLoading(false)
-    }, 500)
+    loadFinishedDaos()
   }, [])
 
   // Filtrage des DAO

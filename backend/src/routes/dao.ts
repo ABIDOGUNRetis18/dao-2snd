@@ -8,7 +8,11 @@ import {
   archiveDao,
   getMyDaos,
   getDaoTasks,
-  getDaoAssignableMembers
+  getDaoAssignableMembers,
+  getFinishedDaos,
+  markDaoAsFinished,
+  diagnoseDaoStatus,
+  updateAllDaoStatus
 } from '../controllers/daoController';
 import { getNextDaoNumber, getDaoTypes, addDaoType } from '../controllers/daoNumberController';
 import { authenticateToken } from '../middleware/auth';
@@ -33,6 +37,9 @@ router.post('/types', addDaoType);
 // Obtenir le prochain numéro de DAO (doit être avant /:id)
 router.get('/next-number', getNextDaoNumber);
 
+// Obtenir les DAO terminés (doit être avant /:id)
+router.get('/finished', getFinishedDaos);
+
 // Obtenir un DAO spécifique
 router.get('/:id', getDao);
 
@@ -53,5 +60,14 @@ router.delete('/:id', deleteDao);
 
 // Archiver un DAO
 router.put('/:id/archive', archiveDao);
+
+// Marquer un DAO comme terminé
+router.put('/:id/finish', markDaoAsFinished);
+
+// Diagnostiquer les statuts de DAO
+router.get('/admin/diagnose-dao-status', diagnoseDaoStatus);
+
+// Mettre à jour tous les statuts de DAO
+router.post('/admin/update-dao-status', updateAllDaoStatus);
 
 export default router;

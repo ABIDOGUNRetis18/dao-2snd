@@ -10,6 +10,7 @@ interface Task {
   dao_id: number
   dao_numero: string
   dao_objet: string
+  dao_statut: string | null
   statut: string | null
   progress: number | null
   priority: 'low' | 'medium' | 'high' | null
@@ -550,7 +551,7 @@ export default function MyTasks() {
                   </div>
                   <div className="flex flex-col gap-2 ml-4">
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${getStatusColor(task.statut)}`}>
-                      {task.statut === 'a_faire' ? 'À faire' : task.statut === 'en_cours' ? 'En cours' : task.statut === 'termine' ? 'Terminé' : 'Non défini'}
+                      {task.statut === 'a_faire' ? 'À faire' : task.statut === 'en_cours' ? 'En cours' : task.statut === 'termine' ? 'Terminé' : 'En attente'}
                     </span>
                     <span className="text-xs font-medium text-slate-600">
                       {(task.progress || 0)}% complété
@@ -568,7 +569,7 @@ export default function MyTasks() {
                       max="100"
                       value={task.progress || 0}
                       onChange={(e) => updateProgressContinuous(task.id, parseInt(e.target.value))}
-                      className="flex-1 h-3 bg-slate-200 rounded-lg appearance-none cursor-pointer slider"
+                      className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer slider align-middle"
                       style={{
                         background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(task.progress || 0)}%, #e2e8f0 ${(task.progress || 0)}%, #e2e8f0 100%)`
                       }}
@@ -581,21 +582,25 @@ export default function MyTasks() {
 
                 {/* Informations DAO et assignation */}
                 <div className="bg-slate-50 rounded-lg p-3 mb-3 space-y-2">
-                  <div className="flex items-center gap-2 text-sm text-slate-600 mb-1">
-                    <FileText className="h-4 w-4" />
-                    <span className="font-medium">{task.dao_numero}</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <FileText className="h-4 w-4" />
+                      <span className="font-medium">{task.dao_numero}</span>
+                    </div>
+                    {/* Statut du DAO */}
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                      task.dao_statut === 'TERMINEE' 
+                        ? 'bg-green-100 text-green-800 border border-green-200'
+                        : task.dao_statut === 'A_RISQUE'
+                        ? 'bg-red-100 text-red-800 border border-red-200'
+                        : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+                    }`}>
+                      {task.dao_statut === 'TERMINEE' ? 'Terminée' : 
+                       task.dao_statut === 'A_RISQUE' ? 'À risque' : 
+                       'En cours'}
+                    </span>
                   </div>
                   <p className="text-sm text-slate-600">{task.dao_objet}</p>
-                  
-                  {/* Information d'assignation */}
-                  {task.chef_projet_nom && (
-                    <div className="flex items-center gap-2 text-xs bg-blue-50 text-blue-700 px-2 py-1.5 rounded-md">
-                      <User className="h-3 w-3" />
-                      <span>
-                        Assigné par <span className="font-semibold">{task.chef_projet_nom}</span>
-                      </span>
-                    </div>
-                  )}
                 </div>
 
                 {/* Date de création et boutons d'action */}

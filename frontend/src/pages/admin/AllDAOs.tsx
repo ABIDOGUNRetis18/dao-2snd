@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, Filter, ArrowLeft, Trash2, Edit, Archive } from 'lucide-react'
+import { Search, ArrowLeft, Trash2, Edit, Archive } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 interface DAO {
@@ -20,7 +20,6 @@ export default function AllDAOs() {
   const [daos, setDaos] = useState<DAO[]>([])
   const [daoTasks, setDaoTasks] = useState<{[key: number]: any[]}>({})
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('tous')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -43,11 +42,11 @@ export default function AllDAOs() {
       
       const data = await response.json()
       if (data.success) {
-        // Filtrer pour ne pas afficher les DAO archivés
-        const nonArchivedDaos = (data.data.daos || []).filter((dao: any) => dao.statut !== 'ARCHIVE')
-        setDaos(nonArchivedDaos)
+        // Filtrer pour ne pas afficher les DAO archivés (mais afficher les terminés)
+        const activeDaos = (data.data.daos || []).filter((dao: any) => dao.statut !== 'ARCHIVE')
+        setDaos(activeDaos)
         // Charger les tâches pour chaque DAO
-        await loadTasksForAllDaos(nonArchivedDaos)
+        await loadTasksForAllDaos(activeDaos)
       }
     } catch (error) {
       console.error('Erreur lors du chargement des DAO:', error)
@@ -81,19 +80,57 @@ export default function AllDAOs() {
     setDaoTasks(tasksData)
   }
 
-  // Statut piloté par la progression réelle (colonne task.progress)
+  // Statut basé sur la logique simplifiée à 3 statuts
   const getDAOStatus = (dao: DAO) => {
-    const progress = getProgression(dao)
-
-    if (progress === 100) {
-      return { label: 'Terminée', className: 'px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800' }
+    // Utiliser le statut du DAO si disponible, sinon le calculer
+    const status = dao.statut || calculateStatus(dao)
+    
+    switch (status) {
+      case 'EN_COURS':
+        return { label: 'En cours', className: 'px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800' }
+      case 'A_RISQUE':
+        return { label: 'À risque', className: 'px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800' }
+      case 'TERMINEE':
+        return { label: 'Terminée', className: 'px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800' }
+      default:
+        return { label: 'En cours', className: 'px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800' }
     }
+  }
 
-    if (progress === 0) {
-      return { label: 'En attente', className: 'px-2 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-700' }
+  // Calculer le statut basé sur la logique métier simplifiée
+  const calculateStatus = (dao: DAO) => {
+    const tasks = daoTasks[dao.id] || []
+    
+    // Si aucune tâche, statut par défaut
+    if (tasks.length === 0) {
+      return 'EN_COURS'
     }
-
-    return { label: 'En cours', className: 'px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800' }
+    
+    // Calculer la progression moyenne sur TOUTES les tâches
+    const totalProgress = tasks.reduce((sum, task) => 
+      sum + Number(task.progress || 0), 0)
+    const avgProgress = tasks.length > 0 ? totalProgress / tasks.length : 0
+    
+    // Compter les tâches complétées (progress = 100 OU statut = 'termine')
+    const allCompletedTasks = tasks.filter(task => 
+      task.statut === 'termine' || Number(task.progress || 0) >= 100
+    )
+    
+    // TERMINEE : Toutes les tâches sont complétées ET progression moyenne = 100%
+    if (allCompletedTasks.length === tasks.length && Math.round(avgProgress) === 100) {
+      return 'TERMINEE'
+    }
+    
+    // Logique temporelle pour A_RISQUE (>=3 jours depuis la date de dépôt ET aucune progression)
+    const threeDaysAgo = new Date()
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
+    
+    if (avgProgress === 0 && dao.date_depot && new Date(dao.date_depot) < threeDaysAgo) {
+      return 'A_RISQUE'
+    }
+    
+    // Par défaut : EN_COURS
+    return 'EN_COURS'
   }
 
   const getProgression = (dao: DAO) => {
@@ -119,6 +156,7 @@ export default function AllDAOs() {
     return 'bg-green-500'
   }
 
+  
   const handleDelete = async (daoId: number) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce DAO ?')) return
     
@@ -132,14 +170,10 @@ export default function AllDAOs() {
       })
       
       if (response.ok) {
-        setDaos(daos.filter(dao => dao.id !== daoId))
-        alert('DAO supprimé avec succès')
-      } else {
-        alert('Erreur lors de la suppression du DAO')
+        loadDaos()
       }
     } catch (error) {
-      console.error('Erreur lors de la suppression:', error)
-      alert('Erreur réseau lors de la suppression')
+      console.error('Erreur lors de la suppression du DAO:', error)
     }
   }
 
@@ -180,9 +214,7 @@ export default function AllDAOs() {
       dao.objet.toLowerCase().includes(searchTerm.toLowerCase()) ||
       dao.reference.toLowerCase().includes(searchTerm.toLowerCase())
     
-    const matchesStatus = statusFilter === 'tous' || dao.statut === statusFilter
-    
-    return matchesSearch && matchesStatus
+    return matchesSearch
   })
 
   return (
@@ -203,55 +235,36 @@ export default function AllDAOs() {
         </div>
       </div>
 
-      {/* Barre de recherche et filtres */}
+      {/* Barre de recherche */}
       <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          {/* Barre de recherche */}
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Rechercher par numéro, objet ou référence..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-          
-          {/* Filtre par statut */}
-          <div className="relative">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="pl-10 pr-8 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
-            >
-              <option value="tous">Tous les statuts</option>
-              <option value="EN_ATTENTE">En attente</option>
-              <option value="EN_COURS">En cours</option>
-              <option value="TERMINE">Terminé</option>
-              <option value="A_RISQUE">À risque</option>
-            </select>
-          </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Rechercher par numéro, objet ou référence..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
         </div>
       </div>
 
       {/* DAO Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {loading ? (
-          <div className="col-span-full text-center py-12">
+          <div key="loading" className="col-span-full text-center py-12">
             <div className="text-slate-500">Chargement...</div>
           </div>
         ) : filteredDaos.length === 0 ? (
-          <div className="col-span-full text-center py-12">
+          <div key="no-results" className="col-span-full text-center py-12">
             <div className="text-slate-500">Aucun DAO trouvé.</div>
           </div>
         ) : (
           filteredDaos.map((dao) => (
             <div 
-              key={dao.id} 
+              key={`dao-${dao.id}`} 
               className="bg-white rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer hover:border-blue-300"
-              onClick={() => window.location.href = `/admin/dao/${dao.id}`}
+              onClick={() => window.location.href = `/admin/dao/${dao.id}/tasks`}
             >
               {/* Card Header */}
               <div className="p-4 border-b border-slate-200">

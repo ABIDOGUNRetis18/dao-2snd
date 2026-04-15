@@ -423,6 +423,264 @@ export async function archiveDao(req: Request, res: Response) {
   }
 }
 
+export async function getFinishedDaos(req: Request, res: Response) {
+  try {
+    const result = await query(`
+      SELECT 
+        d.id,
+        d.numero,
+        d.objet,
+        d.date_depot,
+        d.created_at as date_fin,
+        d.chef_projet_nom as equipe,
+        d.chef_projet_nom as chef_projet,
+        d.statut
+      FROM daos d
+      WHERE d.statut IN ('TERMINEE', 'ANNULE', 'ARCHIVE')
+      ORDER BY d.created_at DESC
+    `);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        daos: result.rows
+      }
+    });
+  } catch (error) {
+    console.error("Erreur lors de la récupération des DAO terminés:", error);
+    res.status(500).json({
+      success: false,
+      message: "Erreur serveur lors de la récupération des DAO terminés",
+    });
+  }
+}
+
+export async function markDaoAsFinished(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+
+    const result = await query(
+      "UPDATE daos SET statut = $1 WHERE id = $2 RETURNING *",
+      ["TERMINE", id],
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "DAO non trouvé",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "DAO marqué comme terminé avec succès",
+      data: {
+        dao: result.rows[0],
+      },
+    });
+  } catch (error) {
+    console.error("Erreur lors du marquage du DAO comme terminé:", error);
+    res.status(500).json({
+      success: false,
+      message: "Erreur serveur lors du marquage du DAO comme terminé",
+    });
+  }
+}
+
+export async function checkAndUpdateDaoStatus(daoId: number) {
+  try {
+    // Récupérer toutes les tâches du DAO (assignées et non assignées)
+    const tasksResult = await query(`
+      SELECT 
+        id, 
+        statut, 
+        progress,
+        assigned_to,
+        created_at
+      FROM tasks 
+      WHERE dao_id = $1
+    `, [daoId]);
+
+    // Récupérer les informations du DAO pour la logique temporelle
+    const daoResult = await query(`
+      SELECT date_depot, created_at, statut as current_statut
+      FROM daos 
+      WHERE id = $1
+    `, [daoId]);
+
+    if (daoResult.rowCount === 0) {
+      return;
+    }
+
+    const dao = daoResult.rows[0];
+    const totalTasks = tasksResult.rows.length;
+    const assignedTasks = tasksResult.rows.filter((task: any) => task.assigned_to !== null);
+    const completedTasks = assignedTasks.filter((task: any) => 
+      task.statut === 'termine' || Number(task.progress || 0) >= 100
+    );
+    
+    let newStatus: string;
+
+    // Logique simplifiée à 3 statuts
+    if (assignedTasks.length === 0) {
+      // Par défaut : EN_COURS si aucune tâche assignée
+      newStatus = 'EN_COURS';
+    } else {
+      // Calculer la progression moyenne sur les TÂCHES ASSIGNÉES uniquement
+      const totalProgress = assignedTasks.reduce((sum: number, task: any) => 
+        sum + Number(task.progress || 0), 0);
+      const avgProgress = assignedTasks.length > 0 ? totalProgress / assignedTasks.length : 0;
+      
+      // Compter les tâches assignées complétées (progress = 100 OU statut = 'termine')
+      const allCompletedTasks = assignedTasks.filter((task: any) => 
+        task.statut === 'termine' || Number(task.progress || 0) >= 100
+      );
+      
+      // TERMINEE : Toutes les tâches assignées sont complétées ET progression moyenne = 100%
+      if (allCompletedTasks.length === assignedTasks.length && Math.round(avgProgress) === 100) {
+        newStatus = 'TERMINEE';
+      } else if (avgProgress > 0) {
+        // EN_COURS : Il y a de la progression mais pas tout terminé
+        newStatus = 'EN_COURS';
+      } else {
+        // A_RISQUE : Aucune progression ET plus de 3 jours depuis la date de dépôt
+        const threeDaysAgo = new Date();
+        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+        
+        if (dao.date_depot && new Date(dao.date_depot) < threeDaysAgo) {
+          newStatus = 'A_RISQUE';
+        } else {
+          newStatus = 'EN_COURS'; // Par défaut
+        }
+      }
+    }
+
+    // Mettre à jour le statut seulement s'il a changé
+    if (newStatus !== dao.current_statut) {
+      await query(
+        "UPDATE daos SET statut = $1 WHERE id = $2",
+        [newStatus, daoId]
+      );
+      console.log(`DAO ${daoId}: statut mis à jour de '${dao.current_statut}' à '${newStatus}'`);
+    }
+  } catch (error) {
+    console.error("Erreur lors de la vérification du statut du DAO:", error);
+  }
+}
+
+export async function diagnoseDaoStatus(req: Request, res: Response) {
+  try {
+    // Récupérer tous les DAO avec leurs statistiques de tâches
+    const result = await query(`
+      SELECT 
+        d.id,
+        d.numero,
+        d.objet,
+        d.statut as current_statut,
+        d.date_depot,
+        d.created_at,
+        COUNT(t.id) as total_tasks,
+        COUNT(CASE WHEN t.statut = 'termine' OR t.progress >= 100 THEN 1 END) as completed_tasks,
+        COALESCE(SUM(t.progress), 0) as total_progress,
+        CASE 
+          WHEN COUNT(CASE WHEN t.statut = 'termine' OR t.progress >= 100 THEN 1 END) = COUNT(t.id) 
+               AND ROUND(COALESCE(SUM(t.progress), 0) / NULLIF(COUNT(t.id), 0)) = 100
+          THEN 'TERMINEE'
+          WHEN COALESCE(SUM(t.progress), 0) / NULLIF(COUNT(t.id), 0) > 0 
+          THEN 'EN_COURS'
+          WHEN d.date_depot IS NOT NULL AND d.date_depot < NOW() - INTERVAL '3 days'
+               AND COALESCE(SUM(t.progress), 0) / NULLIF(COUNT(t.id), 0) = 0
+          THEN 'A_RISQUE'
+          ELSE 'EN_COURS'
+        END as calculated_statut,
+        ROUND(COALESCE(SUM(t.progress), 0) / NULLIF(COUNT(t.id), 0)) as avg_progress
+      FROM daos d
+      LEFT JOIN tasks t ON d.id = t.dao_id
+      GROUP BY d.id, d.numero, d.objet, d.statut, d.date_depot, d.created_at
+      ORDER BY d.created_at DESC
+    `);
+
+    const diagnostics = result.rows.map((dao: any) => ({
+      id: dao.id,
+      numero: dao.numero,
+      objet: dao.objet,
+      current_statut: dao.current_statut,
+      calculated_statut: dao.calculated_statut,
+      needs_update: dao.current_statut !== dao.calculated_statut,
+      date_depot: dao.date_depot,
+      created_at: dao.created_at,
+      statistics: {
+        total_tasks: parseInt(dao.total_tasks),
+        assigned_tasks: parseInt(dao.assigned_tasks),
+        completed_tasks: parseInt(dao.completed_tasks),
+        avg_progress: parseInt(dao.avg_progress) || 0
+      }
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        diagnostics,
+        total_daos: diagnostics.length,
+        daos_needing_update: diagnostics.filter((d: any) => d.needs_update).length
+      }
+    });
+  } catch (error) {
+    console.error("Erreur lors du diagnostic des statuts de DAO:", error);
+    res.status(500).json({
+      success: false,
+      message: "Erreur serveur lors du diagnostic des statuts de DAO"
+    });
+  }
+}
+
+export async function updateAllDaoStatus(req: Request, res: Response) {
+  try {
+    // Récupérer tous les DAO
+    const daosResult = await query("SELECT id FROM daos");
+    
+    let updatedCount = 0;
+    const errors: string[] = [];
+
+    // Mettre à jour le statut de chaque DAO
+    for (const dao of daosResult.rows) {
+      try {
+        const oldStatusResult = await query("SELECT statut FROM daos WHERE id = $1", [dao.id]);
+        const oldStatus = oldStatusResult.rows[0]?.statut;
+        
+        await checkAndUpdateDaoStatus(dao.id);
+        
+        const newStatusResult = await query("SELECT statut FROM daos WHERE id = $1", [dao.id]);
+        const newStatus = newStatusResult.rows[0]?.statut;
+        
+        if (oldStatus !== newStatus) {
+          updatedCount++;
+          console.log(`DAO ${dao.id}: ${oldStatus} -> ${newStatus}`);
+        }
+      } catch (error) {
+        errors.push(`DAO ${dao.id}: ${error}`);
+        console.error(`Erreur lors de la mise à jour du DAO ${dao.id}:`, error);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Mise à jour des statuts de DAO terminée",
+      data: {
+        total_processed: daosResult.rows.length,
+        updated_count: updatedCount,
+        errors: errors.length > 0 ? errors : null
+      }
+    });
+  } catch (error) {
+    console.error("Erreur lors de la mise à jour des statuts de DAO:", error);
+    res.status(500).json({
+      success: false,
+      message: "Erreur serveur lors de la mise à jour des statuts de DAO"
+    });
+  }
+}
+
 export async function getMyDaos(req: AuthenticatedRequest, res: Response) {
   try {
     const userId = req.user?.userId; // Récupérer l'ID de l'utilisateur connecté depuis le token JWT

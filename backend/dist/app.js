@@ -8,6 +8,7 @@ const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
+const helmet_1 = __importDefault(require("helmet"));
 const database_1 = require("./utils/database");
 // Importer les routes
 const auth_1 = __importDefault(require("./routes/auth"));
@@ -20,13 +21,34 @@ const notifications_1 = __importDefault(require("./routes/notifications"));
 const messages_1 = __importDefault(require("./routes/messages"));
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3001;
-// Middlewares
-app.use((0, cors_1.default)({
-    origin: ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174'], // URLs du frontend
-    credentials: true
+// Sécurité avec Helmet
+app.use((0, helmet_1.default)({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "https:"],
+            connectSrc: ["'self'"],
+            fontSrc: ["'self'"],
+            objectSrc: ["'none'"],
+            mediaSrc: ["'self'"],
+            frameSrc: ["'none'"],
+        },
+    },
+    crossOriginEmbedderPolicy: false
 }));
-app.use(express_1.default.json());
-app.use(express_1.default.urlencoded({ extended: true }));
+// CORS configuré pour la production
+app.use((0, cors_1.default)({
+    origin: process.env.NODE_ENV === 'production'
+        ? process.env.FRONTEND_URL_PROD?.split(',') || []
+        : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+app.use(express_1.default.json({ limit: '10mb' }));
+app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
 // Routes
 app.use('/api/auth', auth_1.default);
 app.use('/api/users', users_1.default);
