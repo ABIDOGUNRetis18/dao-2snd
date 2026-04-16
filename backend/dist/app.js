@@ -22,6 +22,7 @@ const messages_1 = __importDefault(require("./routes/messages"));
 const team_1 = __importDefault(require("./routes/team"));
 const taskAssignment_1 = __importDefault(require("./routes/taskAssignment"));
 const taskModels_1 = __importDefault(require("./routes/taskModels"));
+const chef_teams_1 = __importDefault(require("./routes/chef-teams"));
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3001;
 // Sécurité avec Helmet
@@ -64,6 +65,7 @@ app.use('/api/messages', messages_1.default);
 app.use('/api/team', team_1.default);
 app.use('/api/task-assignment', taskAssignment_1.default);
 app.use('/api/task', taskModels_1.default);
+app.use('/api/chef-teams', chef_teams_1.default);
 // Route de test
 app.get('/api/test', (req, res) => {
     res.json({

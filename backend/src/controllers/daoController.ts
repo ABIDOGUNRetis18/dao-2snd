@@ -1064,22 +1064,53 @@ export async function createDao(req: Request, res: Response) {
 
     const createdDao = daoResult.rows[0];
 
-    // 3. Ajout des membres à l'équipe DAO
+    // 3. Gestion de l'équipe selon la documentation complète
+    // 3.1. Créer l'équipe si elle n'existe pas déjà (le trigger s'occupe de créer teams)
+    let teamId = createdDao.team_id;
+    if (!teamId) {
+      // Générer un ID d'équipe unique si le trigger ne s'est pas exécuté
+      const teamIdResult = await query(
+        "INSERT INTO teams (id, team_code) VALUES ($1, $2) RETURNING id",
+        [crypto.randomUUID(), `TEAM-${Date.now()}`]
+      );
+      teamId = teamIdResult.rows[0].id;
+      
+      // Mettre à jour le DAO avec le team_id
+      await query(
+        "UPDATE daos SET team_id = $1 WHERE id = $2",
+        [teamId, createdDao.id]
+      );
+    }
+    
+    // 3.2. Ajouter les membres à l'équipe (table team_members)
     for (const memberId of membres) {
-      // Vérifier si le membre n'existe pas déjà
+      // Vérifier si le membre n'existe pas déjà dans team_members
       const existingMember = await query(
+        "SELECT team_id FROM team_members WHERE team_id = $1 AND user_id = $2",
+        [teamId, Number(memberId)],
+      );
+
+      if (existingMember.rows.length === 0) {
+        await query(
+          "INSERT INTO team_members (team_id, user_id, assigned_by) VALUES ($1, $2, $3)",
+          [teamId, Number(memberId), Number(chef_id)],
+        );
+      }
+      
+      // Garder aussi l'ancienne table dao_members pour compatibilité
+      const existingDaoMember = await query(
         "SELECT id FROM dao_members WHERE dao_id = $1 AND user_id = $2",
         [createdDao.id, Number(memberId)],
       );
 
-      if (existingMember.rows.length === 0) {
+      if (existingDaoMember.rows.length === 0) {
         await query(
           "INSERT INTO dao_members (dao_id, user_id, assigned_by) VALUES ($1, $2, $3)",
           [createdDao.id, Number(memberId), Number(chef_id)],
         );
       }
     }
-    console.log("Membres ajoutés à l'équipe DAO:", membres.length);
+    console.log("Équipe créée avec ID:", teamId, "Membres ajoutés:", membres.length);
 
     // 4. Création des tâches par défaut (15 tâches)
     const defaultTasks = [

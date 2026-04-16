@@ -20,7 +20,8 @@ export async function getDaoTeamMembers(req: Request, res: Response) {
     }
 
     // Récupérer tous les membres de l'équipe du DAO (chef + membres assignés)
-    const teamResult = await query(
+    // 1. D'abord récupérer le chef du DAO
+    const chefResult = await query(
       `
       SELECT 
         u.id,
@@ -28,22 +29,39 @@ export async function getDaoTeamMembers(req: Request, res: Response) {
         u.email,
         u.role_id,
         u.url_photo,
-        CASE 
-          WHEN u.id = d.chef_id THEN true
-          ELSE false
-        END as is_chef,
-        CASE WHEN u.id = (SELECT chef_id FROM daos WHERE id = $1) THEN 0 ELSE 1 END as chef_order
+        true as is_chef,
+        0 as chef_order
       FROM users u
-      LEFT JOIN dao_members dm ON u.id = dm.user_id
-      LEFT JOIN daos d ON d.id = dm.dao_id
-      WHERE (dm.dao_id = $1 OR u.id = (SELECT chef_id FROM daos WHERE id = $1))
-        AND u.role_id IN (3, 4) -- Chef de projet et Membre équipe
-      ORDER BY 
-        chef_order,
-        u.username
+      WHERE u.id = (SELECT chef_id FROM daos WHERE id = $1)
       `,
       [daoId]
     );
+
+    // 2. Ensuite récupérer les membres de l'équipe depuis dao_members
+    const membersResult = await query(
+      `
+      SELECT 
+        u.id,
+        u.username,
+        u.email,
+        u.role_id,
+        u.url_photo,
+        false as is_chef,
+        1 as chef_order
+      FROM users u
+      INNER JOIN dao_members dm ON u.id = dm.user_id
+      WHERE dm.dao_id = $1
+        AND u.id != (SELECT chef_id FROM daos WHERE id = $1) -- Éviter les doublons avec le chef
+        AND u.role_id IN (3, 4) -- Chef de projet et Membre équipe
+      ORDER BY u.username
+      `,
+      [daoId]
+    );
+
+    // 3. Combiner les résultats
+    const teamResult = {
+      rows: [...chefResult.rows, ...membersResult.rows]
+    };
 
     console.log('Résultat de la requête membres:', teamResult.rows.length, 'membres trouvés');
     console.log('Membres:', JSON.stringify(teamResult.rows, null, 2));

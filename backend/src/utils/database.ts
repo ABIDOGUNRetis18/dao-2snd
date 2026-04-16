@@ -4,9 +4,9 @@ import { Pool, PoolClient } from 'pg';
 const poolConfig = {
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME || 'dao_db',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'dao',
+  user: process.env.DB_USER || 'erwann',
+  password: process.env.DB_PASSWORD || 'erwann',
   max: 20, // Maximum nombre de connexions dans le pool
   idleTimeoutMillis: 30000, // Temps avant qu'une connexion inactive soit fermée
   connectionTimeoutMillis: 2000, // Temps d'attente pour obtenir une connexion
