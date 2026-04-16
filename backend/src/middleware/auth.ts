@@ -60,5 +60,8 @@ export const requireAdmin = requireRole([2]);
 // Middleware pour vérifier si l'utilisateur est admin (2) ou directeur (1)
 export const requireAdminOrDirector = requireRole([1, 2]);
 
+// Middleware pour vérifier si l'utilisateur est admin (2) ou chef de projet (3)
+export const requireAdminOrChef = requireRole([2, 3]);
+
 // Middleware pour vérifier si l'utilisateur a un rôle de gestion (1, 2, 3)
 export const requireManagementRole = requireRole([1, 2, 3]);

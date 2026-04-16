@@ -4,7 +4,8 @@ import {
   getTasksByDao, 
   createTask, 
   updateTaskProgress, 
-  deleteTask 
+  deleteTask,
+  assignTask 
 } from '../controllers/taskController_v2';
 import { authenticateToken } from '../middleware/auth';
 
@@ -20,6 +21,9 @@ router.get('/dao/:id', getTasksByDao);
 
 // Créer une nouvelle tâche (avec contrôle de limite de 15 et logique séquentielle)
 router.post('/dao/:id', createTask);
+
+// Assigner une tâche (admin ou chef de projet)
+router.put('/:id/assign', assignTask);
 
 // Mettre à jour la progression d'une tâche (avec contrôle séquentiel)
 router.put('/:id/progress', updateTaskProgress);

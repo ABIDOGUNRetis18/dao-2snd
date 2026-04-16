@@ -19,7 +19,7 @@ exports.createDao = createDao;
 const database_1 = require("../utils/database");
 async function getAllDaos(req, res) {
     try {
-        const result = await (0, database_1.query)(`
+        let daoQuery = `
       SELECT 
         d.id,
         d.numero,
@@ -36,8 +36,17 @@ async function getAllDaos(req, res) {
         u.email as chef_projet_email
       FROM daos d
       LEFT JOIN users u ON d.chef_id = u.id
-      ORDER BY d.created_at DESC
-    `);
+    `;
+        let params = [];
+        // Filtrer selon le rôle de l'utilisateur
+        if (req.user?.roleId === 3) {
+            // Chef de projet : voit seulement ses DAOs
+            daoQuery += " WHERE d.chef_id = $1";
+            params.push(req.user.userId);
+        }
+        // Admin (role_id = 2) : voit TOUS les DAOs (vue globale)
+        daoQuery += " ORDER BY d.created_at DESC";
+        const result = await (0, database_1.query)(daoQuery, params);
         res.status(200).json({
             success: true,
             data: {
@@ -855,7 +864,7 @@ async function createDao(req, res) {
             description,
             reference,
             autorite,
-            "actif", // Statut initial
+            "EN_COURS", // Statut initial
             Number(chef_id),
             chef_projet_nom,
             groupement || null,

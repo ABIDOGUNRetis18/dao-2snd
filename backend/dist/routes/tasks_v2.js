@@ -12,6 +12,8 @@ router.use(auth_1.authenticateToken);
 router.get('/dao/:id', taskController_v2_1.getTasksByDao);
 // Créer une nouvelle tâche (avec contrôle de limite de 15 et logique séquentielle)
 router.post('/dao/:id', taskController_v2_1.createTask);
+// Assigner une tâche (admin ou chef de projet)
+router.put('/:id/assign', taskController_v2_1.assignTask);
 // Mettre à jour la progression d'une tâche (avec contrôle séquentiel)
 router.put('/:id/progress', taskController_v2_1.updateTaskProgress);
 // Supprimer une tâche

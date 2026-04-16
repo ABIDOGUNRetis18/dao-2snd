@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { query } from '../utils/database';
 import { AuthenticatedRequest } from '../middleware/auth';
+import { isDaoChef, getDaoIdFromTask, isTaskAssigned, canAssignTasks } from '../utils/taskPermissions';
 
 // 🎯 LOGIQUE DES 15 TÂCHES - SYSTÈME UNIVERSEL
 
@@ -157,14 +158,31 @@ export async function updateTaskProgress(req: AuthenticatedRequest, res: Respons
   try {
     const { id } = req.params;
     const { progress, override = false } = req.body;
+    const userId = req.user?.userId;
     
     const taskId = parseInt(id as string);
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Utilisateur non authentifié'
+      });
+    }
     
     // Validation de la progression
     if (progress < 0 || progress > 100) {
       return res.status(400).json({
         success: false,
         message: 'La progression doit être entre 0 et 100'
+      });
+    }
+
+    // Vérifier si l'utilisateur est assigné à la tâche
+    const isAssigned = await isTaskAssigned(taskId, userId);
+    if (!isAssigned) {
+      return res.status(403).json({
+        success: false,
+        message: 'Seul le membre assigné à cette tâche peut la modifier'
       });
     }
 
@@ -245,6 +263,32 @@ export async function assignTask(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
     const { assigned_to } = req.body;
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Utilisateur non authentifié'
+      });
+    }
+
+    // Récupérer le DAO ID de la tâche
+    const daoId = await getDaoIdFromTask(Number(id));
+    if (!daoId) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tâche non trouvée'
+      });
+    }
+
+    // Vérifier si l'utilisateur peut assigner des tâches (admin ou chef de projet)
+    const canAssign = await canAssignTasks(daoId, userId);
+    if (!canAssign) {
+      return res.status(403).json({
+        success: false,
+        message: 'Seul un administrateur ou le chef de projet peut assigner des membres aux tâches'
+      });
+    }
 
     // 🎯 CONTRÔLE: Vérifier si la tâche peut être assignée (débloquée)
     const taskUnlockResult = await query(`

@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { AuthenticatedRequest } from "../middleware/auth";
-export declare function getAllDaos(req: Request, res: Response): Promise<void>;
+export declare function getAllDaos(req: AuthenticatedRequest, res: Response): Promise<void>;
 export declare function getNextDaoNumber(req: Request, res: Response): Promise<void>;
 export declare function getDaoTypes(req: Request, res: Response): Promise<void>;
 export declare function getDao(req: Request, res: Response): Promise<Response<any, Record<string, any>> | undefined>;

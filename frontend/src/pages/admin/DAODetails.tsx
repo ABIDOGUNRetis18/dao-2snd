@@ -1,332 +1,738 @@
-import { useState, useEffect } from 'react'
-import { ArrowLeft, User, MessageCircle, Clock } from 'lucide-react'
+import { useState, useMemo, useEffect, useRef } from "react";
+import {
+  ArrowLeft, X, Send, User, UserCheck, 
+  MessageCircle, Clock, AtSign
+} from "lucide-react";
 import { Link, useParams } from 'react-router-dom'
 
-interface Task {
-  id: number
-  titre: string
-  statut: 'a_faire' | 'en_cours' | 'termine'
-  priorite: 'basse' | 'moyenne' | 'haute'
-  date_echeance?: string
-  assigned_to?: number
-  assigned_username?: string
-  assigned_email?: string
-  progress?: number
+// Interfaces TypeScript
+interface Dao {
+  id: number;
+  numero: string;
+  reference: string;
+  objet: string;
+  description?: string;
+  autorite: string;
+  date_depot?: string;
+  statut?: string;
+  chef_id?: number | null;
+  chef_projet?: string | null;
+  groupement?: string | null;
+  nom_partenaire?: string | null;
 }
 
-interface DAO {
-  id: number
-  numero: string
-  objet: string
-  reference: string
-  date_depot: string
-  autorite: string
-  chef_projet_nom: string
-  groupement: string
-  nom_partenaire?: string
-  statut: string
-  description: string
-  type_dao?: string
-  created_at: string
+interface Task {
+  id: number;
+  name: string;
+  progress: number;
+  comment: string;
+  assigned_to?: string;
+  assigned_username?: string;
+  assigned_email?: string;
+  statut?: string;
+}
+
+interface Comment {
+  id: number;
+  user: string;
+  role: string;
+  text: string;
+  time: string;
+  task_id: number;
+  user_id?: number;
+  mentioned_user_id?: number;
+  mentioned_user_name?: string;
+  is_public?: boolean;
 }
 
 export default function DAODetails() {
   const { id } = useParams<{ id: string }>()
-  const [dao, setDao] = useState<DAO | null>(null)
+  const [dao, setDao] = useState<Dao | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null)
+  const [comments, setComments] = useState<Comment[]>([])
+  const [newComment, setNewComment] = useState('')
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [users, setUsers] = useState<any[]>([])
+  const [showCommentModal, setShowCommentModal] = useState(false)
+  const [globalComment, setGlobalComment] = useState("")
+  const [showMentionSuggestions, setShowMentionSuggestions] = useState(false)
+  const [mentionSearch, setMentionSearch] = useState("")
+  const commentInputRef = useRef<HTMLTextAreaElement>(null)
 
+  // Logique de permissions pour l'Admin
+  const canManageDao = useMemo(() => {
+    if (!currentUser || !dao) return false
+    
+    // Si l'utilisateur est Admin, vérifier s'il est le chef de ce DAO
+    if (currentUser.role_id === 2) {
+      return Number(dao.chef_id) === Number(currentUser.id)
+    }
+    
+    // Les autres rôles (Chef de projet) peuvent toujours gérer leurs DAOs
+    return true
+  }, [currentUser, dao])
+
+  const isReadOnlyMode = useMemo(() => {
+    return currentUser?.role_id === 2 && !canManageDao
+  }, [currentUser, canManageDao])
+
+  // Calcul de la progression globale
+  const globalProgress = useMemo(() => {
+    if (tasks.length === 0) return 0;
+    const total = tasks.reduce((sum, t) => sum + t.progress, 0);
+    return Math.round(total / tasks.length);
+  }, [tasks]);
+
+  // Chargement principal
   useEffect(() => {
-    if (id) {
-      loadDao()
-      loadTasks()
-    }
-  }, [id])
+    async function loadDao() {
+      try {
+        setLoading(true);
+        setError("");
 
-  
-  const loadDao = async () => {
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`http://localhost:3001/api/dao/${id}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      if (!response.ok) { setError('DAO non trouvé'); return }
-      const data = await response.json()
-      if (data.success) setDao(data.data.dao)
-    } catch {
-      setError('Erreur lors du chargement du DAO')
-    } finally {
-      setLoading(false)
-    }
-  }
+        // 1. Charger les infos du DAO
+        const token = localStorage.getItem('token');
+        const res = await fetch(`http://localhost:3001/api/dao/${id}`, { 
+          cache: "no-store",
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const json = await res.json().catch(() => ({}));
 
-  const loadTasks = async () => {
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`http://localhost:3001/api/dao/${id}/tasks`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success) setTasks(data.data.tasks || [])
+        if (!res.ok) {
+          setError(json?.message || "Erreur lors du chargement du DAO");
+          return;
+        }
+
+        setDao(json.data.dao);
+        
+        // 2. Charger les tâches du DAO
+        await loadTasks(id);
+        
+        // 3. Charger les utilisateurs pour les mentions
+        await loadUsers();
+        
+        // 4. Charger l'utilisateur courant
+        const userFromStorage = localStorage.getItem('user');
+        if (userFromStorage) {
+          const userData = JSON.parse(userFromStorage);
+          setCurrentUser({
+            id: userData.id,
+            name: userData.username || userData.email?.split('@')[0] || 'Utilisateur'
+          });
+        }
+      } catch (err) {
+        setError("Erreur réseau lors du chargement du DAO");
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      // silent fail
     }
-  }
 
-  // Grouper les tâches par membre assigné (les non-assignées sont ignorées)
-  const tasksByMember = tasks.reduce((acc, task) => {
-    if (task.assigned_to && task.assigned_username) {
-      const memberKey = `${task.assigned_to}-${task.assigned_username}`;
-      if (!acc[memberKey]) {
-        acc[memberKey] = {
-          id: task.assigned_to,
-          username: task.assigned_username,
-          email: task.assigned_email,
-          tasks: []
+    if (id) {
+      loadDao();
+    }
+  }, [id]);
+
+  // Chargement des tâches
+  const loadTasks = async (daoId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:3001/api/tasks?daoId=${daoId}`, { 
+        cache: "no-store",
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const json = await res.json();
+
+      if (res.ok && json.success && json.data) {
+        const adaptedTasks = json.data.map((task: any) => ({
+          id: task.id,
+          name: task.titre || task.name || `Tâche ${task.id}`,
+          progress: task.progress || 0,
+          comment: task.description || task.comment || "À faire",
+          assigned_to: task.assigned_to,
+          assigned_username: task.assigned_username || "Non assigné",
+          assigned_email: task.assigned_email,
+          statut: task.statut
+        }));
+        
+        setTasks(adaptedTasks);
+        
+        // Charger les commentaires pour la première tâche
+        if (adaptedTasks.length > 0) {
+          await loadComments(adaptedTasks[0].id);
+          setSelectedTaskId(adaptedTasks[0].id);
         }
       }
-      acc[memberKey].tasks.push(task)
+    } catch (err) {
+      console.error("Error fetching tasks:", err);
+      setTasks([]);
     }
-    return acc
-  }, {} as Record<string, any>)
+  };
 
-  // Calculer la progression pour chaque membre
-  const membersWithProgress = Object.values(tasksByMember).map(member => ({
-    ...member,
-    totalTasks: member.tasks.length,
-    completedTasks: member.tasks.filter((t: any) => t.statut === 'termine' || Number(t.progress || 0) >= 100).length,
-    inProgressTasks: member.tasks.filter((t: any) => t.statut === 'en_cours').length,
-    averageProgress: member.tasks.length > 0 
-      ? Math.round(member.tasks.reduce((sum: number, t: any) => sum + (t.progress || 0), 0) / member.tasks.length)
-      : 0
-  }))
+  // Chargement des commentaires
+  const loadComments = async (taskId: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:3001/api/messages?task_id=${taskId}`, {
+        cache: "no-store",
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-  const getStatutBadge = (statut: string) => {
-    switch (statut) {
-      case 'EN_ATTENTE': return { label: 'En attente', bg: 'bg-yellow-100 text-yellow-700', dot: 'bg-yellow-400' }
-      case 'EN_COURS':   return { label: 'En cours',   bg: 'bg-blue-100 text-blue-700',   dot: 'bg-blue-500' }
-      case 'TERMINEE':   return { label: 'Terminée',   bg: 'bg-green-100 text-green-700', dot: 'bg-green-500' }
-      case 'A_RISQUE':   return { label: 'À risque',   bg: 'bg-red-100 text-red-700',     dot: 'bg-red-500' }
-      case 'ARCHIVE':    return { label: 'Archivé',    bg: 'bg-gray-100 text-gray-600',   dot: 'bg-gray-400' }
-      default:           return { label: statut,       bg: 'bg-gray-100 text-gray-600',   dot: 'bg-gray-400' }
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        const adaptedComments = result.data.map((msg: any) => ({
+          id: msg.id,
+          user: msg.user_name || 'Utilisateur',
+          role: 'Utilisateur',
+          text: msg.content,
+          time: new Date(msg.created_at).toLocaleString('fr-FR'),
+          task_id: msg.task_id,
+          user_id: msg.user_id,
+          mentioned_user_id: msg.mentioned_user_id,
+          mentioned_user_name: msg.mentioned_user_name,
+          is_public: msg.is_public
+        }));
+        
+        setComments(adaptedComments);
+      }
+    } catch (error) {
+      console.error('Erreur réseau lors du chargement des commentaires:', error);
     }
-  }
+  };
 
-  const getTaskStatutBadge = (statut: string) => {
-    switch (statut) {
-      case 'termine':  return { label: 'Terminé',   cls: 'bg-green-100 text-green-700' }
-      case 'en_cours': return { label: 'En cours',  cls: 'bg-blue-100 text-blue-700' }
-      default:         return { label: 'À faire',   cls: 'bg-slate-100 text-slate-600' }
+  // Chargement des utilisateurs pour les mentions
+  const loadUsers = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:3001/api/users', { 
+        cache: "no-store",
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const result = await response.json();
+      
+      if (result.success && Array.isArray(result.data)) {
+        const adaptedUsers = result.data.map((user: any) => ({
+          id: user.id,
+          name: user.username || user.name,
+          email: user.email
+        }));
+        setUsers(adaptedUsers);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des utilisateurs:', error);
     }
-  }
+  };
 
-  const assignedTasks = tasks.filter(t => t.assigned_to && t.assigned_username)
-  const completedAssignedTasks = assignedTasks.filter(t => t.statut === 'termine' || Number(t.progress || 0) >= 100).length
-  const totalAssignedTasks = assignedTasks.length
-  const globalProgress = totalAssignedTasks > 0
-    ? Math.round(assignedTasks.reduce((sum, t) => sum + Number(t.progress || 0), 0) / totalAssignedTasks)
-    : 0
+  // Logique des mentions
+  const handleCommentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const text = e.target.value;
+    setNewComment(text);
+    
+    // Détecter les mentions @
+    const cursorPosition = e.target.selectionStart;
+    const textBeforeCursor = text.substring(0, cursorPosition);
+    const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
+    
+    if (mentionMatch) {
+      setShowMentionSuggestions(true);
+      setMentionSearch(mentionMatch[1]);
+    } else {
+      setShowMentionSuggestions(false);
+      setMentionSearch("");
+    }
+  };
 
-  if (loading) return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-      <div className="text-slate-400 text-sm">Chargement...</div>
-    </div>
-  )
+  // Insertion de mention
+  const insertMention = (user: any) => {
+    if (!commentInputRef.current) return;
+    
+    const textarea = commentInputRef.current;
+    const cursorPosition = textarea.selectionStart;
+    const text = newComment;
+    const textBeforeCursor = text.substring(0, cursorPosition);
+    const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
+    
+    if (mentionMatch) {
+      const beforeMention = textBeforeCursor.substring(0, textBeforeCursor.length - mentionMatch[0].length);
+      const afterCursor = text.substring(cursorPosition);
+      const newText = `${beforeMention}@${user.name} ${afterCursor}`;
+      
+      setNewComment(newText);
+      setShowMentionSuggestions(false);
+      
+      // Repositionner le curseur
+      setTimeout(() => {
+        const newCursorPosition = beforeMention.length + user.name.length + 2;
+        textarea.setSelectionRange(newCursorPosition, newCursorPosition);
+        textarea.focus();
+      }, 0);
+    }
+  };
 
-  if (error || !dao) return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-      <div className="text-red-500 text-sm">{error || 'DAO non trouvé'}</div>
-    </div>
-  )
+  // Ajout de commentaire par tâche
+  const addComment = async () => {
+    if (!newComment.trim() || !currentUser || !selectedTaskId) return;
 
-  const badge = getStatutBadge(dao.statut)
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:3001/api/messages', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          content: newComment,
+          task_id: selectedTaskId,
+          dao_id: id,
+          user_id: currentUser.id,
+          mentioned_user_id: extractMentionedUserId(newComment),
+          is_public: true
+        })
+      });
 
-  return (
-    <div className="min-h-screen bg-slate-50 font-sans">
+      if (response.ok) {
+        setNewComment('');
+        await loadComments(selectedTaskId);
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout du commentaire:', error);
+    }
+  };
 
-      {/* ── HEADER CARD ── */}
-      <div className="max-w-5xl mx-auto px-4 pt-6">
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 flex items-center gap-4">
+  // Extraire l'ID de l'utilisateur mentionné
+  const extractMentionedUserId = (text: string): number | null => {
+    const mentionMatch = text.match(/@(\w+)/);
+    if (mentionMatch) {
+      const mentionedUser = users.find(user => 
+        user.name.toLowerCase() === mentionMatch[1].toLowerCase()
+      );
+      return mentionedUser ? mentionedUser.id : null;
+    }
+    return null;
+  };
 
-          {/* Back */}
-          <Link to="/admin/all-daos"
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors flex-shrink-0">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
+  // Ajout de commentaire global
+  const addGlobalComment = async () => {
+    if (!globalComment.trim() || !currentUser) return;
 
-          {/* Title */}
-          <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-slate-800 truncate">{dao.numero}</h1>
-            <p className="text-sm text-slate-400 truncate">{dao.objet}</p>
-          </div>
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:3001/api/messages', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          content: globalComment,
+          task_id: null, // Commentaire global (non lié à une tâche)
+          dao_id: id,
+          user_id: currentUser.id,
+          is_public: true
+        })
+      });
 
-          {/* Chef de projet */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <User className="h-4 w-4 text-slate-400" />
-            <div>
-              <p className="text-xs text-slate-400 leading-none">Chef de projet</p>
-              <p className="text-sm font-semibold text-slate-700">{dao.chef_projet_nom || '—'}</p>
-            </div>
-          </div>
+      if (response.ok) {
+        setGlobalComment('');
+        setShowCommentModal(false);
+        // Recharger les commentaires si nécessaire
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout du commentaire:', error);
+    }
+  };
 
-          {/* Statut */}
-          <div className="flex-shrink-0 text-center">
-            <p className="text-xs text-slate-400 mb-1">Statut</p>
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${badge.bg}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
-              {badge.label}
-            </span>
-          </div>
-
-          {/* Groupement */}
-          <div className="flex-shrink-0 text-center">
-            <p className="text-xs text-slate-400 mb-1">Groupement</p>
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
-              dao.groupement === "oui" 
-                ? "bg-green-100 text-green-700" 
-                : "bg-gray-100 text-gray-600"
-            }`}>
-              {dao.groupement === "oui" ? (
-                <>
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                  {dao.nom_partenaire || "Aucun nom"}
-                </>
-              ) : (
-                <>
-                  <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-                  Non
-                </>
-              )}
-            </span>
-          </div>
-
-          {/* Chat icon */}
-          <button className="p-2.5 bg-blue-50 hover:bg-blue-100 text-blue-500 rounded-xl transition-colors flex-shrink-0">
-            <MessageCircle className="h-5 w-5" />
-          </button>
-        </div>
+  
+  // Gestion du chargement
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-400 text-sm">Chargement...</div>
       </div>
+    );
+  }
 
-      {/* ── MAIN CONTENT ── */}
-      <div className="max-w-5xl mx-auto px-4 py-4 space-y-4">
+  if (error || !dao) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-red-500 text-sm">{error || 'DAO non trouvé'}</div>
+      </div>
+    );
+  }
 
-        {/* Progression globale */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
-              <span className="text-xs font-bold text-blue-600">{globalProgress}%</span>
+  // Interface utilisateur complète selon l'image
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header avec navigation et actions */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Navigation retour */}
+            <div className="flex items-center">
+              <Link to="/admin/all-daos" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <ArrowLeft className="w-5 h-5 text-gray-700" />
+              </Link>
+              <div className="ml-4">
+                <h1 className="text-lg font-semibold text-gray-900">{dao.numero}</h1>
+                <p className="text-sm text-gray-500">{dao.objet || dao.reference}</p>
+              </div>
             </div>
-            <h2 className="text-base font-bold text-slate-800">Progression globale du DAO</h2>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-sm text-slate-500">
-              <span>{completedAssignedTasks} / {totalAssignedTasks} tâches assignées terminées</span>
-            </div>
-
-            {/* Progress bar */}
-            <div className="w-full bg-slate-100 rounded-full h-2.5">
-              <div
-                className="h-2.5 rounded-full bg-blue-500 transition-all duration-500"
-                style={{ width: `${globalProgress}%` }}
-              />
-            </div>
-
-            <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
-              <span>Date de dépôt : {new Date(dao.date_depot).toLocaleDateString('fr-FR')}</span>
-              <span>Progression : {globalProgress}%</span>
+            
+            {/* Actions */}
+            <div className="flex items-center space-x-4">
+              {/* Indicateur de permissions pour Admin */}
+              {isReadOnlyMode && (
+                <div className="flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-800 rounded-full">
+                  <div className="w-2 h-2 bg-amber-600 rounded-full"></div>
+                  <span className="text-xs font-medium">Lecture seule</span>
+                </div>
+              )}
+              
+              {/* Statut */}
+              <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                dao.statut === 'A_RISQUE' ? 'bg-red-100 text-red-800' :
+                dao.statut === 'TERMINEE' ? 'bg-green-100 text-green-800' :
+                dao.statut === 'EN_COURS' ? 'bg-blue-100 text-blue-800' :
+                'bg-gray-100 text-gray-800'
+              }`}>
+                {dao.statut === 'A_RISQUE' ? 'À risque' :
+                 dao.statut === 'TERMINEE' ? 'Terminée' :
+                 dao.statut === 'EN_COURS' ? 'En cours' :
+                 'En attente'}
+              </span>
+              
+              {/* Boutons d'action */}
+              <button 
+                onClick={() => !isReadOnlyMode && setShowCommentModal(true)}
+                disabled={isReadOnlyMode}
+                className={`p-2 rounded-lg transition-colors ${
+                  isReadOnlyMode 
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                    : 'hover:bg-gray-100 text-gray-700'
+                }`}
+                title={isReadOnlyMode ? "Vous ne pouvez pas commenter ce DAO (vous n'êtes pas le chef)" : "Ajouter un commentaire global"}
+              >
+                <MessageCircle className="w-5 h-5" />
+              </button>
+              <button 
+                disabled={isReadOnlyMode}
+                className={`p-2 rounded-lg transition-colors ${
+                  isReadOnlyMode 
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                    : 'hover:bg-gray-100 text-gray-700'
+                }`}
+                title={isReadOnlyMode ? "Actions limitées (vous n'êtes pas le chef)" : "Actions du DAO"}
+              >
+                <UserCheck className="w-5 h-5" />
+              </button>
             </div>
           </div>
         </div>
+      </header>
 
-        {/* Progression des tâches par membre */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-          <h2 className="text-base font-bold text-slate-800 mb-5">Progression des tâches par membre</h2>
-
-          {membersWithProgress.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-14 text-center">
-              <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-3">
-                <Clock className="h-5 w-5 text-slate-300" />
-              </div>
-              <p className="text-sm text-slate-500 font-medium">Aucune tâche assignée pour ce DAO.</p>
-              <p className="text-xs text-slate-400 mt-1">
-                Assignez des tâches à des membres pour voir la progression détaillée.
+      {/* Contenu principal */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Section progression globale */}
+        <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">Progression globale</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {tasks.filter(t => t.progress === 100).length} / {tasks.length} tâches terminées
               </p>
             </div>
+            <div className="text-right">
+              <div className="text-3xl font-bold text-blue-600">{globalProgress}%</div>
+              <div className="text-sm text-gray-500">Progression totale</div>
+            </div>
+          </div>
+          
+          {/* Barre de progression */}
+          <div className="w-full bg-gray-200 rounded-full h-3">
+            <div
+              className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500"
+              style={{ width: `${globalProgress}%` }}
+            />
+          </div>
+        </section>
+
+        {/* Section tâches */}
+        <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-gray-900">Tâches</h2>
+            <div className="text-sm text-gray-500">
+              {tasks.length} tâche{tasks.length > 1 ? 's' : ''}
+            </div>
+          </div>
+          
+          {tasks.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <User className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune tâche trouvée</h3>
+              <p className="text-gray-500 mb-4">Les 15 tâches standards devraient être créées via l'interface de gestion.</p>
+              <Link 
+                to={`/dash/chef-projet/task/${id}`}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <UserCheck className="w-4 h-4" />
+                Gérer les tâches
+              </Link>
+            </div>
           ) : (
-            <div className="space-y-4">
-              {membersWithProgress.map((member, index) => (
-                <div key={member.id || `unassigned-${index}`} className="border border-slate-100 rounded-xl p-4">
-                  {/* Header du membre */}
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      {/* Avatar */}
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
-                        {member.username ? member.username.charAt(0).toUpperCase() : '?'}
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-slate-800">{member.username}</h3>
-                        {member.email && <p className="text-xs text-slate-500">{member.email}</p>}
-                      </div>
-                    </div>
-                    
-                    {/* Statistiques */}
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-slate-800">{member.averageProgress}%</div>
-                      <div className="text-xs text-slate-500">Progression moyenne</div>
-                    </div>
-                  </div>
-
-                  {/* Barre de progression globale */}
-                  <div className="mb-4">
-                    <div className="flex justify-between text-sm text-slate-600 mb-2">
-                      <span>{member.completedTasks} / {member.totalTasks} tâches terminées</span>
-                    </div>
-                    <div className="w-full bg-slate-100 rounded-full h-3">
-                      <div
-                        className="h-3 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 transition-all duration-500"
-                        style={{ width: `${member.averageProgress}%` }}
-                      />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {tasks.map((task) => (
+              <div
+                key={task.id}
+                className={`border rounded-lg p-4 cursor-pointer transition-all ${
+                  selectedTaskId === task.id
+                    ? "border-blue-500 bg-blue-50 shadow-md"
+                    : "border-gray-200 hover:border-gray-300 hover:shadow-sm"
+                }`}
+                onClick={() => {
+                  setSelectedTaskId(task.id);
+                  loadComments(task.id);
+                }}
+              >
+                {/* Header de la carte */}
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <h3 className="font-medium text-sm text-gray-900 mb-1">{task.name}</h3>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <User className="w-3 h-3" />
+                      <span>{task.assigned_username || 'Non assigné'}</span>
                     </div>
                   </div>
-
-                  {/* Tâches individuelles */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-slate-500 mb-2">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                      <span>Détail des tâches</span>
-                    </div>
-                    {member.tasks.map((task: any, taskIndex: number) => {
-                      const tBadge = getTaskStatutBadge(task.statut)
-                      const taskProgress = task.statut === 'termine' ? 100 : task.statut === 'en_cours' ? (task.progress || 50) : 0
-
-                      return (
-                        <div key={task.id} className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <span className="text-xs font-mono text-slate-400 w-5">{String(taskIndex + 1).padStart(2, '0')}</span>
-                              <span className="text-sm font-medium text-slate-700">{task.nom}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className={`text-xs px-2 py-1 rounded-full font-medium ${tBadge.cls}`}>
-                                {tBadge.label}
-                              </span>
-                              <span className="text-xs text-slate-600">{taskProgress}%</span>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
+                  <span className={`px-2 py-1 text-xs font-medium rounded ${
+                    task.progress === 100 ? 'bg-green-100 text-green-800' :
+                    task.progress > 0 ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {task.progress === 100 ? 'Terminé' : task.progress > 0 ? 'En cours' : 'À faire'}
+                  </span>
+                </div>
+                
+                {/* Progression */}
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs text-gray-600">
+                    <span>Progression</span>
+                    <span className="font-medium">{task.progress}%</span>
+                  </div>
+                  
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all ${
+                        task.progress === 100 ? 'bg-green-500' :
+                        task.progress > 0 ? 'bg-yellow-500' : 'bg-gray-400'
+                      }`}
+                      style={{ width: `${task.progress}%` }}
+                    />
                   </div>
                 </div>
+              </div>
               ))}
             </div>
           )}
+        </section>
+
+        {/* Section commentaires */}
+        {selectedTaskId && (
+          <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">Commentaires</h2>
+              <div className="text-sm text-gray-500">
+                {comments.filter(comment => comment.task_id === selectedTaskId).length} commentaire{comments.filter(comment => comment.task_id === selectedTaskId).length > 1 ? 's' : ''}
+              </div>
+            </div>
+            
+            <div className="space-y-4 mb-6">
+              {comments
+                .filter(comment => comment.task_id === selectedTaskId)
+                .map(comment => (
+                  <div key={comment.id} className="flex gap-3 p-4 bg-gray-50 rounded-lg">
+                    <div className="flex-shrink-0">
+                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-blue-600 font-medium text-sm">
+                          {comment.user.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="font-medium text-sm text-gray-900">{comment.user}</div>
+                        <div className="text-xs text-gray-500">{comment.role}</div>
+                        <div className="text-xs text-gray-400">{comment.time}</div>
+                      </div>
+                      <p className="text-sm text-gray-700">{comment.text}</p>
+                    </div>
+                  </div>
+                ))}
+              
+              {comments.filter(comment => comment.task_id === selectedTaskId).length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  <MessageCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                  <p className="text-sm">Aucun commentaire pour cette tâche</p>
+                  <p className="text-xs text-gray-400 mt-1">Soyez le premier à commenter</p>
+                </div>
+              )}
+            </div>
+            
+            {/* Formulaire d'ajout de commentaire */}
+            {!isReadOnlyMode && (
+              <div className="border-t pt-4">
+                <div className="flex gap-3">
+                  <div className="flex-shrink-0">
+                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                      <span className="text-blue-600 font-medium text-sm">
+                        {currentUser?.name?.charAt(0).toUpperCase() || 'U'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <div className="relative">
+                      <textarea
+                        ref={commentInputRef}
+                        value={newComment}
+                        onChange={handleCommentChange}
+                        placeholder="Écrivez votre commentaire... Tapez @ pour mentionner"
+                        className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        rows={3}
+                      />
+                      
+                      {/* Suggestions de mentions */}
+                      {showMentionSuggestions && (
+                        <div className="absolute z-20 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-40 overflow-y-auto">
+                          {users
+                            .filter(user => 
+                              user.name && user.name.toLowerCase().includes(mentionSearch.toLowerCase())
+                            )
+                            .map(user => (
+                              <div 
+                                key={user.id}
+                                onClick={() => insertMention(user)}
+                                className="px-3 py-2 hover:bg-gray-100 cursor-pointer flex items-center gap-2"
+                              >
+                                <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
+                                  <span className="text-blue-600 text-xs font-medium">
+                                    {user.name.charAt(0).toUpperCase()}
+                                  </span>
+                                </div>
+                                <span className="text-sm">{user.name}</span>
+                              </div>
+                            ))}
+                          {users.filter(user => 
+                            user.name && user.name.toLowerCase().includes(mentionSearch.toLowerCase())
+                          ).length === 0 && (
+                            <div className="px-3 py-2 text-sm text-gray-500">
+                              Aucun utilisateur trouvé
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex justify-end mt-2">
+                      <button 
+                        onClick={addComment}
+                        disabled={!newComment.trim()}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                      >
+                        <Send className="w-4 h-4" />
+                        Envoyer
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Message en mode lecture seule */}
+            {isReadOnlyMode && (
+              <div className="border-t pt-4">
+                <div className="text-center py-4 text-gray-500">
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 rounded-lg">
+                    <div className="w-4 h-4 bg-amber-600 rounded-full"></div>
+                    <span className="text-sm">Vous ne pouvez pas commenter ce DAO (vous n'êtes pas le chef)</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+      </main>
+
+      {/* Modal commentaire global */}
+      {showCommentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full">
+            {/* Header modal */}
+            <div className="border-b p-6 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <MessageCircle className="w-5 h-5 text-blue-600" />
+                <div>
+                  <h3 className="text-lg font-semibold">Ajouter un commentaire</h3>
+                  <p className="text-sm text-gray-500">Partagez vos pensées avec l'équipe</p>
+                </div>
+              </div>
+              <button onClick={() => setShowCommentModal(false)}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Contenu modal */}
+            <div className="p-6">
+              <textarea
+                ref={commentInputRef}
+                value={globalComment}
+                onChange={handleCommentChange}
+                placeholder="Écrivez votre commentaire ici... Tapez @ pour mentionner quelqu'un"
+                className="w-full p-3 border rounded-lg resize-none"
+                rows={4}
+              />
+              
+              {/* Suggestions de mentions */}
+              {showMentionSuggestions && (
+                <div className="absolute z-20 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {users.filter(u => 
+                    u.name.toLowerCase().includes(mentionSearch.toLowerCase()) && 
+                    u.id !== currentUser?.id
+                  ).map((user) => (
+                    <div
+                      key={user.id}
+                      className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer"
+                      onClick={() => insertMention(user)}
+                    >
+                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-blue-600 text-sm">{user.name.charAt(0).toUpperCase()}</span>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium">{user.name}</div>
+                        <div className="text-xs text-gray-500">Membre de l'équipe</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <div className="flex justify-end gap-3 mt-4">
+                <button onClick={() => setShowCommentModal(false)}>
+                  Annuler
+                </button>
+                <button onClick={addGlobalComment} disabled={!globalComment.trim()}>
+                  <Send size={16} /> Envoyer
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
-  )
+  );
 }

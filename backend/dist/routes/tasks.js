@@ -6,8 +6,10 @@ const auth_1 = require("../middleware/auth");
 const router = (0, express_1.Router)();
 // Routes protégées par authentification
 router.use(auth_1.authenticateToken);
-// Obtenir les tâches depuis la table task
+// Obtenir les tâches depuis la table task (selon documentation)
 router.get('/dao/:id', taskController_1.getTasksByDao);
+// Obtenir les tâches par DAO avec query parameter (format documentation)
+router.get('/', taskController_1.getTasksByDao);
 // Obtenir les tâches de l'utilisateur connecté
 router.get('/my-tasks', taskController_1.getMyTasks);
 // Créer une nouvelle tâche dans la table task

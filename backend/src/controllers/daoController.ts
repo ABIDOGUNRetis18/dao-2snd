@@ -2,9 +2,9 @@ import { Request, Response } from "express";
 import { AuthenticatedRequest } from "../middleware/auth";
 import { query } from "../utils/database";
 
-export async function getAllDaos(req: Request, res: Response) {
+export async function getAllDaos(req: AuthenticatedRequest, res: Response) {
   try {
-    const result = await query(`
+    let daoQuery = `
       SELECT 
         d.id,
         d.numero,
@@ -21,8 +21,20 @@ export async function getAllDaos(req: Request, res: Response) {
         u.email as chef_projet_email
       FROM daos d
       LEFT JOIN users u ON d.chef_id = u.id
-      ORDER BY d.created_at DESC
-    `);
+    `;
+    let params: any[] = [];
+
+    // Filtrer selon le rôle de l'utilisateur
+    if (req.user?.roleId === 3) {
+      // Chef de projet : voit seulement ses DAOs
+      daoQuery += " WHERE d.chef_id = $1";
+      params.push(req.user.userId);
+    }
+    // Admin (role_id = 2) : voit TOUS les DAOs (vue globale)
+
+    daoQuery += " ORDER BY d.created_at DESC";
+
+    const result = await query(daoQuery, params);
 
     res.status(200).json({
       success: true,
@@ -1041,7 +1053,7 @@ export async function createDao(req: Request, res: Response) {
         description,
         reference,
         autorite,
-        "actif", // Statut initial
+        "EN_COURS", // Statut initial
         Number(chef_id),
         chef_projet_nom,
         groupement || null,

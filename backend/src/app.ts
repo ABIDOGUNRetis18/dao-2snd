@@ -16,6 +16,9 @@ import myTasksRoutes from './routes/myTasks';
 import taskProgressRoutes from './routes/taskProgress';
 import notificationsRoutes from './routes/notifications';
 import messagesRoutes from './routes/messages';
+import teamRoutes from './routes/team';
+import taskAssignmentRoutes from './routes/taskAssignment';
+import taskModelRoutes from './routes/taskModels';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -60,6 +63,9 @@ app.use('/api/my-tasks', myTasksRoutes);
 app.use('/api/task-progress', taskProgressRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/messages', messagesRoutes);
+app.use('/api/team', teamRoutes);
+app.use('/api/task-assignment', taskAssignmentRoutes);
+app.use('/api/task', taskModelRoutes);
 
 // Route de test
 app.get('/api/test', (req, res) => {

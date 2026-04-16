@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, Filter, ArrowLeft } from 'lucide-react'
+import { Search, Filter, ArrowLeft, User } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 interface DAO {
@@ -14,13 +14,14 @@ interface DAO {
   nom_partenaire?: string
   statut: string
   created_at: string
+  role: 'chef' | 'membre' | 'superviseur'
 }
 
-
-export default function MesDAOs() {
+export default function MyDAOsAsChef() {
   const [daos, setDaos] = useState<DAO[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('tous')
+  const [roleFilter, setRoleFilter] = useState('tous')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -29,8 +30,20 @@ export default function MesDAOs() {
 
   const loadDaos = async () => {
     try {
+      // 1. Récupérer l'utilisateur connecté
+      const storedUser = localStorage.getItem('user')
+      if (!storedUser) {
+        console.error('[Vue Complète Admin] Aucun utilisateur trouvé dans localStorage')
+        return
+      }
+      const parsed = JSON.parse(storedUser)
+      const currentUserId = Number(parsed.id)
+      
+      console.log('[Vue Complète Admin] Chargement pour User ID:', currentUserId)
+      
+      // 2. Récupérer TOUS les DAOs
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:3001/api/dao/mes-daos', {
+      const response = await fetch('http://localhost:3001/api/dao', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -43,8 +56,35 @@ export default function MesDAOs() {
       
       const data = await response.json()
       if (data.success) {
-        // Filtrer pour ne pas afficher les DAO archivés
-        const nonArchivedDaos = (data.data.daos || []).filter((dao: any) => dao.statut !== 'ARCHIVE')
+        const allDaos = data.data || []
+        
+        // 3. Classifier les DAOs par rôle
+        const classifiedDaos = allDaos.map((dao: any) => {
+          let role: 'chef' | 'membre' | 'superviseur'
+          
+          if (Number(dao.chef_id) === currentUserId) {
+            role = 'chef'
+          } else {
+            // Pour l'instant, on considère tous les autres comme superviseur
+            // Plus tard, on pourra vérifier si l'utilisateur est membre d'équipe
+            role = 'superviseur'
+          }
+          
+          return {
+            ...dao,
+            role
+          }
+        })
+        
+        // 4. Filtrer les DAOs archivés
+        const nonArchivedDaos = classifiedDaos.filter((dao: any) => dao.statut !== 'ARCHIVE')
+        
+        console.log('[Vue Complète Admin] DAOs classifiés:', {
+          total: nonArchivedDaos.length,
+          chef: nonArchivedDaos.filter((d: any) => d.role === 'chef').length,
+          superviseur: nonArchivedDaos.filter((d: any) => d.role === 'superviseur').length
+        })
+        
         setDaos(nonArchivedDaos)
       }
     } catch (error) {
@@ -110,8 +150,9 @@ export default function MesDAOs() {
       dao.reference.toLowerCase().includes(searchTerm.toLowerCase())
     
     const matchesStatus = statusFilter === 'tous' || dao.statut === statusFilter
+    const matchesRole = roleFilter === 'tous' || dao.role === roleFilter
     
-    return matchesSearch && matchesStatus
+    return matchesSearch && matchesStatus && matchesRole
   })
 
   return (
@@ -119,16 +160,31 @@ export default function MesDAOs() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link
-          to="/chef-projet"
+          to="/admin"
           className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
         >
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div>
-          <h1 className="text-xl font-bold text-slate-800">Mes DAO</h1>
+          <h1 className="text-xl font-bold text-slate-800">Vue Complète Admin</h1>
           <p className="text-slate-500 text-sm">
-            {filteredDaos.length} DAO trouvé{filteredDaos.length > 1 ? 's' : ''}
+            {filteredDaos.length} DAO trouvé{filteredDaos.length > 1 ? 's' : ''} sur {daos.length} total
           </p>
+        </div>
+      </div>
+
+      {/* Info Banner */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-center gap-3">
+          <User className="h-5 w-5 text-blue-600" />
+          <div>
+            <p className="text-sm font-medium text-blue-800">
+              Vue Complète Admin
+            </p>
+            <p className="text-xs text-blue-600">
+              Accès à tous les DAOs où vous êtes impliqué : Chef de projet, Superviseur, ou Membre d'équipe.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -162,6 +218,21 @@ export default function MesDAOs() {
               <option value="A_RISQUE">À risque</option>
             </select>
           </div>
+          
+          {/* Filtre par rôle */}
+          <div className="relative">
+            <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="pl-10 pr-8 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+            >
+              <option value="tous">Tous les rôles</option>
+              <option value="chef">Chef de projet</option>
+              <option value="superviseur">Superviseur</option>
+              <option value="membre">Membre d'équipe</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -173,7 +244,7 @@ export default function MesDAOs() {
           </div>
         ) : filteredDaos.length === 0 ? (
           <div className="col-span-full text-center py-12">
-            <div className="text-slate-500">Aucun DAO trouvé.</div>
+            <div className="text-slate-500">Aucun DAO trouvé correspondant à vos filtres.</div>
           </div>
         ) : (
           filteredDaos.map((dao) => (
@@ -223,8 +294,16 @@ export default function MesDAOs() {
                 </div>
                 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-500">Chef de projet:</span>
-                  <span className="text-sm text-slate-700">{dao.chef_projet_nom || 'Non assigné'}</span>
+                  <span className="text-sm text-slate-500">Rôle:</span>
+                  <span className={`text-sm font-medium ${
+                    dao.role === 'chef' ? 'text-blue-600' : 
+                    dao.role === 'superviseur' ? 'text-purple-600' : 
+                    'text-green-600'
+                  }`}>
+                    {dao.role === 'chef' ? 'Chef de projet' : 
+                     dao.role === 'superviseur' ? 'Superviseur' : 
+                     'Membre d\'équipe'}
+                  </span>
                 </div>
                 
                 <div className="flex items-center justify-between">
@@ -247,7 +326,11 @@ export default function MesDAOs() {
               
               {/* Card Footer */}
               <div className="p-4 border-t border-slate-200 bg-slate-50">
-                {/* Pas d'actions pour le chef projet */}
+                <div className="flex items-center justify-center">
+                  <span className="text-xs text-slate-500">
+                    Accès en tant que chef de projet
+                  </span>
+                </div>
               </div>
             </div>
           ))

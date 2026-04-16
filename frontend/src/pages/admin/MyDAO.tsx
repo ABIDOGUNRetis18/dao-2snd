@@ -35,8 +35,21 @@ export default function MesDAOs() {
 
   const loadDaos = async () => {
     try {
+      // 1. Récupérer l'utilisateur connecté depuis localStorage
+      const storedUser = localStorage.getItem('user')
+      if (!storedUser) {
+        console.error('[Admin Mes DAO] Aucun utilisateur trouvé dans localStorage')
+        return
+      }
+      const parsed = JSON.parse(storedUser)
+      const currentUserId = Number(parsed.id)      // ID de l'Admin
+      const roleId = Number(parsed.role_id)       // role_id = 2 (Admin)
+      
+      console.log('[Admin Mes DAO] User ID:', currentUserId, 'Role ID:', roleId)
+      
+      // 2. Récupérer TOUS les DAOs (Admin voit tout)
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:3001/api/dao/mes-daos', {
+      const response = await fetch('http://localhost:3001/api/dao', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -48,10 +61,21 @@ export default function MesDAOs() {
       }
       
       const data = await response.json()
+      console.log('[Admin Mes DAO] Tous les DAOs reçus:', data.data?.daos?.length || 0)
+      
       if (data.success) {
-        setDaos(data.data.daos || [])
+        const allDaos = data.data.daos || []
+        
+        // 3. Filtrage côté frontend : l'Admin ne voit que les DAOs dont il est le chef dans "Mes DAO"
+        const myDaos = allDaos.filter(
+          (dao: any) => Number(dao.chef_id) === Number(currentUserId)
+        )
+        
+        console.log('[Admin Mes DAO] DAOs où Admin est chef:', myDaos.length)
+        
+        setDaos(myDaos)
         // Charger les tâches pour chaque DAO
-        await loadTasksForAllDaos(data.data.daos || [])
+        await loadTasksForAllDaos(myDaos)
       }
     } catch (error) {
       console.error('Erreur lors du chargement des DAO:', error)
@@ -85,21 +109,39 @@ export default function MesDAOs() {
     setDaoTasks(tasksData)
   }
 
-  // Statut basé sur la logique simplifiée à 3 statuts
-  const getDAOStatus = (dao: DAO) => {
-    // Utiliser le statut du DAO si disponible, sinon le calculer
-    const status = dao.statut || calculateStatus(dao)
-    
-    switch (status) {
-      case 'EN_COURS':
-        return { label: 'En cours', className: 'px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800' }
-      case 'A_RISQUE':
-        return { label: 'À risque', className: 'px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800' }
-      case 'TERMINEE':
-        return { label: 'Terminée', className: 'px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800' }
-      default:
-        return { label: 'En cours', className: 'px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800' }
+  // Fonction computeStatus selon la documentation
+  const computeStatus = (dao: DAO): { label: string; className: string } => {
+    const today = new Date();
+    const rawStatut = String(dao.statut || "").toUpperCase();
+
+    // 1. Statut terminé
+    if (rawStatut === "TERMINEE" || rawStatut === "TERMINE") {
+      return { label: "Terminée", className: "px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800" };
     }
+
+    // 2. Pas de date de dépôt
+    if (!dao.date_depot) {
+      return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
+    }
+
+    // 3. Calcul selon la date d'échéance
+    const dateDepot = new Date(dao.date_depot);
+    const diffDays = Math.floor((dateDepot.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays >= 5 || diffDays === 4) {
+      return { label: "EN COURS", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
+    }
+
+    if (diffDays <= 3) {
+      return { label: "À risque", className: "px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800" };
+    }
+
+    return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
+  };
+
+  // Statut basé sur la logique de la documentation
+  const getDAOStatus = (dao: DAO) => {
+    return computeStatus(dao)
   }
 
   // Calculer le statut basé sur la logique métier simplifiée
@@ -217,7 +259,7 @@ export default function MesDAOs() {
               return (
                 <div
                   key={dao.id}
-                  onClick={() => navigate(`/admin/dao/${dao.id}/tasks`)}
+                  onClick={() => navigate(`/chef-projet/dao/${dao.id}/tasks`)}
                   className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 cursor-pointer hover:shadow-md hover:border-blue-100 transition-all"
                 >
                   {/* Top row */}

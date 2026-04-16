@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, ArrowLeft, Trash2, Edit, Archive } from 'lucide-react'
+import { Search, ArrowLeft, Trash2, Edit, Archive, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 interface DAO {
@@ -19,6 +19,7 @@ interface DAO {
 export default function AllDAOs() {
   const [daos, setDaos] = useState<DAO[]>([])
   const [daoTasks, setDaoTasks] = useState<{[key: number]: any[]}>({})
+  const [daoMembers, setDaoMembers] = useState<{[key: number]: any[]}>({})
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -45,8 +46,9 @@ export default function AllDAOs() {
         // Filtrer pour ne pas afficher les DAO archivés (mais afficher les terminés)
         const activeDaos = (data.data.daos || []).filter((dao: any) => dao.statut !== 'ARCHIVE')
         setDaos(activeDaos)
-        // Charger les tâches pour chaque DAO
+        // Charger les tâches et les membres pour chaque DAO
         await loadTasksForAllDaos(activeDaos)
+        await loadMembersForAllDaos(activeDaos)
       }
     } catch (error) {
       console.error('Erreur lors du chargement des DAO:', error)
@@ -59,9 +61,12 @@ export default function AllDAOs() {
     const token = localStorage.getItem('token')
     const tasksData: {[key: number]: any[]} = {}
     
+    console.log('[Tous les DAO] Chargement des tâches pour', daos.length, 'DAOs')
+    
     for (const dao of daos) {
       try {
-        const response = await fetch(`http://localhost:3001/api/dao/${dao.id}/tasks`, {
+        // Utiliser l'API selon la documentation : /api/tasks?daoId=X
+        const response = await fetch(`http://localhost:3001/api/tasks?daoId=${dao.id}`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -69,7 +74,12 @@ export default function AllDAOs() {
         
         if (response.ok) {
           const data = await response.json()
-          tasksData[dao.id] = data.data.tasks || []
+          // L'API retourne data.data.tasks selon la documentation
+          tasksData[dao.id] = data.data?.tasks || []
+          console.log(`DAO ${dao.id}: ${tasksData[dao.id].length} tâches chargées`)
+        } else {
+          console.warn(`Erreur HTTP pour DAO ${dao.id}:`, response.status)
+          tasksData[dao.id] = []
         }
       } catch (error) {
         console.error(`Erreur lors du chargement des tâches pour DAO ${dao.id}:`, error)
@@ -77,24 +87,68 @@ export default function AllDAOs() {
       }
     }
     
+    console.log('[Tous les DAO] Toutes les tâches chargées')
     setDaoTasks(tasksData)
   }
 
-  // Statut basé sur la logique simplifiée à 3 statuts
-  const getDAOStatus = (dao: DAO) => {
-    // Utiliser le statut du DAO si disponible, sinon le calculer
-    const status = dao.statut || calculateStatus(dao)
+  const loadMembersForAllDaos = async (daos: DAO[]) => {
+    const token = localStorage.getItem('token')
+    const membersData: {[key: number]: any[]} = {}
     
-    switch (status) {
-      case 'EN_COURS':
-        return { label: 'En cours', className: 'px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800' }
-      case 'A_RISQUE':
-        return { label: 'À risque', className: 'px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800' }
-      case 'TERMINEE':
-        return { label: 'Terminée', className: 'px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800' }
-      default:
-        return { label: 'En cours', className: 'px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800' }
+    for (const dao of daos) {
+      try {
+        const response = await fetch(`http://localhost:3001/api/dao/${dao.id}/members`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          membersData[dao.id] = data.data.members || []
+        }
+      } catch (error) {
+        console.error(`Erreur lors du chargement des membres pour DAO ${dao.id}:`, error)
+        membersData[dao.id] = []
+      }
     }
+    
+    setDaoMembers(membersData)
+  }
+
+  // Fonction computeStatus selon la documentation
+  const computeStatus = (dao: DAO): { label: string; className: string } => {
+    const today = new Date();
+    const rawStatut = String(dao.statut || "").toUpperCase();
+
+    // 1. Statut terminé
+    if (rawStatut === "TERMINEE" || rawStatut === "TERMINE") {
+      return { label: "Terminée", className: "px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800" };
+    }
+
+    // 2. Pas de date de dépôt
+    if (!dao.date_depot) {
+      return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
+    }
+
+    // 3. Calcul selon la date d'échéance
+    const dateDepot = new Date(dao.date_depot);
+    const diffDays = Math.floor((dateDepot.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays >= 5 || diffDays === 4) {
+      return { label: "EN COURS", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
+    }
+
+    if (diffDays <= 3) {
+      return { label: "À risque", className: "px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800" };
+    }
+
+    return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
+  };
+
+  // Statut basé sur la logique de la documentation
+  const getDAOStatus = (dao: DAO) => {
+    return computeStatus(dao)
   }
 
   // Calculer le statut basé sur la logique métier simplifiée
@@ -137,23 +191,19 @@ export default function AllDAOs() {
     const tasks = daoTasks[dao.id] || []
     if (tasks.length === 0) return 0
 
-    // Priorite aux taches assignees, sinon toutes les taches du DAO.
-    const assignedTasks = tasks.filter(task => task.assigned_to !== null)
-    const targetTasks = assignedTasks.length > 0 ? assignedTasks : tasks
-
-    const totalProgress = targetTasks.reduce((sum, task) => {
-      const value = Number(task.progress)
-      return sum + (Number.isFinite(value) ? value : 0)
-    }, 0)
-
-    return Math.round(totalProgress / targetTasks.length)
+    // Calcul de la progression moyenne selon la documentation
+    const totalProgress = tasks.reduce((sum: number, task: any) => sum + (task.progress || 0), 0)
+    const avgProgress = Math.round(totalProgress / tasks.length)
+    
+    return avgProgress
   }
 
   const getProgressionColor = (dao: DAO) => {
     const progress = getProgression(dao)
-    if (progress < 33) return 'bg-red-500'
-    if (progress < 66) return 'bg-amber-500'
-    return 'bg-green-500'
+    // Couleurs selon la documentation
+    if (progress === 100) return 'bg-green-600'
+    if (progress > 0) return 'bg-blue-600'
+    return 'bg-gray-400'
   }
 
   
@@ -263,95 +313,101 @@ export default function AllDAOs() {
           filteredDaos.map((dao) => (
             <div 
               key={`dao-${dao.id}`} 
-              className="bg-white rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer hover:border-blue-300"
-              onClick={() => window.location.href = `/admin/dao/${dao.id}/tasks`}
+              className="bg-white rounded border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-blue-300 overflow-hidden"
+              onClick={() => window.location.href = `/admin/dao/${dao.id}/details`}
             >
-              {/* Card Header */}
-              <div className="p-4 border-b border-slate-200">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold text-slate-900">{dao.numero}</span>
-                  <span className={getDAOStatus(dao).className}>
+              {/* Header minimal */}
+              <div className="p-2 border-b border-slate-100">
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-sm font-bold text-slate-900">{dao.numero}</span>
+                  <span className={`px-1.5 py-0.5 text-xs font-medium rounded-full ${getDAOStatus(dao).className}`}>
                     {getDAOStatus(dao).label}
                   </span>
                 </div>
-                <h3 className="text-lg font-medium text-slate-800 mb-1">{dao.objet}</h3>
-                <p className="text-sm text-slate-500">Référence: {dao.reference}</p>
+                <h3 className="text-sm font-semibold text-slate-800 mb-0.5 truncate leading-tight">{dao.objet}</h3>
+                <p className="text-xs text-slate-500 truncate leading-tight">{dao.reference}</p>
               </div>
               
-              {/* Progression Bar */}
-              <div className="px-4 py-3 bg-slate-50">
-                <div className="flex items-center justify-between mb-2">
+              {/* Progression minimale */}
+              <div className="px-2 py-1.5 bg-slate-50">
+                <div className="flex items-center justify-between mb-0.5">
                   <span className="text-xs font-medium text-slate-600">Progression</span>
-                  <span className="text-xs font-medium text-slate-600">{getProgression(dao)}%</span>
+                  <span className="text-xs font-bold text-blue-600">{getProgression(dao)}%</span>
                 </div>
-                <div className="w-full bg-slate-200 rounded-full h-2">
+                <div className="w-full bg-slate-200 rounded-full h-1">
                   <div 
-                    className={`h-2 rounded-full transition-all duration-300 ${getProgressionColor(dao)}`}
+                    className={`h-1 rounded-full transition-all duration-300 ${getProgressionColor(dao)}`}
                     style={{ width: `${getProgression(dao)}%` }}
                   />
                 </div>
               </div>
               
-              {/* Card Body */}
-              <div className="p-4 space-y-3">
+              {/* Informations minimales */}
+              <div className="p-2 space-y-0.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-500">Date de dépôt:</span>
-                  <span className="text-sm text-slate-700">
-                    {new Date(dao.date_depot).toLocaleDateString('fr-FR')}
+                  <span className="text-xs text-slate-500">Date:</span>
+                  <span className="font-medium text-slate-700 text-xs">
+                    {new Date(dao.date_depot).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}
                   </span>
                 </div>
                 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-500">Autorité:</span>
-                  <span className="text-sm text-slate-700">{dao.autorite}</span>
+                  <span className="text-xs text-slate-500">Autorité:</span>
+                  <span className="font-medium text-slate-700 text-xs truncate max-w-[70px]">{dao.autorite}</span>
                 </div>
                 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-500">Chef de projet:</span>
-                  <span className="text-sm text-slate-700">{dao.chef_projet_nom || 'Non assigné'}</span>
+                  <span className="text-xs text-slate-500">Chef:</span>
+                  <span className="font-medium text-slate-700 text-xs truncate max-w-[70px]">{dao.chef_projet_nom || 'N/A'}</span>
                 </div>
                 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-500">Groupement:</span>
-                  <span className="text-sm text-slate-700">
-                    {dao.groupement === "oui" ? (
-                      dao.nom_partenaire ? (
-                        dao.nom_partenaire
-                      ) : (
-                        "Oui"
-                      )
-                    ) : (
-                      dao.groupement === "non" ? "Non" : dao.groupement || "?"
-                    )}
-                  </span>
+                  <span className="text-xs text-slate-500">Équipe:</span>
+                  <div className="flex items-center gap-0.5">
+                    <Users className="h-2.5 w-2.5 text-slate-400" />
+                    <span className="font-medium text-slate-700 text-xs">
+                      {daoMembers[dao.id]?.length || 0}
+                    </span>
+                  </div>
                 </div>
               </div>
               
-              {/* Card Footer */}
-              <div className="p-4 border-t border-slate-200 bg-slate-50">
-                <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+              {/* Actions minimales */}
+              <div className="p-2 border-t border-slate-100 bg-slate-50">
+                <div className="flex gap-1 mb-1.5" onClick={(e) => e.stopPropagation()}>
                   <button 
                     onClick={() => handleEdit(dao.id)}
-                    className="w-8 h-8 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors flex items-center justify-center"
+                    className="w-5 h-5 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors flex items-center justify-center"
                     title="Modifier"
                   >
-                    <Edit className="h-4 w-4" />
-                  </button>
-                  <button 
-                    onClick={() => handleDelete(dao.id)}
-                    className="w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded transition-colors flex items-center justify-center"
-                    title="Supprimer"
-                  >
-                    <Trash2 className="h-4 w-4" />
+                    <Edit className="h-2.5 w-2.5" />
                   </button>
                   <button 
                     onClick={() => handleArchive(dao.id)}
-                    className="w-8 h-8 bg-amber-500 hover:bg-amber-600 text-white rounded transition-colors flex items-center justify-center"
+                    className="w-5 h-5 bg-amber-500 hover:bg-amber-600 text-white rounded transition-colors flex items-center justify-center"
                     title="Archiver"
                   >
-                    <Archive className="h-4 w-4" />
+                    <Archive className="h-2.5 w-2.5" />
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(dao.id)}
+                    className="w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded transition-colors flex items-center justify-center"
+                    title="Supprimer"
+                  >
+                    <Trash2 className="h-2.5 w-2.5" />
                   </button>
                 </div>
+                
+                <button 
+                  onClick={() => window.location.href = `/admin/dao/${dao.id}/details`}
+                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs py-1 px-1.5 rounded transition-colors flex items-center justify-center gap-0.5"
+                  title="Voir détails"
+                >
+                  Détails
+                  <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
               </div>
             </div>
           ))

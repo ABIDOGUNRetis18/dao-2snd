@@ -7,8 +7,11 @@ const router = Router();
 // Routes protégées par authentification
 router.use(authenticateToken);
 
-// Obtenir les tâches depuis la table task
+// Obtenir les tâches depuis la table task (selon documentation)
 router.get('/dao/:id', getTasksByDao);
+
+// Obtenir les tâches par DAO avec query parameter (format documentation)
+router.get('/', getTasksByDao);
 
 // Obtenir les tâches de l'utilisateur connecté
 router.get('/my-tasks', getMyTasks);

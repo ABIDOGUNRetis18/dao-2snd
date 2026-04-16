@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, ChevronDown, Check, X, Trash2 } from 'lucide-react'
+import { ArrowLeft, ChevronDown } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { API_ENDPOINTS, apiGet, apiPost, apiPut, apiDelete } from '../../config/api'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface User {
   id: number
@@ -9,6 +10,7 @@ interface User {
   email?: string
   url_photo?: string
   role_id?: number
+  is_chef?: boolean
 }
 
 interface TaskRow {
@@ -17,14 +19,21 @@ interface TaskRow {
   nom: string
   assigned_to: number | null
   assigned_username?: string
+  assigned_email?: string
   progress?: number
   statut?: string
   membres?: User[]
+  dao_id?: number
+  created_at?: string
+  updated_at?: string
+  is_unlocked?: boolean
+  is_blocked?: boolean
 }
 
 export default function DAOTasks() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
 
   const [tasks, setTasks]       = useState<TaskRow[]>([])
   const [users, setUsers]       = useState<User[]>([])
@@ -35,7 +44,16 @@ export default function DAOTasks() {
   const [daoProgress, setDaoProgress] = useState(0)
   const [daoStats, setDaoStats] = useState({ total_tasks: 0, assigned_tasks: 0, completed_tasks: 0 })
   const [daoInfo, setDaoInfo] = useState<any>(null)
+    const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('tous')
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Permission checks
+  const isDaoChef = user && daoInfo && user.id === daoInfo.chef_id
+  const isAdmin = user && user.role_id === 2
+  const isChefProjetRole = user && user.role_id === 3
+  const canAssignTasks = isDaoChef || isAdmin || isChefProjetRole
+  const canUpdateTask = (task: TaskRow) => user && task.assigned_to === user.id
 
   const isTaskCompleted = (task: TaskRow) =>
     task.statut === 'termine' || Number(task.progress || 0) >= 100
@@ -69,12 +87,13 @@ export default function DAOTasks() {
 
   const loadAll = async () => {
     try {
-      console.log('Chargement des tâches et membres du DAO...')
+      console.log('Chargement des tâches et membres d\'équipe du DAO...')
 
-      // Charger les tâches, les membres du DAO et les infos du DAO
-      const [tasksRes, membersRes, daoRes] = await Promise.all([
+      // Charger les tâches, les membres d'équipe du DAO, les assignations et les infos du DAO
+      const [tasksRes, teamRes, assignmentsRes, daoRes] = await Promise.all([
         apiGet(API_ENDPOINTS.DAO_TASKS(id!)),
-        apiGet(API_ENDPOINTS.DAO_MEMBERS(id!)),
+        apiGet(`/team/dao/${id}/team-members`),
+        apiGet(`/task-assignment/dao/${id}`),
         apiGet(API_ENDPOINTS.DAO_BY_ID(id!)),
       ])
 
@@ -91,11 +110,32 @@ export default function DAOTasks() {
         console.error('Erreur chargement tâches:', tasksRes.error)
       }
       
-      if (membersRes.success) {
-        console.log('Membres du DAO reçus:', membersRes.data?.members)
-        setUsers(membersRes.data?.members || [])
+      if (teamRes.success) {
+        console.log('Réponse complète API team:', teamRes)
+        console.log('Membres d\'équipe reçus:', teamRes.data?.members)
+        setUsers(teamRes.data?.members || [])
       } else {
-        console.error('Erreur chargement membres:', membersRes.error)
+        console.error('Erreur chargement membres d\'équipe:', teamRes.error)
+        console.log('Réponse erreur API team:', teamRes)
+      }
+
+      if (assignmentsRes.success) {
+        console.log('Assignations reçues:', assignmentsRes.data?.assignments)
+        // Mettre à jour les tâches avec les informations d'assignation
+        const assignments = assignmentsRes.data?.assignments || []
+        const updatedTasks = tasks.map((task: any) => {
+          const assignment = assignments.find((a: any) => a.task_id === task.id)
+          return {
+            ...task,
+            assigned_to: assignment?.assigned_to || null,
+            assigned_username: assignment?.assigned_username || null,
+            assigned_email: assignment?.assigned_email || null,
+            assigned_role_id: assignment?.assigned_role_id || null
+          }
+        })
+        setTasks(updatedTasks)
+      } else {
+        console.error('Erreur chargement assignations:', assignmentsRes.error)
       }
 
       if (daoRes.success) {
@@ -166,24 +206,54 @@ export default function DAOTasks() {
   }
 
   const handleAssign = async (taskId: number, userId: number | null) => {
-    try {
-      await apiPut(
-        API_ENDPOINTS.TASK_ASSIGN(taskId),
-        { assigned_to: userId }
-      )
-      const updatedTasks = tasks.map(t =>
-        t.id === taskId
-          ? { ...t, assigned_to: userId, assigned_username: users.find(u => u.id === userId)?.username }
-          : t
-      )
-      setTasks(updatedTasks)
+    // Check if user can assign tasks before allowing assignment
+    if (!canAssignTasks) {
+      alert('Seul un administrateur ou le chef de projet peut assigner des membres aux tâches')
+      return
+    }
 
-      recalculateDaoMetrics(updatedTasks)
-    } catch { /* silent */ }
+    try {
+      // Utiliser la nouvelle API d'assignation
+      const response = await apiPut(`/task-assignment/${taskId}`, { userId })
+      
+      if (response.success) {
+        const updatedTasks = tasks.map(t =>
+          t.id === taskId
+            ? { 
+                ...t, 
+                assigned_to: userId, 
+                assigned_username: users.find(u => u.id === userId)?.username,
+                assigned_email: users.find(u => u.id === userId)?.email
+              }
+            : t
+        )
+        setTasks(updatedTasks)
+        recalculateDaoMetrics(updatedTasks)
+        console.log('Tâche assignée avec succès:', response.data)
+      } else {
+        throw new Error(response.message || 'Erreur lors de l\'assignation')
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'assignation:', error)
+      alert('Erreur lors de l\'assignation: ' + (error instanceof Error ? error.message : 'Erreur inconnue'))
+    }
     setOpenDropdown(null)
   }
 
   const handleUpdateProgress = async (taskId: number, progress: number) => {
+    // Find the task to check permissions
+    const task = tasks.find(t => t.id === taskId)
+    if (!task) {
+      alert('Tâche non trouvée')
+      return
+    }
+
+    // Check if user is assigned to this task
+    if (!canUpdateTask(task)) {
+      alert('Seul le membre assigné à cette tâche peut la modifier')
+      return
+    }
+
     try {
       const statut = progress >= 100 ? 'termine' : progress > 0 ? 'en_cours' : 'a_faire'
       const res = await apiPut(
@@ -203,6 +273,7 @@ export default function DAOTasks() {
       }
     } catch (error) {
       console.error('Erreur lors de la mise à jour:', error)
+      alert('Erreur lors de la mise à jour: ' + (error instanceof Error ? error.message : 'Erreur inconnue'))
     }
   }
 
@@ -224,38 +295,43 @@ export default function DAOTasks() {
   const COLORS = ['bg-blue-500','bg-green-500','bg-purple-500','bg-amber-500','bg-rose-500','bg-teal-500']
   const colorFor = (i: number) => COLORS[i % COLORS.length]
 
+  // Filtrer les tâches selon la recherche et le statut
+  const filteredTasks = tasks.filter(task => {
+    const matchesSearch = searchTerm === '' || 
+      task.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (task.assigned_username && task.assigned_username.toLowerCase().includes(searchTerm.toLowerCase()))
+    
+    const matchesStatus = statusFilter === 'tous' || task.statut === statusFilter
+    
+    return matchesSearch && matchesStatus
+  })
+
+  
+  
+  
   return (
     <div className="min-h-screen bg-slate-100 font-sans">
-      <div className="max-w-4xl mx-auto px-4 pt-6 space-y-5">
+      <div className="w-full px-4 pt-6 space-y-5">
 
         {/* HEADER */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-6 py-4 flex items-center gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <h1 className="text-lg font-bold text-slate-800">DAO N°{id}</h1>
-          {daoInfo && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-500">Groupement:</span>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                daoInfo.groupement === "oui" 
-                  ? "bg-green-100 text-green-700" 
-                  : "bg-gray-100 text-gray-600"
-              }`}>
-                {daoInfo.groupement === "oui" ? (
-                  daoInfo.nom_partenaire || "Aucun nom"
-                ) : (
-                  "Non"
-                )}
-              </span>
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate(-1)}
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div>
+              <h1 className="text-xl font-bold text-slate-800">Tâches du DAO</h1>
+              <p className="text-sm text-slate-500">{daoInfo?.objet || 'Chargement...'}</p>
             </div>
-          )}
-        </div>
+          </div>
+          
+                  </div>
 
-        {/* ── PROGRESSION DU DAO ── */}
+        
+        {/* PROGRESSION DU DAO */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
@@ -281,6 +357,34 @@ export default function DAOTasks() {
             <div>
               <p className="text-slate-500">Terminées</p>
               <p className="text-xl font-bold text-green-600">{daoStats.completed_tasks}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* RECHERCHE ET FILTRES */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <input
+                type="text"
+                placeholder="Rechercher une tâche ou un assigné..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-slate-600">Statut:</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+              >
+                <option value="tous">Tous</option>
+                <option value="a_faire">À faire</option>
+                <option value="en_cours">En cours</option>
+                <option value="termine">Terminé</option>
+              </select>
             </div>
           </div>
         </div>
@@ -317,38 +421,44 @@ export default function DAOTasks() {
             <div className="text-center py-12 text-sm text-slate-400">Chargement...</div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-slate-100">
-              <table className="w-full min-w-[800px] text-sm">
+              <table className="w-full min-w-[1200px] text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100">
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-slate-500 w-16">N°</th>
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-slate-500 min-w-[300px]">Tâche</th>
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-slate-500 w-48">Progression</th>
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-slate-500 w-56">Assigner à</th>
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-slate-500 w-56">Membre assigné</th>
-                    <th className="text-left px-6 py-4 text-xs font-semibold text-slate-500 w-20">Actions</th>
+                    <th className="text-left px-4 py-4 text-xs font-semibold text-slate-500 w-16">N°</th>
+                    <th className="text-left px-4 py-4 text-xs font-semibold text-slate-500 min-w-[400px]">Tâche</th>
+                    <th className="text-left px-4 py-4 text-xs font-semibold text-slate-500 w-64">Progression</th>
+                    <th className="text-left px-4 py-4 text-xs font-semibold text-slate-500 w-64">Statut</th>
+                    <th className="text-left px-4 py-4 text-xs font-semibold text-slate-500 w-64">Membre assigné</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {tasks.map((task, index) => (
+                  {filteredTasks.map((task, index) => (
                     <tr
                       key={task.id}
                       className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors"
                     >
                       {/* N° */}
-                      <td className="px-6 py-4 text-slate-400 text-xs font-medium">{index + 1}</td>
+                      <td className="px-4 py-4 text-slate-400 text-xs font-medium">{index + 1}</td>
 
                       {/* Tâche */}
-                      <td className="px-6 py-4 text-slate-700 leading-relaxed font-medium">{task.nom}</td>
+                      <td className="px-4 py-4 text-slate-700 leading-relaxed font-medium">
+                        <div className="flex items-center gap-2">
+                          <span>{task.nom}</span>
+                          {task.is_blocked && (
+                            <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full">Bloquée</span>
+                          )}
+                          {task.is_unlocked && (
+                            <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">Disponible</span>
+                          )}
+                        </div>
+                      </td>
 
                       {/* Progression */}
-                      <td className="px-6 py-4">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            
-                            <span className={`text-xs font-bold w-10 text-right ${getProgressTextColor(task.progress || 0)}`}>
-                              {task.progress || 0}%
-                            </span>
-                          </div>
+                      <td className="px-4 py-4 align-top">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs text-slate-500">
+                            {task.progress || 0}%
+                          </span>
                           <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all duration-300 ${getProgressColor(task.progress || 0)}`}
@@ -358,51 +468,62 @@ export default function DAOTasks() {
                         </div>
                       </td>
 
-                      {/* Assigner à — dropdown */}
-                      <td className="px-6 py-4 relative">
-                        <button
-                          onClick={() => setOpenDropdown(openDropdown === task.id ? null : task.id)}
-                          className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 transition-colors py-1"
-                        >
-                          <span className={task.assigned_to ? 'text-slate-700 font-medium' : 'text-slate-400'}>
-                            {task.assigned_username || 'Non assignée'}
+                      {/* Statut */}
+                      <td className="px-4 py-4 relative">
+                        {task.assigned_to ? (
+                          <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
+                            Assignée
                           </span>
-                          <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-                        </button>
-
-                        {/* Dropdown */}
-                        {openDropdown === task.id && (
-                          <div className="absolute left-0 top-full mt-1 w-52 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-30">
-                            {/* Unassign option */}
+                        ) : (
+                          <div className="relative">
                             <button
-                              onClick={() => handleAssign(task.id, null)}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-500 hover:bg-slate-50 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setOpenDropdown(openDropdown === task.id ? null : task.id)
+                              }}
+                              className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
                             >
-                              <X className="h-3.5 w-3.5" />
-                              Non assignée
+                              <span>Assigner</span>
+                              <ChevronDown className={`h-3 w-3 transition-transform ${openDropdown === task.id ? 'rotate-180' : ''}`} />
                             </button>
-                            <div className="border-t border-slate-50 my-1" />
-                            {users.map((user, i) => (
-                              <button
-                                key={user.id}
-                                onClick={() => handleAssign(task.id, user.id)}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                              >
-                                <div className={`w-6 h-6 rounded-full ${colorFor(i)} flex items-center justify-center text-white text-xs font-medium flex-shrink-0`}>
-                                  {getInitials(user.username)}
-                                </div>
-                                <span className="truncate">{user.username}</span>
-                                {task.assigned_to === user.id && (
-                                  <Check className="h-3.5 w-3.5 text-blue-500 ml-auto flex-shrink-0" />
+                            
+                            {/* Dropdown pour l'assignation */}
+                            {openDropdown === task.id && (
+                              <div className="absolute left-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-10 min-w-[150px]">
+                                {(() => {
+                                  console.log('Dropdown ouvert, membres disponibles:', users.length, users)
+                                  return null
+                                })()}
+                                {users.length === 0 ? (
+                                  <div className="px-3 py-2 text-sm text-slate-500">
+                                    Aucun membre disponible
+                                  </div>
+                                ) : (
+                                  users.map((user) => (
+                                    <button
+                                      key={user.id}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        console.log('Assignation de la tâche', task.id, 'au membre', user.id, user.username)
+                                        handleAssign(task.id, user.id)
+                                      }}
+                                      className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                                    >
+                                      <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-medium">
+                                        {user.username.charAt(0).toUpperCase()}
+                                      </div>
+                                      <span>{user.username}</span>
+                                    </button>
+                                  ))
                                 )}
-                              </button>
-                            ))}
+                              </div>
+                            )}
                           </div>
                         )}
                       </td>
 
-                      {/* Membre assigné - avatar */}
-                      <td className="px-6 py-4">
+                      {/* Membre assigné */}
+                      <td className="px-4 py-4">
                         {task.assigned_to && task.assigned_username ? (
                           <div className="flex items-center gap-3">
                             <div className={`w-8 h-8 rounded-full ${colorFor(users.findIndex(u => u.id === task.assigned_to))} flex items-center justify-center text-white text-xs font-medium flex-shrink-0`}>
@@ -414,24 +535,13 @@ export default function DAOTasks() {
                           <span className="text-sm text-slate-300">-</span>
                         )}
                       </td>
-
-                      {/* Actions - bouton suppression */}
-                      <td className="px-6 py-4">
-                        <button
-                          onClick={() => handleDeleteTask(task.id)}
-                          className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Supprimer cette tâche"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </td>
                     </tr>
                   ))}
 
-                  {tasks.length === 0 && (
+                  {filteredTasks.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="text-center py-12 text-sm text-slate-400">
-                        Aucune tâche trouvée pour ce DAO.
+                      <td colSpan={4} className="text-center py-12 text-sm text-slate-400">
+                        {searchTerm || statusFilter !== 'tous' ? 'Aucune tâche ne correspond à votre recherche.' : 'Aucune tâche trouvée pour ce DAO.'}
                       </td>
                     </tr>
                   )}

@@ -7,6 +7,7 @@ exports.assignTask = assignTask;
 exports.deleteTask = deleteTask;
 exports.getDaoTasksStats = getDaoTasksStats;
 const database_1 = require("../utils/database");
+const taskPermissions_1 = require("../utils/taskPermissions");
 // 🎯 LOGIQUE DES 15 TÂCHES - SYSTÈME UNIVERSEL
 async function getTasksByDao(req, res) {
     try {
@@ -149,12 +150,27 @@ async function updateTaskProgress(req, res) {
     try {
         const { id } = req.params;
         const { progress, override = false } = req.body;
+        const userId = req.user?.userId;
         const taskId = parseInt(id);
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Utilisateur non authentifié'
+            });
+        }
         // Validation de la progression
         if (progress < 0 || progress > 100) {
             return res.status(400).json({
                 success: false,
                 message: 'La progression doit être entre 0 et 100'
+            });
+        }
+        // Vérifier si l'utilisateur est assigné à la tâche
+        const isAssigned = await (0, taskPermissions_1.isTaskAssigned)(taskId, userId);
+        if (!isAssigned) {
+            return res.status(403).json({
+                success: false,
+                message: 'Seul le membre assigné à cette tâche peut la modifier'
             });
         }
         // 🎯 CONTRÔLE: Récupérer les informations de la tâche et du DAO
@@ -226,6 +242,29 @@ async function assignTask(req, res) {
     try {
         const { id } = req.params;
         const { assigned_to } = req.body;
+        const userId = req.user?.userId;
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Utilisateur non authentifié'
+            });
+        }
+        // Récupérer le DAO ID de la tâche
+        const daoId = await (0, taskPermissions_1.getDaoIdFromTask)(Number(id));
+        if (!daoId) {
+            return res.status(404).json({
+                success: false,
+                message: 'Tâche non trouvée'
+            });
+        }
+        // Vérifier si l'utilisateur peut assigner des tâches (admin ou chef de projet)
+        const canAssign = await (0, taskPermissions_1.canAssignTasks)(daoId, userId);
+        if (!canAssign) {
+            return res.status(403).json({
+                success: false,
+                message: 'Seul un administrateur ou le chef de projet peut assigner des membres aux tâches'
+            });
+        }
         // 🎯 CONTRÔLE: Vérifier si la tâche peut être assignée (débloquée)
         const taskUnlockResult = await (0, database_1.query)(`
       SELECT t.id, t.nom, t.dao_id,

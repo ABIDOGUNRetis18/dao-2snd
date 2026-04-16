@@ -22,8 +22,9 @@ const menuItems = [
   { path: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/admin/create-user', icon: UserPlus, label: 'Créer un utilisateur' },
   { path: '/admin/create-dao', icon: FolderPlus, label: 'Créer un DAO' },
-  { path: '/admin/my-daos', icon: Folder, label: 'Mes DAO' },
   { path: '/admin/all-daos', icon: Folders, label: 'Tous les DAO' },
+  { path: '/admin/all-tasks', icon: ClipboardList, label: 'Toutes les tâches' },
+  { path: '/admin/my-daos-as-chef', icon: Folder, label: 'Mes DAO (chef)' },
   { path: '/admin/my-tasks', icon: ClipboardList, label: 'Mes tâches' },
   { path: '/admin/history', icon: History, label: 'Historique' },
 ]
