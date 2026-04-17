@@ -20,6 +20,7 @@ import teamRoutes from './routes/team';
 import taskAssignmentRoutes from './routes/taskAssignment';
 import taskModelRoutes from './routes/taskModels';
 import chefTeamsRoutes from './routes/chef-teams';
+import memberTasksRoutes from './routes/memberTasks';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -68,6 +69,7 @@ app.use('/api/team', teamRoutes);
 app.use('/api/task-assignment', taskAssignmentRoutes);
 app.use('/api/task', taskModelRoutes);
 app.use('/api/chef-teams', chefTeamsRoutes);
+app.use('/api/member-tasks', memberTasksRoutes);
 
 // Route de test
 app.get('/api/test', (req, res) => {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CheckSquare, Plus, RefreshCw, Calendar, Clock, AlertTriangle, CheckCircle, Timer, Eye, Edit, Trash2, Minus } from 'lucide-react'
+import { CheckSquare, Plus, RefreshCw, AlertTriangle, CheckCircle, Timer, Eye, Edit, Minus, Calendar } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { API_ENDPOINTS, apiPut } from '../../config/api'
 
@@ -55,7 +55,7 @@ const getPrioriteBadge = (priorite: string) => {
 
 export default function MesTaches() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { } = useAuth()
   const [tasks, setTasks]                     = useState<Task[]>([])
   const [loading, setLoading]                 = useState(true)
   const [search, setSearch]                   = useState('')
@@ -68,11 +68,6 @@ export default function MesTaches() {
   const [progressTimeout, setProgressTimeout] = useState<number | null>(null)
 
   // Check if user can update a task (user must be assigned to the task)
-  const canUpdateTask = (task: Task) => {
-    // This will be updated when we get proper task assignment data from API
-    // For now, we'll assume all tasks in "My Tasks" are assigned to current user
-    return true
-  }
 
   useEffect(() => { loadTasks() }, [])
 
@@ -81,7 +76,15 @@ export default function MesTaches() {
     else setRefreshing(true)
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('/api/my-tasks', {
+      const storedUser = localStorage.getItem('user')
+      const currentUser = storedUser ? JSON.parse(storedUser) : null
+      const userId = currentUser?.id
+
+      if (!userId) {
+        throw new Error('Utilisateur non trouvé')
+      }
+
+      const response = await fetch(`http://localhost:3001/api/member-tasks?userId=${userId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

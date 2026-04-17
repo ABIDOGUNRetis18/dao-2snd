@@ -34,7 +34,7 @@ export async function getTaskAssignments(req: Request, res: Response) {
     const assignmentsQuery = `
       SELECT 
         ts.id_task as id_task,
-        tm.nom as task_name,
+        ts.titre as task_name,
         ts.dao_id,
         ts.assigned_to,
         u.username as assigned_username,
@@ -44,7 +44,6 @@ export async function getTaskAssignments(req: Request, res: Response) {
         ts.progress,
         ts.created_at
       FROM tasks ts
-      LEFT JOIN task tm ON ts.id_task = tm.id
       LEFT JOIN users u ON ts.assigned_to = u.id
       WHERE ts.dao_id = $1
       ORDER BY ts.id_task ASC
@@ -228,11 +227,11 @@ export async function getTaskAssignmentsByDao(req: Request, res: Response) {
 
     const assignmentsQuery = `
       SELECT 
-        t.id as task_id,
-        t.nom as task_name,
-        t.statut,
-        t.progress,
-        t.assigned_to,
+        ts.id_task as task_id,
+        ts.titre as task_name,
+        ts.statut,
+        ts.progress,
+        ts.assigned_to,
         u.username as assigned_username,
         u.email as assigned_email,
         u.role_id as assigned_role_id,
@@ -241,12 +240,12 @@ export async function getTaskAssignmentsByDao(req: Request, res: Response) {
           WHEN u.role_id = 4 THEN 'Membre équipe'
           ELSE 'Autre'
         END as assigned_role_name,
-        t.created_at,
-        t.updated_at
-      FROM task t
-      LEFT JOIN users u ON t.assigned_to = u.id
-      WHERE t.dao_id = $1
-      ORDER BY t.id ASC
+        ts.created_at,
+        ts.updated_at
+      FROM tasks ts
+      LEFT JOIN users u ON ts.assigned_to = u.id
+      WHERE ts.dao_id = $1
+      ORDER BY ts.id_task ASC
     `;
 
     const result = await query(assignmentsQuery, [daoId]);

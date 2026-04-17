@@ -18,6 +18,7 @@ import Profile from './pages/admin/Profile'
 import DirecteurGeneral from './pages/directeur-general/DirecteurGeneral'
 import ChefProjetDashboard from './pages/chef-projet/ChefProjetDashboard'
 import MesDAO from './pages/chef-projet/MesDAO'
+import MesEquipes from './pages/chef-projet/MesEquipes'
 import MesTaches from './pages/chef-projet/MesTaches'
 import ChefProjetDAODetails from './pages/chef-projet/DAODetails'
 import ChefProjetDAOTasks from './pages/chef-projet/DAOTasks'
@@ -44,6 +45,7 @@ function App() {
               <Route index element={<ChefProjetDashboard />} />
               <Route path="dashboard" element={<ChefProjetDashboard />} />
               <Route path="mes-daos" element={<MesDAO />} />
+              <Route path="mes-equipes" element={<MesEquipes />} />
               <Route path="mes-taches" element={<MesTaches />} />
               <Route path="dao/:id" element={<ChefProjetDAODetails />} />
               <Route path="dao/:id/tasks" element={<ChefProjetDAOTasks />} />

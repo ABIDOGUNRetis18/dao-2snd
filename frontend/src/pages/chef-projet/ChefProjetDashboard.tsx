@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FileText, SlidersHorizontal, RefreshCw, Calendar, Hourglass, AlertTriangle } from 'lucide-react'
+import { SlidersHorizontal, RefreshCw, Calendar, Hourglass, AlertTriangle } from 'lucide-react'
 
 interface DAO {
   id: number
@@ -10,6 +10,7 @@ interface DAO {
   autorite: string
   chef_projet_nom: string
   statut: 'EN_ATTENTE' | 'EN_COURS' | 'A_RISQUE' | 'TERMINEE' | 'ARCHIVE'
+  progression?: number
 }
 
 const STATUTS = [
@@ -40,7 +41,16 @@ export default function ChefProjetDashboard() {
   const [showFilterMenu, setShowFilterMenu] = useState(false)
   const [refreshing, setRefreshing]         = useState(false)
 
-  useEffect(() => { loadDaos() }, [])
+  useEffect(() => { 
+    loadDaos() 
+    
+    // Rafraîchissement automatique toutes les 30 secondes
+    const interval = setInterval(() => {
+      loadDaos(true)
+    }, 30000)
+    
+    return () => clearInterval(interval)
+  }, [])
 
   const loadDaos = async (silent = false) => {
     if (!silent) setLoading(true)
@@ -52,7 +62,34 @@ export default function ChefProjetDashboard() {
       })
       if (res.ok) {
         const data = await res.json()
-        if (data.success) setDaos(data.data.daos || [])
+        if (data.success) {
+          const daoList = data.data.daos || []
+          
+          // Pour chaque DAO, calculer la progression
+          const daosWithProgress = await Promise.all(
+            daoList.map(async (dao: any) => {
+              try {
+                const tasksRes = await fetch(`http://localhost:3001/api/task-assignment/dao/${dao.id}`, {
+                  headers: { 'Authorization': `Bearer ${token}` }
+                })
+                const tasksData = await tasksRes.json()
+                const tasks = tasksData.data?.assignments || []
+                
+                if (tasks.length > 0) {
+                  const totalProgress = tasks.reduce((sum: number, task: any) => sum + (task.progress || 0), 0)
+                  const averageProgress = Math.round(totalProgress / tasks.length)
+                  return { ...dao, progression: averageProgress }
+                }
+                return { ...dao, progression: 0 }
+              } catch (error) {
+                console.error('Erreur lors du chargement de la progression pour le DAO', dao.id, error)
+                return { ...dao, progression: 0 }
+              }
+            })
+          )
+          
+          setDaos(daosWithProgress)
+        }
       }
     } catch { /* silent */ }
     finally { setLoading(false); setRefreshing(false) }
@@ -169,22 +206,31 @@ export default function ChefProjetDashboard() {
                 <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500">Référence</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500">Autorité contractante</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500">Date de clôture</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500">Progression</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500">Statut</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-16 text-sm text-slate-400">Chargement...</td>
+                  <td colSpan={6} className="text-center py-16 text-sm text-slate-400">Chargement...</td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-16 text-sm text-slate-400">
+                  <td colSpan={6} className="text-center py-16 text-sm text-slate-400">
                     {search || statutFilter ? 'Aucun DAO ne correspond à votre recherche.' : 'Aucun DAO assigné.'}
                   </td>
                 </tr>
               ) : filtered.map(dao => {
                 const badge = getStatutBadge(dao.statut)
+                const progression = dao.progression || 0
+                
+                const getProgressColor = (progress: number) => {
+                  if (progress < 33) return 'bg-red-500'
+                  if (progress < 66) return 'bg-amber-500'
+                  return 'bg-green-500'
+                }
+                
                 return (
                   <tr
                     key={dao.id}
@@ -194,10 +240,21 @@ export default function ChefProjetDashboard() {
                       <p className="font-semibold text-slate-800">{dao.numero}</p>
                       <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[180px]">{dao.objet}</p>
                     </td>
-                    <td className="px-6 py-3.5 text-slate-600">{dao.reference || '—'}</td>
-                    <td className="px-6 py-3.5 text-slate-600">{dao.autorite || '—'}</td>
+                    <td className="px-6 py-3.5 text-slate-600">{dao.reference || '---'}</td>
+                    <td className="px-6 py-3.5 text-slate-600">{dao.autorite || '---'}</td>
                     <td className="px-6 py-3.5 text-slate-600">
-                      {dao.date_depot ? new Date(dao.date_depot).toLocaleDateString('fr-FR') : '—'}
+                      {dao.date_depot ? new Date(dao.date_depot).toLocaleDateString('fr-FR') : '---'}
+                    </td>
+                    <td className="px-6 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 bg-slate-200 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(progression)}`}
+                            style={{ width: `${progression}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-medium text-slate-700 min-w-[3rem]">{progression}%</span>
+                      </div>
                     </td>
                     <td className="px-6 py-3.5">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${badge.cls}`}>

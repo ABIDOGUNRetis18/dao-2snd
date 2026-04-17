@@ -25,7 +25,8 @@ const menuByRole: Record<number, MenuItem[]> = {
   3: [
     { path: '/chef-projet/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/chef-projet/mes-daos', label: 'Mes DAO', icon: FileText },
-    { path: '/chef-projet/mes-taches', label: 'Mes taches', icon: CheckSquare }
+    { path: '/chef-projet/mes-equipes', label: 'Mes équipes', icon: Users },
+    { path: '/chef-projet/mes-taches', label: 'Mes tâches', icon: CheckSquare }
   ],
   4: [
     { path: '/membre-equipe', label: 'Dashboard', icon: LayoutDashboard },

@@ -112,7 +112,7 @@ export const apiRequest = async <T = any>(
         error: 'Authentication required',
       };
     }
-    headers['Authorization'] = `Bearer ${token}`;
+    (headers as any)['Authorization'] = `Bearer ${token}`;
   }
 
   try {

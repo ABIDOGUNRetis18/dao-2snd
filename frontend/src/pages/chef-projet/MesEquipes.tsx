@@ -1,41 +1,68 @@
 import { useState, useEffect } from 'react'
-import { Users, TrendingUp, ChevronDown, User } from 'lucide-react'
+import { Users, TrendingUp, User, Search, ChevronRight } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
 interface TeamMember {
   id: number
-  username: string
+  name: string
   email: string
   role_id: number
-  assigned_at: string
-}
-
-interface Team {
-  dao_id: number
-  numero: string
-  objet: string
-  statut: string
-  created_at: string
-  chef_name: string
-  chef_email: string
-  members: TeamMember[]
+  role: string
+  tasks: MemberTask[]
 }
 
 interface MemberTask {
-  id: number
-  nom: string
+  id_task: number
+  dao_id: number
+  titre: string
+  description?: string
   statut: string
   progress: number
-  assigned_to: number
+  dao_numero: string
+  dao_objet: string
+  created_at: string
 }
+
+interface Team {
+  id: number
+  name: string
+  objet: string
+  leader: string
+  memberCount: number
+  members: TeamMember[]
+  team_id: number
+}
+
+interface TeamStats {
+  totalTeams: number
+  totalMembers: number
+  totalDaos: number
+  averageProgress: number
+}
+
+// Fonction pour calculer la progression depuis le statut
+const getProgressFromStatus = (statut: string) => {
+  switch (statut) {
+    case 'termine': return 100;
+    case 'en_cours': return 50;
+    case 'a_faire': return 0;
+    default: return 0;
+  }
+};
+
 
 export default function MesEquipes() {
   const { user } = useAuth()
   const [teams, setTeams] = useState<Team[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedTeam, setExpandedTeam] = useState<number | null>(null)
-  const [memberTasks, setMemberTasks] = useState<Record<number, MemberTask[]>>({})
-  const [loadingTasks, setLoadingTasks] = useState<Record<number, boolean>>({})
+  const [searchTerm, setSearchTerm] = useState('')
+  const [stats, setStats] = useState<TeamStats>({
+    totalTeams: 0,
+    totalMembers: 0,
+    totalDaos: 0,
+    averageProgress: 0
+  })
 
   useEffect(() => {
     if (user?.id) {
@@ -45,20 +72,41 @@ export default function MesEquipes() {
 
   const loadTeams = async () => {
     try {
+      setLoading(true)
       const token = localStorage.getItem('token')
       const response = await fetch(`http://localhost:3001/api/chef-teams?chefId=${user?.id}`, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success) {
-          setTeams(data.data.teams || [])
-          console.log('Équipes chargées:', data.data.teams)
-        }
+      if (!response.ok) {
+        throw new Error('Failed to fetch teams')
       }
+
+      const data = await response.json()
+      const apiData: Team[] = data.data || []
+
+      // Calculer les statistiques globales
+      const totalTeams = apiData.length
+      const totalMembers = apiData.reduce((sum, team) => sum + team.memberCount, 0)
+      const totalDaos = apiData.length // 1 DAO = 1 équipe
+      const allTasks = apiData.flatMap(team => team.members.flatMap(member => member.tasks))
+      const totalProgress = allTasks.reduce((sum, task) => {
+        const progress = task.progress || getProgressFromStatus(task.statut)
+        return sum + progress
+      }, 0)
+      const averageProgress = allTasks.length > 0 ? Math.round(totalProgress / allTasks.length) : 0
+
+      setStats({
+        totalTeams,
+        totalMembers,
+        totalDaos,
+        averageProgress
+      })
+
+      setTeams(apiData)
     } catch (error) {
       console.error('Erreur lors du chargement des équipes:', error)
     } finally {
@@ -66,245 +114,215 @@ export default function MesEquipes() {
     }
   }
 
-  const loadMemberTasks = async (memberId: number) => {
-    if (memberTasks[memberId]) {
-      return // Déjà chargé
-    }
+  
+  // Filtrer les équipes
+  const filteredTeams = teams.filter((team) => {
+    const matchesSearch = 
+      team.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      team.leader.toLowerCase().includes(searchTerm.toLowerCase())
+    return matchesSearch
+  })
 
-    setLoadingTasks(prev => ({ ...prev, [memberId]: true }))
-    
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`http://localhost:3001/api/my-tasks?userId=${memberId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success) {
-          setMemberTasks(prev => ({
-            ...prev,
-            [memberId]: data.data.tasks || []
-          }))
-        }
-      }
-    } catch (error) {
-      console.error('Erreur lors du chargement des tâches du membre:', error)
-    } finally {
-      setLoadingTasks(prev => ({ ...prev, [memberId]: false }))
-    }
-  }
-
-  const toggleTeam = (teamId: number) => {
+  // Gérer l'expansion d'une équipe
+  const toggleTeamExpansion = (teamId: number) => {
     if (expandedTeam === teamId) {
       setExpandedTeam(null)
     } else {
       setExpandedTeam(teamId)
-      // Charger les tâches des membres de cette équipe
-      const team = teams.find(t => t.dao_id === teamId)
-      if (team) {
-        team.members.forEach(member => {
-          loadMemberTasks(member.id)
-        })
-      }
     }
   }
-
-  const calculateMemberProgress = (memberId: number) => {
-    const tasks = memberTasks[memberId] || []
-    if (tasks.length === 0) return 0
-    
-    const completedTasks = tasks.filter(task => 
-      task.statut === 'termine' || Number(task.progress || 0) >= 100
-    )
-    
-    return Math.round((completedTasks.length / tasks.length) * 100)
-  }
-
-  const getStatutColor = (statut: string) => {
-    switch (statut) {
-      case 'EN_ATTENTE': return 'bg-yellow-100 text-yellow-800'
-      case 'EN_COURS': return 'bg-blue-100 text-blue-800'
-      case 'TERMINE': return 'bg-green-100 text-green-800'
-      case 'A_RISQUE': return 'bg-red-100 text-red-800'
-      default: return 'bg-gray-100 text-gray-800'
-    }
-  }
-
-  const getProgressColor = (progress: number) => {
-    if (progress < 33) return 'bg-red-500'
-    if (progress < 66) return 'bg-amber-500'
-    return 'bg-green-500'
-  }
-
-  const totalTeams = teams.length
-  const totalMembers = teams.reduce((sum, team) => sum + team.members.length, 0)
-  const averageProgress = teams.length > 0 
-    ? Math.round(teams.reduce((sum, team) => {
-        const teamProgress = team.members.reduce((memberSum, member) => 
-          memberSum + calculateMemberProgress(member.id), 0
-        )
-        return sum + (teamProgress / Math.max(team.members.length, 1))
-      }, 0) / teams.length)
-    : 0
 
   return (
-    <div className="space-y-6">
+    <div className="p-6">
       {/* Header */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-6 py-4">
-        <h1 className="text-xl font-bold text-slate-800 flex items-center gap-3">
-          <Users className="h-6 w-6 text-blue-600" />
-          Vue d'ensemble des équipes
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Gérez vos équipes et suivez la progression des tâches
-        </p>
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Gestion des Équipes</h1>
+        <p className="text-gray-600">Vue d'ensemble de vos équipes et de l'avancement des tâches</p>
       </div>
 
       {/* Statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-50 rounded-xl">
-              <Users className="h-6 w-6 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-sm text-slate-500">Total équipes</p>
-              <p className="text-2xl font-bold text-slate-800">{totalTeams}</p>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <Users className="h-8 w-8 text-blue-600" />
+            <div className="ml-3">
+              <p className="text-2xl font-bold text-gray-900">{stats.totalTeams}</p>
+              <p className="text-sm text-gray-600">Équipes Totales</p>
             </div>
           </div>
         </div>
-
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-green-50 rounded-xl">
-              <User className="h-6 w-6 text-green-600" />
-            </div>
-            <div>
-              <p className="text-sm text-slate-500">Total membres</p>
-              <p className="text-2xl font-bold text-slate-800">{totalMembers}</p>
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <User className="h-8 w-8 text-green-600" />
+            <div className="ml-3">
+              <p className="text-2xl font-bold text-gray-900">{stats.totalMembers}</p>
+              <p className="text-sm text-gray-600">Membres Totaux</p>
             </div>
           </div>
         </div>
-
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-amber-50 rounded-xl">
-              <TrendingUp className="h-6 w-6 text-amber-600" />
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <TrendingUp className="h-8 w-8 text-purple-600" />
+            <div className="ml-3">
+              <p className="text-2xl font-bold text-gray-900">{stats.totalDaos}</p>
+              <p className="text-sm text-gray-600">DAOs Assignés</p>
             </div>
-            <div>
-              <p className="text-sm text-slate-500">Progression moyenne</p>
-              <p className="text-2xl font-bold text-slate-800">{averageProgress}%</p>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <div className="flex items-center">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-500 to-green-500 flex items-center justify-center">
+              <span className="text-white font-bold text-sm">{stats.averageProgress}%</span>
+            </div>
+            <div className="ml-3">
+              <p className="text-2xl font-bold text-gray-900">{stats.averageProgress}%</p>
+              <p className="text-sm text-gray-600">Progression Moyenne</p>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Recherche et filtrage */}
+      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Rechercher une équipe..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <p className="ml-3 text-gray-600">Chargement des équipes...</p>
+        </div>
+      )}
 
       {/* Liste des équipes */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100">
-        <div className="px-6 py-4 border-b border-slate-100">
-          <h2 className="text-lg font-semibold text-slate-800">Mes équipes</h2>
-        </div>
-
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="text-slate-500">Chargement des équipes...</div>
-          </div>
-        ) : teams.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-slate-500">Aucune équipe trouvée</div>
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {teams.map((team) => (
-              <div key={team.dao_id} className="p-6">
-                {/* En-tête de l'équipe */}
-                <div 
-                  className="flex items-center justify-between cursor-pointer hover:bg-slate-50 -m-6 p-6 rounded-t-2xl transition-colors"
-                  onClick={() => toggleTeam(team.dao_id)}
-                >
-                  <div className="flex items-center gap-4">
-                    <ChevronDown 
-                      className={`h-5 w-5 text-slate-400 transition-transform ${
-                        expandedTeam === team.dao_id ? 'rotate-180' : ''
+      {!loading && (
+        <div className="space-y-6">
+          {filteredTeams.map((team) => (
+            <div key={team.id} className="bg-white rounded-lg shadow-sm border border-gray-200">
+              {/* Header de l'équipe */}
+              <div 
+                className="p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() => toggleTeamExpansion(team.id)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Users className="text-blue-600" />
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900">{team.name}</h4>
+                      <p className="text-sm text-gray-600">Chef d'équipe: {team.leader}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">{team.memberCount} membres</span>
+                    <ChevronRight 
+                      className={`h-4 w-4 text-gray-400 transition-transform ${
+                        expandedTeam === team.id ? 'rotate-90' : ''
                       }`} 
                     />
-                    <div>
-                      <h3 className="font-semibold text-slate-800">{team.numero}</h3>
-                      <p className="text-sm text-slate-600">{team.objet}</p>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Chef: {team.chef_name} ({team.chef_email})
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-3">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatutColor(team.statut)}`}>
-                      {team.statut?.replace('_', ' ')}
-                    </span>
-                    <div className="text-right">
-                      <p className="text-sm text-slate-500">{team.members.length} membres</p>
-                      <p className="text-xs text-slate-400">
-                        Créé le {new Date(team.created_at).toLocaleDateString('fr-FR')}
-                      </p>
-                    </div>
                   </div>
                 </div>
+              </div>
 
-                {/* Détails de l'équipe */}
-                {expandedTeam === team.dao_id && (
-                  <div className="mt-4 space-y-4 border-t border-slate-100 pt-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {team.members.map((member) => {
-                        const progress = calculateMemberProgress(member.id)
-                        const tasks = memberTasks[member.id] || []
-                        const isLoading = loadingTasks[member.id]
-                        
-                        return (
-                          <div key={member.id} className="border border-slate-200 rounded-lg p-4">
-                            <div className="flex items-center gap-3 mb-3">
-                              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium">
-                                {member.username.charAt(0).toUpperCase()}
-                              </div>
-                              <div className="flex-1">
-                                <p className="font-medium text-slate-800">{member.username}</p>
-                                <p className="text-xs text-slate-500">{member.email}</p>
-                              </div>
-                            </div>
-                            
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-slate-500">Progression</span>
-                                <span className="text-xs font-medium text-slate-700">{progress}%</span>
-                              </div>
-                              <div className="w-full bg-slate-200 rounded-full h-2">
-                                <div 
-                                  className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(progress)}`}
-                                  style={{ width: `${progress}%` }}
-                                />
-                              </div>
-                              
-                              <div className="text-xs text-slate-500">
-                                {isLoading ? (
-                                  <span>Chargement des tâches...</span>
-                                ) : (
-                                  <span>{tasks.length} tâche{tasks.length > 1 ? 's' : ''}</span>
-                                )}
-                              </div>
+              {/* Détails dépliés */}
+              {expandedTeam === team.id && (
+                <div className="p-6">
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Tâches Assignées</h4>
+                  
+                  {team.members.map((member) => {
+                    const memberTasksForDao = member.tasks?.filter(
+                      (task: MemberTask) => task.dao_id === team.id
+                    ) || [];
+                    
+                    return (
+                      <div key={member.id} className="mb-6">
+                        {/* Header du membre */}
+                        <div className="bg-gray-100 px-4 py-3 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <User className="text-green-600" />
+                            <div>
+                              <p className="font-medium text-gray-900">{member.name}</p>
+                              <p className="text-sm text-gray-600">{member.role}</p>
                             </div>
                           </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+                        </div>
+                        
+                        {/* Tâches du membre */}
+                        <div className="p-4 space-y-3">
+                          {memberTasksForDao.length === 0 ? (
+                            <p className="text-gray-500 text-center py-4">Aucune tâche assignée à ce membre pour ce DAO</p>
+                          ) : (
+                            memberTasksForDao.map((task: MemberTask) => {
+                              const progress = task.progress || getProgressFromStatus(task.statut);
+                              
+                              return (
+                                <div key={task.id_task} className="bg-white p-4 rounded-lg border border-gray-200">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="font-medium text-gray-900">
+                                      {task.id_task} - {task.titre}
+                                    </span>
+                                    <span className="text-sm text-gray-600">{progress}%</span>
+                                  </div>
+                                  
+                                  {/* Barre de progression */}
+                                  <div className="w-full bg-gray-100 h-3 rounded-full mb-2">
+                                    <div 
+                                      className={`h-3 rounded-full transition-all duration-300 ${
+                                        task.statut === 'termine' ? 'bg-green-500' :
+                                        task.statut === 'en_cours' ? 'bg-yellow-500' : 
+                                        'bg-blue-500'
+                                      }`}
+                                      style={{ width: `${progress}%` }}
+                                    />
+                                  </div>
+                                  
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-sm text-gray-600">{task.statut}</span>
+                                    {task.description && (
+                                      <span className="text-sm text-gray-500 truncate ml-2">{task.description}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* État vide */}
+      {!loading && filteredTeams.length === 0 && (
+        <div className="text-center py-12">
+          <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune équipe trouvée</h3>
+          <p className="text-gray-600">
+            {searchTerm 
+              ? `Aucune équipe ne correspond à "${searchTerm}"`
+              : "Vous n'avez pas encore d'équipe assignée"
+            }
+          </p>
+        </div>
+      )}
     </div>
   )
 }
