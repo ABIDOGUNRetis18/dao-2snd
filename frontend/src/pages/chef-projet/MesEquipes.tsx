@@ -144,27 +144,27 @@ export default function MesEquipes() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center">
-            <Users className="h-8 w-8 text-blue-600" />
+            <Users className="h-4 w-4 text-blue-600" />
             <div className="ml-3">
-              <p className="text-2xl font-bold text-gray-900">{stats.totalTeams}</p>
+              <p className="text-xl font-bold text-gray-900">{stats.totalTeams}</p>
               <p className="text-sm text-gray-600">Équipes Totales</p>
             </div>
           </div>
         </div>
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center">
-            <User className="h-8 w-8 text-green-600" />
+            <User className="h-4 w-4 text-green-600" />
             <div className="ml-3">
-              <p className="text-2xl font-bold text-gray-900">{stats.totalMembers}</p>
+              <p className="text-xl font-bold text-gray-900">{stats.totalMembers}</p>
               <p className="text-sm text-gray-600">Membres Totaux</p>
             </div>
           </div>
         </div>
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center">
-            <TrendingUp className="h-8 w-8 text-purple-600" />
+            <TrendingUp className="h-4 w-4 text-purple-600" />
             <div className="ml-3">
-              <p className="text-2xl font-bold text-gray-900">{stats.totalDaos}</p>
+              <p className="text-xl font-bold text-gray-900">{stats.totalDaos}</p>
               <p className="text-sm text-gray-600">DAOs Assignés</p>
             </div>
           </div>
@@ -176,7 +176,7 @@ export default function MesEquipes() {
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
               <input
                 type="text"
                 placeholder="Rechercher une équipe..."
@@ -209,16 +209,16 @@ export default function MesEquipes() {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Users className="text-blue-600" />
+                    <Users className="h-4 w-4 text-blue-600" />
                     <div>
-                      <h4 className="text-lg font-semibold text-gray-900">{team.name}</h4>
-                      <p className="text-sm text-gray-600">Chef d'équipe: {team.leader}</p>
+                      <h4 className="text-base font-semibold text-gray-900">{team.name}</h4>
+                      <p className="text-xs text-gray-600">Chef d'équipe: {team.leader}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">{team.memberCount} membres</span>
+                    <span className="text-xs text-gray-600">{team.memberCount} membres</span>
                     <ChevronRight 
-                      className={`h-4 w-4 text-gray-400 transition-transform ${
+                      className={`h-3 w-3 text-gray-400 transition-transform ${
                         expandedTeam === team.id ? 'rotate-90' : ''
                       }`} 
                     />
@@ -229,7 +229,7 @@ export default function MesEquipes() {
               {/* Détails dépliés */}
               {expandedTeam === team.id && (
                 <div className="p-6">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Tâches Assignées</h4>
+                  <h4 className="text-base font-semibold text-gray-900 mb-4">Tâches Assignées</h4>
                   
                   {team.members.map((member) => {
                     const memberTasksForDao = member.tasks?.filter(
@@ -241,10 +241,10 @@ export default function MesEquipes() {
                         {/* Header du membre */}
                         <div className="bg-gray-100 px-4 py-3 rounded-lg">
                           <div className="flex items-center gap-3">
-                            <User className="text-green-600" />
+                            <User className="h-3 w-3 text-green-600" />
                             <div>
-                              <p className="font-medium text-gray-900">{member.name}</p>
-                              <p className="text-sm text-gray-600">{member.role}</p>
+                              <p className="text-sm font-medium text-gray-900">{member.name}</p>
+                              <p className="text-xs text-gray-600">{member.role}</p>
                             </div>
                           </div>
                         </div>
@@ -279,7 +279,11 @@ export default function MesEquipes() {
                                   </div>
                                   
                                   <div className="flex items-center justify-between">
-                                    <span className="text-sm text-gray-600">{task.statut}</span>
+                                    <span className="text-sm text-gray-600">
+                                      {task.statut === 'termine' ? 'Terminé' : 
+                                       task.statut === 'en_cours' ? 'En cours' :
+                                       task.statut === 'a_faire' ? 'À faire' : task.statut}
+                                    </span>
                                     {task.description && (
                                       <span className="text-sm text-gray-500 truncate ml-2">{task.description}</span>
                                     )}

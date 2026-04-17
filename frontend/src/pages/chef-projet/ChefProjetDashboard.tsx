@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { SlidersHorizontal, RefreshCw, Calendar, Hourglass, AlertTriangle } from 'lucide-react'
+import { SlidersHorizontal, RefreshCw, Calendar, Hourglass, AlertTriangle, CheckSquare } from 'lucide-react'
 
 interface DAO {
   id: number
@@ -11,6 +11,8 @@ interface DAO {
   chef_projet_nom: string
   statut: 'EN_ATTENTE' | 'EN_COURS' | 'A_RISQUE' | 'TERMINEE' | 'ARCHIVE'
   progression?: number
+  groupement: string
+  nom_partenaire?: string
 }
 
 const STATUTS = [
@@ -106,9 +108,20 @@ export default function ChefProjetDashboard() {
     return matchSearch && matchStatut
   })
 
-  const totalAssignes = daos.length
-  const enCours       = daos.filter(d => d.statut === 'EN_COURS').length
-  const aRisque       = daos.filter(d => d.statut === 'A_RISQUE').length
+  // Statistiques calculées comme l'admin
+  const stats = {
+    totalDaos: daos.length,
+    completedDaos: daos.filter(d => d.statut === 'TERMINEE').length,
+    inProgressDaos: daos.filter(d => d.statut === 'EN_COURS').length,
+    atRiskDaos: daos.filter(d => d.statut === 'A_RISQUE').length
+  };
+
+  const statsDisplay = [
+    { label: 'Total DAOs', value: stats.totalDaos, icon: Calendar, color: 'bg-blue-500' },
+    { label: 'Terminés', value: stats.completedDaos, icon: CheckSquare, color: 'bg-green-500' },
+    { label: 'En cours', value: stats.inProgressDaos, icon: Hourglass, color: 'bg-yellow-500' },
+    { label: 'À risque', value: stats.atRiskDaos, icon: AlertTriangle, color: 'bg-red-500' }
+  ];
 
   return (
     <div className="space-y-6">
@@ -163,31 +176,21 @@ export default function ChefProjetDashboard() {
         </button>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-        <div className="bg-white px-8 py-5 flex items-center gap-4 border-r border-slate-200">
-          <Calendar className="h-9 w-9 text-slate-400 flex-shrink-0" />
-          <div>
-            <p className="text-xs text-slate-500 mb-0.5">Total assignés</p>
-            <p className="text-3xl font-bold text-slate-700">{totalAssignes}</p>
+      {/* Statistiques */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {statsDisplay.map((stat, index) => (
+          <div key={index} className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-600">{stat.label}</p>
+                <p className="text-2xl font-bold text-slate-900">{stat.value}</p>
+              </div>
+              <div className={`p-3 rounded-full ${stat.color}`}>
+                <stat.icon className="h-6 w-6 text-white" />
+              </div>
+            </div>
           </div>
-        </div>
-
-        <div className="bg-yellow-50 px-8 py-5 flex items-center gap-4 border-r border-yellow-100">
-          <Hourglass className="h-9 w-9 text-yellow-500 flex-shrink-0" />
-          <div>
-            <p className="text-xs text-yellow-600 mb-0.5">En cours</p>
-            <p className="text-3xl font-bold text-yellow-600">{enCours}</p>
-          </div>
-        </div>
-
-        <div className="bg-red-50 px-8 py-5 flex items-center gap-4">
-          <AlertTriangle className="h-9 w-9 text-red-400 flex-shrink-0" />
-          <div>
-            <p className="text-xs text-red-500 mb-0.5">À risque</p>
-            <p className="text-3xl font-bold text-red-500">{aRisque}</p>
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Table */}
@@ -199,65 +202,56 @@ export default function ChefProjetDashboard() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/50">
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500">Nom</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500">Référence</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500">Autorité contractante</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500">Date de clôture</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500">Progression</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500">Statut</th>
+          <table className="w-full">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Numéro</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Objet</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date Dépôt</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Référence</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Autorité</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Groupement</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Statut</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="bg-white divide-y divide-slate-200">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-16 text-sm text-slate-400">Chargement...</td>
+                  <td colSpan={7} className="text-center py-16 text-sm text-slate-400">Chargement...</td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-16 text-sm text-slate-400">
+                  <td colSpan={7} className="text-center py-16 text-sm text-slate-400">
                     {search || statutFilter ? 'Aucun DAO ne correspond à votre recherche.' : 'Aucun DAO assigné.'}
                   </td>
                 </tr>
               ) : filtered.map(dao => {
                 const badge = getStatutBadge(dao.statut)
-                const progression = dao.progression || 0
-                
-                const getProgressColor = (progress: number) => {
-                  if (progress < 33) return 'bg-red-500'
-                  if (progress < 66) return 'bg-amber-500'
-                  return 'bg-green-500'
-                }
                 
                 return (
-                  <tr
-                    key={dao.id}
-                    className="border-b border-slate-50 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors"
-                  >
-                    <td className="px-6 py-3.5">
-                      <p className="font-semibold text-slate-800">{dao.numero}</p>
-                      <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[180px]">{dao.objet}</p>
+                  <tr key={dao.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 text-sm font-medium text-slate-900">{dao.numero}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700">{dao.objet}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700">
+                      {new Date(dao.date_depot).toLocaleDateString('fr-FR')}
                     </td>
-                    <td className="px-6 py-3.5 text-slate-600">{dao.reference || '---'}</td>
-                    <td className="px-6 py-3.5 text-slate-600">{dao.autorite || '---'}</td>
-                    <td className="px-6 py-3.5 text-slate-600">
-                      {dao.date_depot ? new Date(dao.date_depot).toLocaleDateString('fr-FR') : '---'}
+                    <td className="px-4 py-3 text-sm text-slate-700">{dao.reference}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700">{dao.autorite}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700">
+                      {dao.groupement === "oui" ? (
+                        dao.nom_partenaire ? (
+                          <span style={{ whiteSpace: "pre-wrap" }}>
+                            {dao.nom_partenaire.replace(/,/g, ",\n")}
+                          </span>
+                        ) : (
+                          "-"
+                        )
+                      ) : (
+                        "-"
+                      )}
                     </td>
-                    <td className="px-6 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-16 bg-slate-200 rounded-full h-2">
-                          <div 
-                            className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(progression)}`}
-                            style={{ width: `${progression}%` }}
-                          />
-                        </div>
-                        <span className="text-xs font-medium text-slate-700 min-w-[3rem]">{progression}%</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${badge.cls}`}>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${badge.cls}`}>
                         {badge.label}
                       </span>
                     </td>

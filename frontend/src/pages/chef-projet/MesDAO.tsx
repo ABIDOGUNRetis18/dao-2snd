@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Search, ArrowLeft, Trash2, Edit, Archive, Users } from 'lucide-react'
+import { Search, ArrowLeft, Users } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
+import { computeStatusFromProgress } from '../../utils/daoStatusUtils'
+import '../admin/MyTasks.css'
 
 interface DAO {
   id: number
@@ -373,32 +375,8 @@ export default function MesDAOs() {
                 </div>
               </div>
               
-              {/* Actions minimales */}
+              {/* Actions simplifiées pour chef-projet */}
               <div className="p-2 border-t border-slate-100 bg-slate-50">
-                <div className="flex gap-1 mb-1.5" onClick={(e) => e.stopPropagation()}>
-                  <button 
-                    onClick={() => handleEdit(dao.id)}
-                    className="w-5 h-5 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors flex items-center justify-center"
-                    title="Modifier"
-                  >
-                    <Edit className="h-2.5 w-2.5" />
-                  </button>
-                  <button 
-                    onClick={() => handleArchive(dao.id)}
-                    className="w-5 h-5 bg-amber-500 hover:bg-amber-600 text-white rounded transition-colors flex items-center justify-center"
-                    title="Archiver"
-                  >
-                    <Archive className="h-2.5 w-2.5" />
-                  </button>
-                  <button 
-                    onClick={() => handleDelete(dao.id)}
-                    className="w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded transition-colors flex items-center justify-center"
-                    title="Supprimer"
-                  >
-                    <Trash2 className="h-2.5 w-2.5" />
-                  </button>
-                </div>
-                
                 <button 
                   onClick={() => navigate(`/chef-projet/dao/${dao.id}/tasks`)}
                   className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs py-1 px-1.5 rounded transition-colors flex items-center justify-center gap-0.5"
@@ -406,7 +384,7 @@ export default function MesDAOs() {
                 >
                   Détails
                   <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
                   </svg>
                 </button>
               </div>
