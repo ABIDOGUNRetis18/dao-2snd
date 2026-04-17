@@ -53,7 +53,6 @@ function App() {
 
             <Route path="membre-equipe" element={<MembreEquipe />} />
             <Route path="membre-equipe/tasks" element={<MembreEquipeMyTasks />} />
-            <Route path="membre-equipe/profile" element={<Profile />} />
 
             <Route path="lecteur" element={<Lecteur />} />
 

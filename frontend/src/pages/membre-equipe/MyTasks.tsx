@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, User, Clock } from 'lucide-react'
+import { ArrowLeft, User, Clock, MessageSquare } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { computeStatusFromProgress } from '../../utils/daoStatusUtils'
 import '../admin/MyTasks.css'
@@ -49,6 +49,8 @@ export default function MembreEquipeMyTasks() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [progressTimeout, setProgressTimeout] = useState<number | null>(null)
+  const [openDiscussionDAO, setOpenDiscussionDAO] = useState<number | null>(null)
+  const [commentText, setCommentText] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -245,6 +247,12 @@ export default function MembreEquipeMyTasks() {
     )
   }
 
+  const toggleDiscussion = (daoId: number) => {
+    setOpenDiscussionDAO(prev => 
+      prev === daoId ? null : daoId
+    )
+  }
+
   const updateProgressContinuous = async (taskId: number, progress: number) => {
     // Déterminer le statut automatiquement selon la progression
     let statut: string
@@ -400,6 +408,15 @@ export default function MembreEquipeMyTasks() {
                     <span className="text-sm font-bold text-slate-700 w-12 text-right">
                       {dao.averageProgress}%
                     </span>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => toggleDiscussion(dao.dao_id)}
+                        className="flex items-center gap-2 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                        <span>Commentaires</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -486,6 +503,60 @@ export default function MembreEquipeMyTasks() {
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Bulle de discussion */}
+        {openDiscussionDAO && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setOpenDiscussionDAO(null)}>
+            <div 
+              className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Discussion - DAO {daoGroups.find(d => d.dao_id === openDiscussionDAO)?.dao_numero}
+                </h3>
+                <button 
+                  onClick={() => setOpenDiscussionDAO(null)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div className="mb-4">
+                <textarea
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  placeholder="Écrivez votre commentaire ici..."
+                  className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  rows={4}
+                />
+              </div>
+              
+              <div className="flex justify-end gap-2">
+                <button 
+                  onClick={() => setOpenDiscussionDAO(null)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  Annuler
+                </button>
+                <button 
+                  onClick={() => {
+                    // Logique d'envoi du commentaire ici
+                    console.log('Commentaire envoyé:', commentText)
+                    setCommentText('')
+                    setOpenDiscussionDAO(null)
+                  }}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  Envoyer
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

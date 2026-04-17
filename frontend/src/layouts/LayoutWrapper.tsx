@@ -30,8 +30,7 @@ const menuByRole: Record<number, MenuItem[]> = {
   ],
   4: [
     { path: '/membre-equipe', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/membre-equipe/tasks', label: 'Mes taches', icon: CheckSquare },
-    { path: '/membre-equipe/profile', label: 'Profil', icon: Users }
+    { path: '/membre-equipe/tasks', label: 'Mes taches', icon: CheckSquare }
   ],
   5: [{ path: '/lecteur', label: 'Dashboard', icon: LayoutDashboard }]
 }
