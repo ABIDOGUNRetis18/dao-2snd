@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
   ArrowLeft, X, Send, User, UserCheck, 
-  MessageCircle, Clock, AtSign
+  MessageCircle, Download, Clock
 } from "lucide-react";
 import { Link, useParams } from 'react-router-dom'
 
@@ -23,6 +23,7 @@ interface Dao {
 
 interface Task {
   id: number;
+  id_task?: number;
   name: string;
   progress: number;
   comment: string;
@@ -109,7 +110,7 @@ export default function DAODetails() {
         setDao(json.data.dao);
         
         // 2. Charger les tâches du DAO
-        await loadTasks(id);
+        await loadTasks(id || '');
         
         // 3. Charger les utilisateurs pour les mentions
         await loadUsers();
@@ -135,28 +136,54 @@ export default function DAODetails() {
     }
   }, [id]);
 
-  // Chargement des tâches
+  // Chargement des tâches avec validation d'isolation
   const loadTasks = async (daoId: string) => {
     try {
+      // Validation du daoId
+      if (!daoId || isNaN(Number(daoId))) {
+        console.error("DAO ID invalide:", daoId);
+        setTasks([]);
+        return;
+      }
+
       const token = localStorage.getItem('token');
       const res = await fetch(`http://localhost:3001/api/tasks?daoId=${daoId}`, { 
         cache: "no-store",
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const json = await res.json();
+      console.log("Réponse API tâches pour DAO", daoId, ":", json);
 
-      if (res.ok && json.success && json.data) {
-        const adaptedTasks = json.data.map((task: any) => ({
+      if (res.ok && json.success) {
+        // L'API retourne data.tasks, pas data directement
+        const tasksData = json.data.tasks || json.data || [];
+        console.log("Données de tâches brutes:", tasksData);
+        
+        // Validation d'isolation : vérifier que toutes les tâches appartiennent bien au DAO
+        const validatedTasks = tasksData.filter((task: any) => {
+          const belongsToDao = task.dao_id === Number(daoId);
+          if (!belongsToDao) {
+            console.warn(`Tâche ${task.id} n'appartient pas au DAO ${daoId} (dao_id: ${task.dao_id})`);
+          }
+          return belongsToDao;
+        });
+        
+        const adaptedTasks = validatedTasks.map((task: any) => ({
           id: task.id,
-          name: task.titre || task.name || `Tâche ${task.id}`,
+          id_task: task.id_task,
+          name: task.titre || task.name || task.nom || `Tâche ${task.id}`,
           progress: task.progress || 0,
-          comment: task.description || task.comment || "À faire",
+          comment: task.description || "À faire",
           assigned_to: task.assigned_to,
           assigned_username: task.assigned_username || "Non assigné",
           assigned_email: task.assigned_email,
-          statut: task.statut
+          statut: task.statut,
+          priorite: task.priorite,
+          date_echeance: task.date_echeance,
+          dao_id: task.dao_id
         }));
         
+        console.log("Tâches adaptées et validées:", adaptedTasks);
         setTasks(adaptedTasks);
         
         // Charger les commentaires pour la première tâche
@@ -164,6 +191,9 @@ export default function DAODetails() {
           await loadComments(adaptedTasks[0].id);
           setSelectedTaskId(adaptedTasks[0].id);
         }
+      } else {
+        console.error("Erreur API tâches:", json);
+        setTasks([]);
       }
     } catch (err) {
       console.error("Error fetching tasks:", err);
@@ -204,6 +234,20 @@ export default function DAODetails() {
     } catch (error) {
       console.error('Erreur réseau lors du chargement des commentaires:', error);
     }
+  };
+
+  // Filtrage commentaires par visibilité selon la logique décrite
+  const getFilteredComments = () => {
+    return comments.filter(comment => {
+      // Exclure ses propres messages
+      if (comment.user_id === currentUser?.id) return false;
+      
+      // Afficher commentaires publics
+      if (comment.is_public) return true;
+      
+      // Afficher mentions privées uniquement si destinataire
+      return comment.mentioned_user_id === currentUser?.id;
+    });
   };
 
   // Chargement des utilisateurs pour les mentions
@@ -275,11 +319,26 @@ export default function DAODetails() {
     }
   };
 
-  // Ajout de commentaire par tâche
+  // Ajout de commentaire par tâche avec logique de mentions privées
   const addComment = async () => {
     if (!newComment.trim() || !currentUser || !selectedTaskId) return;
 
     try {
+      // Détection mentions @username pour déterminer si le message est privé
+      const mentionMatch = newComment.match(/^@(\w+)/);
+      let mentionedUserId = null;
+      let isPublic = true;
+
+      if (mentionMatch) {
+        const mentionedUser = users.find(u => 
+          u.name.toLowerCase() === mentionMatch[1].toLowerCase()
+        );
+        if (mentionedUser) {
+          mentionedUserId = mentionedUser.id;
+          isPublic = false; // Message privé si mention au début
+        }
+      }
+
       const token = localStorage.getItem('token');
       const response = await fetch('http://localhost:3001/api/messages', {
         method: 'POST',
@@ -292,8 +351,8 @@ export default function DAODetails() {
           task_id: selectedTaskId,
           dao_id: id,
           user_id: currentUser.id,
-          mentioned_user_id: extractMentionedUserId(newComment),
-          is_public: true
+          mentioned_user_id: mentionedUserId,
+          is_public: isPublic
         })
       });
 
@@ -306,18 +365,7 @@ export default function DAODetails() {
     }
   };
 
-  // Extraire l'ID de l'utilisateur mentionné
-  const extractMentionedUserId = (text: string): number | null => {
-    const mentionMatch = text.match(/@(\w+)/);
-    if (mentionMatch) {
-      const mentionedUser = users.find(user => 
-        user.name.toLowerCase() === mentionMatch[1].toLowerCase()
-      );
-      return mentionedUser ? mentionedUser.id : null;
-    }
-    return null;
-  };
-
+  
   // Ajout de commentaire global
   const addGlobalComment = async () => {
     if (!globalComment.trim() || !currentUser) return;
@@ -382,6 +430,18 @@ export default function DAODetails() {
               <div className="ml-4">
                 <h1 className="text-lg font-semibold text-gray-900">{dao.numero}</h1>
                 <p className="text-sm text-gray-500">{dao.objet || dao.reference}</p>
+                <div className="flex items-center gap-4 mt-1">
+                  <div className="flex items-center gap-1 text-xs text-gray-500">
+                    <User className="w-3 h-3" />
+                    <span>Chef: {dao.chef_projet || 'Non assigné'}</span>
+                  </div>
+                  {dao.date_depot && (
+                    <div className="flex items-center gap-1 text-xs text-gray-500">
+                      <Clock className="w-3 h-3" />
+                      <span>Dépôt: {new Date(dao.date_depot).toLocaleDateString('fr-FR')}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             
@@ -422,6 +482,13 @@ export default function DAODetails() {
                 <MessageCircle className="w-5 h-5" />
               </button>
               <button 
+                onClick={() => window.print()}
+                className="p-2 rounded-lg hover:bg-gray-100 text-gray-700 transition-colors"
+                title="Exporter en PDF"
+              >
+                <Download className="w-5 h-5" />
+              </button>
+              <button 
                 disabled={isReadOnlyMode}
                 className={`p-2 rounded-lg transition-colors ${
                   isReadOnlyMode 
@@ -443,10 +510,21 @@ export default function DAODetails() {
         <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">Progression globale</h2>
+              <h2 className="text-xl font-semibold text-gray-900">Progression globale du DAO</h2>
               <p className="text-sm text-gray-500 mt-1">
                 {tasks.filter(t => t.progress === 100).length} / {tasks.length} tâches terminées
               </p>
+              <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                {dao.date_depot && (
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-4 h-4" />
+                    <span>Date dépôt: {new Date(dao.date_depot).toLocaleDateString('fr-FR')}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-1">
+                  <span>Progression: {globalProgress}%</span>
+                </div>
+              </div>
             </div>
             <div className="text-right">
               <div className="text-3xl font-bold text-blue-600">{globalProgress}%</div>
@@ -463,32 +541,24 @@ export default function DAODetails() {
           </div>
         </section>
 
-        {/* Section tâches */}
+        {/* Section progression des tâches */}
         <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-gray-900">Tâches</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Progression des tâches</h2>
             <div className="text-sm text-gray-500">
               {tasks.length} tâche{tasks.length > 1 ? 's' : ''}
             </div>
           </div>
           
           {tasks.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <User className="w-8 h-8 text-gray-400" />
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune tâche trouvée</h3>
-              <p className="text-gray-500 mb-4">Les 15 tâches standards devraient être créées via l'interface de gestion.</p>
-              <Link 
-                to={`/dash/chef-projet/task/${id}`}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <UserCheck className="w-4 h-4" />
-                Gérer les tâches
-              </Link>
+            <div className="text-center py-8">
+              <p className="text-gray-500">Aucune tâche trouvée pour ce DAO.</p>
+              <p className="text-sm text-gray-400 mt-2">
+                Les 15 tâches standards devraient être créées automatiquement lors de la création du DAO.
+              </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {tasks.map((task) => (
               <div
                 key={task.id}
@@ -502,25 +572,29 @@ export default function DAODetails() {
                   loadComments(task.id);
                 }}
               >
-                {/* Header de la carte */}
+                {/* Header avec nom et utilisateur assigné */}
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
-                    <h3 className="font-medium text-sm text-gray-900 mb-1">{task.name}</h3>
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <h5 className="font-medium text-sm mb-1">{task.name}</h5>
+                    <div className="flex items-center gap-2 text-xs text-gray-600">
                       <User className="w-3 h-3" />
                       <span>{task.assigned_username || 'Non assigné'}</span>
                     </div>
                   </div>
-                  <span className={`px-2 py-1 text-xs font-medium rounded ${
-                    task.progress === 100 ? 'bg-green-100 text-green-800' :
-                    task.progress > 0 ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-gray-100 text-gray-800'
+                  
+                  {/* Badge de statut */}
+                  <span className={`px-2 py-1 text-xs rounded ${
+                    task.progress === 100 
+                      ? 'bg-green-100 text-green-800'    // Terminé
+                      : task.progress > 0 
+                      ? 'bg-yellow-100 text-yellow-800'   // En cours
+                      : 'bg-gray-100 text-gray-800'       // À faire
                   }`}>
                     {task.progress === 100 ? 'Terminé' : task.progress > 0 ? 'En cours' : 'À faire'}
                   </span>
                 </div>
                 
-                {/* Progression */}
+                {/* Barre de progression */}
                 <div className="space-y-2">
                   <div className="flex justify-between text-xs text-gray-600">
                     <span>Progression</span>
@@ -530,8 +604,11 @@ export default function DAODetails() {
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
                       className={`h-2 rounded-full transition-all ${
-                        task.progress === 100 ? 'bg-green-500' :
-                        task.progress > 0 ? 'bg-yellow-500' : 'bg-gray-400'
+                        task.progress === 100 
+                          ? 'bg-green-500'     // Vert si terminé
+                          : task.progress > 0 
+                          ? 'bg-yellow-500'    // Jaune si en cours
+                          : 'bg-gray-400'      // Gris si à faire
                       }`}
                       style={{ width: `${task.progress}%` }}
                     />
@@ -554,7 +631,7 @@ export default function DAODetails() {
             </div>
             
             <div className="space-y-4 mb-6">
-              {comments
+              {getFilteredComments()
                 .filter(comment => comment.task_id === selectedTaskId)
                 .map(comment => (
                   <div key={comment.id} className="flex gap-3 p-4 bg-gray-50 rounded-lg">
