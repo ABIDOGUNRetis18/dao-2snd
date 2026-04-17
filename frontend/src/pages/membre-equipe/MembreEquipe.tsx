@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Search, Plus, MessageSquare, ChevronRight, User, CheckCircle, Clock, AlertCircle, ArrowLeft } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Search, MessageSquare, User, CheckCircle, Clock, AlertCircle } from 'lucide-react'
 import { computeStatusFromProgress } from '../../utils/daoStatusUtils'
 
 interface Task {
@@ -44,12 +43,10 @@ interface DAOGroup {
 export default function MembreEquipe() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [daoGroups, setDaoGroups] = useState<DAOGroup[]>([])
-  const [expandedDAOs, setExpandedDAOs] = useState<number[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState<any>(null)
-  const [progressTimeout, setProgressTimeout] = useState<number | null>(null)
-  const navigate = useNavigate()
+  const [expandedDAOs, setExpandedDAOs] = useState<number[]>([])
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user')
@@ -84,15 +81,7 @@ export default function MembreEquipe() {
     }
   }, [])
 
-  // Nettoyage du timeout lors du démontage
-  useEffect(() => {
-    return () => {
-      if (progressTimeout) {
-        clearTimeout(progressTimeout)
-      }
-    }
-  }, [progressTimeout])
-
+  
   const groupTasksByDAO = (tasks: Task[]): DAOGroup[] => {
     const daoMap = new Map<number, DAOGroup>()
     
@@ -145,9 +134,9 @@ export default function MembreEquipe() {
 
   // Calcul des statistiques globales
   const totalTasks = tasks.length
-  const completedTasks = tasks.filter(task => task.progress === 100).length
-  const inProgressTasks = tasks.filter(task => task.progress > 0 && task.progress < 100).length
-  const pendingTasks = tasks.filter(task => task.progress === 0).length
+  const completedTasks = tasks.filter(task => task.progress !== null && task.progress === 100).length
+  const inProgressTasks = tasks.filter(task => task.progress !== null && task.progress > 0 && task.progress < 100).length
+  const pendingTasks = tasks.filter(task => task.progress !== null && task.progress === 0).length
 
   const filteredDAOs = daoGroups.filter(dao => {
     const q = searchTerm.toLowerCase()
@@ -191,121 +180,12 @@ export default function MembreEquipe() {
     return new Date(dueDate) < new Date()
   }
 
-  const updateTaskProgress = async (taskId: number, progress: number, statut: string) => {
-    try {
-      // S'assurer que le statut correspond bien à la progression
-      const autoStatut = progress === 0 ? 'a_faire' : progress === 100 ? 'termine' : 'en_cours'
-      const finalStatut = statut || autoStatut
-      
-      // Temporairement sans authentification pour contourner le problème de token
-      const res = await fetch(`http://localhost:3001/api/task-progress/${taskId}/progress`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ progress, statut: finalStatut }),
-      })
-      
-      if (res.ok) {
-        const responseData = await res.json()
-        console.log('✅ Progression mise à jour:', responseData.data.task)
-        
-        // Mettre à jour la tâche dans le state local
-        setTasks(prev => {
-          const updatedTasks = prev.map(task => 
-            task.id === taskId 
-              ? { ...task, progress, statut: finalStatut }
-              : task
-          )
-          
-          // Mettre à jour les groupes DAO après modification
-          const groupedDAOs = groupTasksByDAO(updatedTasks)
-          setDaoGroups(groupedDAOs)
-          
-          return updatedTasks
-        })
-      } else {
-        const errorData = await res.json()
-        console.error('❌ Erreur lors de la mise à jour:', errorData)
-        alert('Erreur lors de la mise à jour: ' + (errorData.message || 'Erreur inconnue'))
-      }
-    } catch (error) {
-      console.error('❌ Erreur réseau:', error)
-      alert('Erreur réseau: ' + (error instanceof Error ? error.message : 'Erreur inconnue'))
-    }
-  }
-
-  const handleTaskClick = (task: Task) => {
-    // Naviguer vers la page des tâches du DAO spécifique
-    navigate(`/membre-equipe/dao/${task.dao_id}/tasks`)
-  }
-
   const toggleDAOExpansion = (daoId: number) => {
     setExpandedDAOs(prev => 
       prev.includes(daoId) 
         ? prev.filter(id => id !== daoId)
         : [...prev, daoId]
     )
-  }
-
-  const updateProgressContinuous = async (taskId: number, progress: number) => {
-    // Déterminer le statut automatiquement selon la progression
-    let statut: string
-    if (progress === 0) {
-      statut = 'a_faire'
-    } else if (progress === 100) {
-      statut = 'termine'
-    } else {
-      statut = 'en_cours'
-    }
-    
-    console.log(`🔄 Mise à jour tâche ${taskId}: ${progress}% -> ${statut}`)
-    
-    // Mise à jour locale immédiate pour une réponse instantanée
-    const updatedTasks = tasks.map(task => 
-      task.id === taskId 
-        ? { ...task, progress, statut }
-        : task
-    )
-    
-    console.log('📋 Tâches mises à jour:', updatedTasks.map(t => ({id: t.id, nom: t.nom, progress: t.progress, statut: t.statut})))
-    
-    setTasks(updatedTasks)
-    
-    // Forcer la mise à jour des groupes DAO après modification
-    const groupedDAOs = groupTasksByDAO(updatedTasks)
-    console.log('🗂️ Groupes DAO mis à jour:', groupedDAOs.map(d => ({id: d.dao_id, statut: d.dao_statut, completedTasks: d.completedTasks, totalTasks: d.totalTasks})))
-    
-    // Forcer la mise à jour du state avec un petit délai pour assurer la réactivité
-    setTimeout(() => {
-      setDaoGroups([...groupedDAOs])
-      console.log('🔄 DAO groups state updated with force refresh')
-    }, 10)
-    
-    // Mise à jour en arrière-plan avec debounce
-    if (progressTimeout) {
-      clearTimeout(progressTimeout)
-    }
-    
-    const newTimeout = setTimeout(async () => {
-      try {
-        await updateTaskProgress(taskId, progress, statut)
-        console.log(`✅ Tâche ${taskId} mise à jour: ${progress}% -> ${statut}`)
-        
-        // Forcer une deuxième mise à jour après la réponse API
-        const currentTasks = tasks.map(t => 
-          t.id === taskId ? { ...t, progress, statut } : t
-        )
-        const finalGroupedDAOs = groupTasksByDAO(currentTasks)
-        setDaoGroups([...finalGroupedDAOs])
-        console.log('🔄 Final DAO update after API response')
-      } catch (error) {
-        console.error('❌ Erreur lors de la mise à jour de la tâche:', error)
-        // En cas d'erreur, on pourrait restaurer l'état précédent si nécessaire
-      }
-    }, 300) as unknown as number
-    
-    setProgressTimeout(newTimeout)
   }
 
   return (
@@ -409,7 +289,7 @@ export default function MembreEquipe() {
             {filteredDAOs.map((dao: DAOGroup) => (
               <div
                 key={dao.dao_id}
-                className="bg-white rounded-lg border border-slate-200 shadow-sm p-3 task-card"
+                className="bg-white rounded-lg border border-slate-200 shadow-sm p-3 task-card cursor-pointer hover:bg-slate-50 transition-colors"
                 onClick={() => toggleDAOExpansion(dao.dao_id)}
               >
                 {/* En-tête DAO */}
@@ -510,7 +390,8 @@ export default function MembreEquipe() {
                                 {task.progress || 0}%
                               </span>
                             </div>
-                          </div>
+                            
+                                                      </div>
 
                           {/* Informations supplémentaires */}
                           <div className="flex items-center justify-between text-xs text-slate-500">

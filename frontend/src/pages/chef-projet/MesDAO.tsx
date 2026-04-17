@@ -119,75 +119,15 @@ export default function MesDAOs() {
     setDaoMembers(membersData)
   }
 
-  // Fonction computeStatus selon la documentation
-  const computeStatus = (dao: DAO): { label: string; className: string } => {
-    const today = new Date();
-    const rawStatut = String(dao.statut || "").toUpperCase();
-
-    // 1. Statut terminé
-    if (rawStatut === "TERMINEE" || rawStatut === "TERMINE") {
-      return { label: "Terminée", className: "px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800" };
-    }
-
-    // 2. Pas de date de dépôt
-    if (!dao.date_depot) {
-      return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
-    }
-
-    // 3. Calcul selon la date d'échéance
-    const dateDepot = new Date(dao.date_depot);
-    const diffDays = Math.floor((dateDepot.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-    if (diffDays >= 5 || diffDays === 4) {
-      return { label: "EN COURS", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
-    }
-
-    if (diffDays <= 3) {
-      return { label: "À risque", className: "px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800" };
-    }
-
-    return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
-  };
-
-  // Statut basé sur la logique de la documentation
+  // Statut basé sur la logique centralisée
   const getDAOStatus = (dao: DAO) => {
-    return computeStatus(dao)
-  }
-
-  // Calculer le statut basé sur la logique métier simplifiée
-  const calculateStatus = (dao: DAO) => {
-    const tasks = daoTasks[dao.id] || []
+    const progression = getProgression(dao)
+    const status = computeStatusFromProgress(progression, dao.statut)
     
-    // Si aucune tâche, statut par défaut
-    if (tasks.length === 0) {
-      return 'EN_COURS'
-    }
+    // Convertir les classes CSS pour correspondre au style de la page
+    const className = status.className.replace(/bg-(\w+)-(\d+)/g, 'px-2 py-1 text-xs font-medium rounded-full bg-$1-$2 text-$1-$800')
     
-    // Calculer la progression moyenne sur TOUTES les tâches
-    const totalProgress = tasks.reduce((sum, task) => 
-      sum + Number(task.progress || 0), 0)
-    const avgProgress = tasks.length > 0 ? totalProgress / tasks.length : 0
-    
-    // Compter les tâches complétées (progress = 100 OU statut = 'termine')
-    const allCompletedTasks = tasks.filter(task => 
-      task.statut === 'termine' || Number(task.progress || 0) >= 100
-    )
-    
-    // TERMINEE : Toutes les tâches sont complétées ET progression moyenne = 100%
-    if (allCompletedTasks.length === tasks.length && Math.round(avgProgress) === 100) {
-      return 'TERMINEE'
-    }
-    
-    // Logique temporelle pour A_RISQUE (>=3 jours depuis la date de dépôt ET aucune progression)
-    const threeDaysAgo = new Date()
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
-    
-    if (avgProgress === 0 && dao.date_depot && new Date(dao.date_depot) < threeDaysAgo) {
-      return 'A_RISQUE'
-    }
-    
-    // Par défaut : EN_COURS
-    return 'EN_COURS'
+    return { label: status.label, className }
   }
 
   const getProgression = (dao: DAO) => {
@@ -209,7 +149,10 @@ export default function MesDAOs() {
     return 'bg-gray-400'
   }
 
-  
+  const handleEdit = (daoId: number) => {
+    navigate(`/chef-projet/dao/${daoId}/edit`)
+  }
+
   const handleDelete = async (daoId: number) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce DAO ?')) return
     
@@ -230,36 +173,8 @@ export default function MesDAOs() {
     }
   }
 
-  const handleEdit = (daoId: number) => {
-    navigate(`/admin/edit-dao/${daoId}`)
-  }
-
-  const handleArchive = async (daoId: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir archiver ce DAO ?')) return
-    
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`http://localhost:3001/api/dao/${daoId}/archive`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      
-      if (response.ok) {
-        // Mettre à jour la liste pour enlever le DAO archivé
-        setDaos(daos.filter(dao => dao.id !== daoId))
-        alert('DAO archivé avec succès')
-      } else {
-        alert('Erreur lors de l\'archivage du DAO')
-      }
-    } catch (error) {
-      console.error('Erreur lors de l\'archivage:', error)
-      alert('Erreur réseau lors de l\'archivage')
-    }
-  }
-
+  
+  
   // Filtrage des DAO
   const filteredDaos = daos.filter(dao => {
     const matchesSearch = searchTerm === '' || 
@@ -377,16 +292,45 @@ export default function MesDAOs() {
               
               {/* Actions simplifiées pour chef-projet */}
               <div className="p-2 border-t border-slate-100 bg-slate-50">
-                <button 
-                  onClick={() => navigate(`/chef-projet/dao/${dao.id}/tasks`)}
-                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs py-1 px-1.5 rounded transition-colors flex items-center justify-center gap-0.5"
-                  title="Voir détails"
-                >
-                  Détails
-                  <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
-                  </svg>
-                </button>
+                <div className="flex gap-1">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      navigate(`/chef-projet/dao/${dao.id}/tasks`)
+                    }}
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs py-1 px-1.5 rounded transition-colors flex items-center justify-center gap-0.5"
+                    title="Voir détails"
+                  >
+                    Détails
+                    <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
+                    </svg>
+                  </button>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleEdit(dao.id)
+                    }}
+                    className="flex-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs py-1 px-1.5 rounded transition-colors"
+                    title="Modifier"
+                  >
+                    <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDelete(dao.id)
+                    }}
+                    className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs py-1 px-1.5 rounded transition-colors"
+                    title="Supprimer"
+                  >
+                    <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
           ))

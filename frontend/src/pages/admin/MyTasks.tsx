@@ -114,25 +114,7 @@ export default function MyTasks() {
   }
 
 
-  const loadNotifications = async () => {
-    // Désactivé - non utile pour cette section
-    return
-    // try {
-    //   const token = localStorage.getItem('token')
-    //   const res = await fetch(`http://localhost:3001/api/notifications?userId=${user?.id}`, {
-    //     headers: { 'Authorization': `Bearer ${token}` }
-    //   })
-    //   if (res.ok) {
-    //     const notifsData = await res.json()
-    //     setNotifications(notifsData.notifications || [])
-    //     const unread = notifsData.notifications?.filter((n: Notification) => !n.is_read).length || 0
-    //     setUnreadCount(unread)
-    //   }
-    // } catch (error) {
-    //   console.error('Erreur chargement notifications:', error)
-    // }
-  }
-
+  
   const groupTasksByDAO = (tasks: Task[]): DAOGroup[] => {
     const daoMap = new Map<number, DAOGroup>()
     
@@ -309,55 +291,6 @@ export default function MyTasks() {
   }
 
 
-
-  const getNotificationIcon = (type: string) => {
-    switch (type.toLowerCase()) {
-      case 'error': return '🚨'
-      case 'warning': return '⚠️'
-      case 'info': return 'ℹ️'
-      case 'success': return '✅'
-      case 'user': return '👤'
-      case 'system': return '⚙️'
-      case 'comment': return '💬'
-      case 'mention': return '🏷️'
-      default: return '🔔'
-    }
-  }
-
-  const markNotificationAsRead = async (notificationId: number) => {
-    // Temporarily disabled - notifications endpoint not implemented
-    return
-    // try {
-    //   const token = localStorage.getItem('token')
-    //   const res = await fetch(`http://localhost:3001/api/notifications/${notificationId}/read`, {
-    //     method: 'PUT',
-    //     headers: { 'Authorization': `Bearer ${token}` }
-    //   })
-      
-    //   if (res.ok) {
-    //     setNotifications(prev => 
-    //       prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n)
-    //     )
-    //     setUnreadCount(prev => Math.max(0, prev - 1))
-    //   }
-    // } catch (error) {
-    //   console.error('Erreur lors du marquage de notification comme lue:', error)
-    // }
-  }
-
-  const getNotificationBgColor = (type: string) => {
-    switch (type.toLowerCase()) {
-      case 'error': return 'bg-red-100 text-red-800 border-red-200'
-      case 'warning': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      case 'info': return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'success': return 'bg-green-100 text-green-800 border-green-200'
-      case 'user': return 'bg-purple-100 text-purple-800 border-purple-200'
-      case 'system': return 'bg-gray-100 text-gray-800 border-gray-200'
-      case 'comment': return 'bg-indigo-100 text-indigo-800 border-indigo-200'
-      case 'mention': return 'bg-orange-100 text-orange-800 border-orange-200'
-      default: return 'bg-blue-100 text-blue-800 border-blue-200'
-    }
-  }
 
   const toggleDAOExpansion = (daoId: number) => {
     setExpandedDAOs(prev => 
@@ -542,7 +475,7 @@ export default function MyTasks() {
                   <div className="mt-4 pt-4 border-t border-slate-200" onClick={(e) => e.stopPropagation()}>
                     <div className="space-y-2">
                       {dao.tasks.map((task: Task) => (
-                        <div key={task.id} className="bg-slate-50 rounded-lg p-2 border border-slate-100">
+                        <div key={task.id} className="bg-slate-50 rounded-lg p-2 border border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleTaskClick(task)}>
                           <div className="flex items-start justify-between mb-1">
                             <div className="flex-1">
                               <h4 className="font-semibold text-sm text-slate-800 mb-1">
@@ -563,7 +496,7 @@ export default function MyTasks() {
                           </div>
                           
                           {/* Barre de progression de la tâche */}
-                          <div className="mb-2 no-navigate">
+                          <div className="mb-2 no-navigate" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-2">
                               <input
                                 type="range"

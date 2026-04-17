@@ -65,6 +65,16 @@ export async function updateTaskProgress(req: Request, res: Response) {
       updateQuery += ` progress = $${paramIndex}`;
       queryParams.push(progress);
       paramIndex++;
+      
+      // Mettre à jour automatiquement le statut en fonction de la progression
+      if (paramIndex > 1) updateQuery += ',';
+      updateQuery += ` statut = CASE 
+        WHEN $${paramIndex} = 100 THEN 'termine' 
+        WHEN $${paramIndex} = 0 THEN 'a_faire' 
+        ELSE 'en_cours' 
+      END`;
+      paramIndex++;
+      queryParams.push(progress);
     }
 
     if (statut) {

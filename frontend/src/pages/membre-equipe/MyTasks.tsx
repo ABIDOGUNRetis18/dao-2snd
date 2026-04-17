@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, User, Clock, MessageSquare } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { User, Clock, MessageSquare, ArrowLeft } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { computeStatusFromProgress } from '../../utils/daoStatusUtils'
 import '../admin/MyTasks.css'
 
@@ -43,28 +43,19 @@ interface DAOGroup {
 }
 
 export default function MembreEquipeMyTasks() {
-  const [tasks, setTasks] = useState<Task[]>([])
   const [daoGroups, setDaoGroups] = useState<DAOGroup[]>([])
   const [expandedDAOs, setExpandedDAOs] = useState<number[]>([])
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const [progressTimeout, setProgressTimeout] = useState<number | null>(null)
   const [openDiscussionDAO, setOpenDiscussionDAO] = useState<number | null>(null)
   const [commentText, setCommentText] = useState('')
-  const navigate = useNavigate()
 
   useEffect(() => {
     loadMyTasks()
     loadCurrentUser()
     // loadNotifications() // Désactivé - non utile pour cette section
     
-    // Nettoyage du timeout lors du démontage
-    return () => {
-      if (progressTimeout) {
-        clearTimeout(progressTimeout)
-      }
-    }
-  }, [])
+      }, [])
 
   const loadCurrentUser = async () => {
     try {
@@ -142,7 +133,6 @@ export default function MembreEquipeMyTasks() {
         const d = await res.json()
         if (d.success) {
           const tasksData = d.data.tasks || []
-          setTasks(tasksData)
           const groupedDAOs = groupTasksByDAO(tasksData)
           setDaoGroups(groupedDAOs)
         }
@@ -164,6 +154,80 @@ export default function MembreEquipeMyTasks() {
       case 'en_cours': return 'bg-blue-100 text-blue-800'
       case 'termine': return 'bg-green-100 text-green-800'
       default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const updateTaskProgress = async (taskId: number, newProgress: number) => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`http://localhost:3001/api/task-progress/${taskId}/progress`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ progress: newProgress })
+      })
+
+      if (response.ok) {
+        // Mettre à jour l'état local
+        setDaoGroups(prevDaoGroups => 
+          prevDaoGroups.map(daoGroup => ({
+            ...daoGroup,
+            tasks: daoGroup.tasks.map(task => 
+              task.id === taskId ? { 
+                ...task, 
+                progress: newProgress,
+                statut: newProgress === 100 ? 'termine' : newProgress === 0 ? 'a_faire' : 'en_cours'
+              } : task
+            )
+          }))
+        )
+        
+        // Recalculer les statistiques du DAO
+        setDaoGroups(prevDaoGroups => 
+          prevDaoGroups.map(daoGroup => {
+            const updatedTasks = daoGroup.tasks.map(task => 
+              task.id === taskId ? { 
+                ...task, 
+                progress: newProgress,
+                statut: newProgress === 100 ? 'termine' : newProgress === 0 ? 'a_faire' : 'en_cours'
+              } : task
+            )
+            const totalProgress = updatedTasks.reduce((sum, task) => sum + (task.progress || 0), 0)
+            const averageProgress = Math.round(totalProgress / updatedTasks.length)
+            const completedTasks = updatedTasks.filter(t => t.statut === 'termine').length
+            
+            // Déterminer automatiquement le statut du DAO en fonction des tâches
+            const allTasksCompleted = completedTasks === updatedTasks.length && updatedTasks.length > 0
+            const hasTaskInProgress = updatedTasks.some(t => t.statut === 'en_cours')
+            const hasTaskNotStarted = updatedTasks.some(t => t.statut === 'a_faire')
+            
+            let newDaoStatut = daoGroup.dao_statut
+            if (allTasksCompleted) {
+              // Toutes les tâches sont terminées
+              newDaoStatut = 'TERMINEE'
+            } else if (hasTaskInProgress || hasTaskNotStarted) {
+              // Au moins une tâche est en cours ou à faire
+              newDaoStatut = 'EN_COURS'
+            }
+            
+            console.log(`DAO ${daoGroup.dao_id}: ${completedTasks}/${updatedTasks.length} terminées -> statut: ${newDaoStatut}`)
+            
+            return {
+              ...daoGroup,
+              tasks: updatedTasks,
+              averageProgress,
+              completedTasks,
+              dao_statut: newDaoStatut
+            }
+          })
+        )
+      } else {
+        console.error('Erreur lors de la mise à jour de la progression')
+      }
+    } catch (error) {
+      console.error('Erreur réseau:', error)
     }
   }
 
@@ -190,55 +254,8 @@ export default function MembreEquipeMyTasks() {
     return new Date(dueDate) < new Date()
   }
 
-  const updateTaskProgress = async (taskId: number, progress: number, statut: string) => {
-    try {
-      // S'assurer que le statut correspond bien à la progression
-      const autoStatut = progress === 0 ? 'a_faire' : progress === 100 ? 'termine' : 'en_cours'
-      const finalStatut = statut || autoStatut
-      
-      // Temporairement sans authentification pour contourner le problème de token
-      const res = await fetch(`http://localhost:3001/api/task-progress/${taskId}/progress`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ progress, statut: finalStatut }),
-      })
-      
-      if (res.ok) {
-        const responseData = await res.json()
-        console.log('✅ Progression mise à jour:', responseData.data.task)
-        
-        // Mettre à jour la tâche dans le state local
-        setTasks(prev => {
-          const updatedTasks = prev.map(task => 
-            task.id === taskId 
-              ? { ...task, progress, statut: finalStatut }
-              : task
-          )
-          
-          // Mettre à jour les groupes DAO après modification
-          const groupedDAOs = groupTasksByDAO(updatedTasks)
-          setDaoGroups(groupedDAOs)
-          
-          return updatedTasks
-        })
-      } else {
-        const errorData = await res.json()
-        console.error('❌ Erreur lors de la mise à jour:', errorData)
-        alert('Erreur lors de la mise à jour: ' + (errorData.message || 'Erreur inconnue'))
-      }
-    } catch (error) {
-      console.error('❌ Erreur réseau:', error)
-      alert('Erreur réseau: ' + (error instanceof Error ? error.message : 'Erreur inconnue'))
-    }
-  }
-
-  const handleTaskClick = (task: Task) => {
-    // Naviguer vers la page des tâches du DAO spécifique
-    navigate(`/membre-equipe/dao/${task.dao_id}/tasks`)
-  }
-
+  
+  
   const toggleDAOExpansion = (daoId: number) => {
     setExpandedDAOs(prev => 
       prev.includes(daoId) 
@@ -253,66 +270,7 @@ export default function MembreEquipeMyTasks() {
     )
   }
 
-  const updateProgressContinuous = async (taskId: number, progress: number) => {
-    // Déterminer le statut automatiquement selon la progression
-    let statut: string
-    if (progress === 0) {
-      statut = 'a_faire'
-    } else if (progress === 100) {
-      statut = 'termine'
-    } else {
-      statut = 'en_cours'
-    }
-    
-    console.log(`🔄 Mise à jour tâche ${taskId}: ${progress}% -> ${statut}`)
-    
-    // Mise à jour locale immédiate pour une réponse instantanée
-    const updatedTasks = tasks.map(task => 
-      task.id === taskId 
-        ? { ...task, progress, statut }
-        : task
-    )
-    
-    console.log('📋 Tâches mises à jour:', updatedTasks.map(t => ({id: t.id, nom: t.nom, progress: t.progress, statut: t.statut})))
-    
-    setTasks(updatedTasks)
-    
-    // Forcer la mise à jour des groupes DAO après modification
-    const groupedDAOs = groupTasksByDAO(updatedTasks)
-    console.log('🗂️ Groupes DAO mis à jour:', groupedDAOs.map(d => ({id: d.dao_id, statut: d.dao_statut, completedTasks: d.completedTasks, totalTasks: d.totalTasks})))
-    
-    // Forcer la mise à jour du state avec un petit délai pour assurer la réactivité
-    setTimeout(() => {
-      setDaoGroups([...groupedDAOs])
-      console.log('🔄 DAO groups state updated with force refresh')
-    }, 10)
-    
-    // Mise à jour en arrière-plan avec debounce
-    if (progressTimeout) {
-      clearTimeout(progressTimeout)
-    }
-    
-    const newTimeout = setTimeout(async () => {
-      try {
-        await updateTaskProgress(taskId, progress, statut)
-        console.log(`✅ Tâche ${taskId} mise à jour: ${progress}% -> ${statut}`)
-        
-        // Forcer une deuxième mise à jour après la réponse API
-        const currentTasks = tasks.map(t => 
-          t.id === taskId ? { ...t, progress, statut } : t
-        )
-        const finalGroupedDAOs = groupTasksByDAO(currentTasks)
-        setDaoGroups([...finalGroupedDAOs])
-        console.log('🔄 Final DAO update after API response')
-      } catch (error) {
-        console.error('❌ Erreur lors de la mise à jour de la tâche:', error)
-        // En cas d'erreur, on pourrait restaurer l'état précédent si nécessaire
-      }
-    }, 300) as unknown as number
-    
-    setProgressTimeout(newTimeout)
-  }
-
+  
   return (
     <div className="min-h-screen bg-slate-50 p-6 animate-fadeInUp">
       <div className="max-w-7xl mx-auto">
@@ -465,7 +423,7 @@ export default function MembreEquipeMyTasks() {
                                 min="0"
                                 max="100"
                                 value={task.progress || 0}
-                                onChange={(e) => updateProgressContinuous(task.id, parseInt(e.target.value))}
+                                onChange={(e) => updateTaskProgress(task.id, parseInt(e.target.value))}
                                 className="flex-1 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer slider align-middle"
                                 style={{
                                   background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(task.progress || 0)}%, #e2e8f0 ${(task.progress || 0)}%, #e2e8f0 100%)`

@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Search, Filter, MessageSquare, Calendar, Clock, AlertCircle } from 'lucide-react'
+import { Search, Filter, MessageSquare, Clock, AlertCircle, User, ArrowLeft } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { computeStatusFromProgress } from '../../utils/daoStatusUtils'
+import '../admin/MyTasks.css'
 
 interface Task {
   id: number
@@ -34,18 +37,33 @@ interface Comment {
   username?: string
 }
 
+interface DAOGroup {
+  dao_id: number
+  dao_reference?: string
+  dao_objet?: string
+  dao_numero?: string
+  dao_chef_nom?: string
+  tasks: Task[]
+  totalTasks: number
+  completedTasks: number
+  averageProgress: number
+}
+
 export default function TaskDashboard() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
+  const [daoFilter, setDaoFilter] = useState('')
   const [taskProgress, setTaskProgress] = useState<{[key: number]: number}>({})
-  const [comments, setComments] = useState<{[key: number]: Comment[]}>({})
+  const [setComments] = useState<{[key: number]: Comment[]}>({})
   const [commentingTask, setCommentingTask] = useState<number | null>(null)
   const [commentText, setCommentText] = useState('')
   const [showFilterMenu, setShowFilterMenu] = useState(false)
   const [currentUser, setCurrentUser] = useState<any>(null)
+  const [expandedDAOs, setExpandedDAOs] = useState<number[]>([])
+  const [openDiscussionDAO, setOpenDiscussionDAO] = useState<number | null>(null)
 
   useEffect(() => {
     loadUser()
@@ -187,6 +205,55 @@ export default function TaskDashboard() {
     }
   }
 
+  // Grouper les tâches par DAO
+  const groupTasksByDAO = (tasks: Task[]): DAOGroup[] => {
+    const daoMap = new Map<number, DAOGroup>()
+    
+    tasks.forEach(task => {
+      if (!daoMap.has(task.dao_id)) {
+        daoMap.set(task.dao_id, {
+          dao_id: task.dao_id,
+          dao_reference: task.dao_reference,
+          dao_objet: task.dao_objet,
+          dao_numero: task.dao_numero,
+          dao_chef_nom: task.dao_chef_nom,
+          tasks: [],
+          totalTasks: 0,
+          completedTasks: 0,
+          averageProgress: 0
+        })
+      }
+      
+      const daoGroup = daoMap.get(task.dao_id)!
+      daoGroup.tasks.push(task)
+    })
+    
+    // Calculer les statistiques pour chaque DAO
+    daoMap.forEach(daoGroup => {
+      daoGroup.totalTasks = daoGroup.tasks.length
+      daoGroup.completedTasks = daoGroup.tasks.filter(t => t.statut === 'termine').length
+      const totalProgress = daoGroup.tasks.reduce((sum, task) => sum + (task.progress || 0), 0)
+      daoGroup.averageProgress = Math.round(totalProgress / daoGroup.totalTasks)
+    })
+    
+    return Array.from(daoMap.values()).sort((a, b) => a.dao_id - b.dao_id)
+  }
+
+  // Extraire la liste des DAO uniques
+  const getUniqueDAOs = () => {
+    const daoMap = new Map<number, { id: number; reference: string; objet: string }>()
+    tasks.forEach(task => {
+      if (!daoMap.has(task.dao_id)) {
+        daoMap.set(task.dao_id, {
+          id: task.dao_id,
+          reference: task.dao_reference || `DAO-${task.dao_id}`,
+          objet: task.dao_objet || ''
+        })
+      }
+    })
+    return Array.from(daoMap.values()).sort((a, b) => a.id - b.id)
+  }
+
   const filteredTasks = tasks.filter(
     (task: Task) =>
       (task.description && task.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -196,8 +263,25 @@ export default function TaskDashboard() {
   ).filter(
     (task: Task) =>
       (statusFilter === '' || task.statut === statusFilter) &&
-      (priorityFilter === '' || task.priorite === priorityFilter)
+      (priorityFilter === '' || task.priorite === priorityFilter) &&
+      (daoFilter === '' || task.dao_id.toString() === daoFilter)
   )
+
+  const filteredDAOGroups = groupTasksByDAO(filteredTasks)
+
+  const toggleDAOExpansion = (daoId: number) => {
+    setExpandedDAOs(prev => 
+      prev.includes(daoId) 
+        ? prev.filter(id => id !== daoId)
+        : [...prev, daoId]
+    )
+  }
+
+  const toggleDiscussion = (daoId: number) => {
+    setOpenDiscussionDAO(prev => 
+      prev === daoId ? null : daoId
+    )
+  }
 
   const getStatutBadge = (statut: string) => {
     switch (statut) {
@@ -215,6 +299,31 @@ export default function TaskDashboard() {
       case 'haute': return { label: 'Haute', cls: 'bg-red-50 text-red-700 border border-red-200' }
       default: return { label: priorite, cls: 'bg-gray-50 text-gray-600 border border-gray-200' }
     }
+  }
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'basse': return 'bg-green-100 text-green-800 border-green-200'
+      case 'moyenne': return 'bg-orange-100 text-orange-800 border-orange-200'
+      case 'haute': return 'bg-red-100 text-red-800 border-red-200'
+      default: return 'bg-gray-100 text-gray-800 border-gray-200'
+    }
+  }
+
+  const getStatusColor = (status: string | null) => {
+    if (!status) return 'bg-gray-100 text-gray-800'
+    switch (status) {
+      case 'a_faire': return 'bg-gray-100 text-gray-800'
+      case 'en_attente': return 'bg-yellow-100 text-yellow-800'
+      case 'en_cours': return 'bg-blue-100 text-blue-800'
+      case 'termine': return 'bg-green-100 text-green-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const isOverdue = (dueDate: string | null, status: string | null) => {
+    if (!dueDate || status === 'termine') return false
+    return new Date(dueDate) < new Date()
   }
 
   const getProgressColor = (progress: number) => {
@@ -235,15 +344,35 @@ export default function TaskDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-slate-50 p-6 animate-fadeInUp">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-slate-800">Mes Tâches</h1>
-            <div className="text-sm text-slate-600">
-              {tasks.length} tâche{tasks.length > 1 ? 's' : ''} assignée{tasks.length > 1 ? 's' : ''}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <Link
+              to="/membre-equipe"
+              className="p-3 text-slate-600 hover:bg-slate-100 rounded-lg transition-all duration-300 shadow-sm hover:shadow-md"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800 mb-1">Mes Tâches</h1>
+              <p className="text-slate-500 text-sm">
+                {filteredDAOGroups.length} DAO{filteredDAOGroups.length > 1 ? 's' : ''} trouvé{filteredDAOGroups.length > 1 ? 's' : ''}
+              </p>
             </div>
+          </div>
+          <div className="flex items-center gap-4">
+            {currentUser && (
+              <div className="flex items-center gap-2">
+                <div className="text-sm text-slate-600">
+                  Bienvenue, <span className="font-semibold">{currentUser.username}</span>
+                </div>
+                <div className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                  Membre Équipe
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -272,7 +401,18 @@ export default function TaskDashboard() {
               {showFilterMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowFilterMenu(false)} />
-                  <div className="absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-20">
+                  <div className="absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-20 transform transition-all duration-200 ease-in-out origin-top-right">
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Filtres</span>
+                      <button
+                        onClick={() => setShowFilterMenu(false)}
+                        className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
                     <div className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                       Statut
                     </div>
@@ -301,6 +441,23 @@ export default function TaskDashboard() {
                         {p === '' ? 'Toutes les priorités' : getPriorityBadge(p).label}
                       </button>
                     ))}
+                    <div className="px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider mt-2">
+                      DAO
+                    </div>
+                    {['', ...getUniqueDAOs().map(dao => dao.id.toString())].map(daoId => (
+                      <button
+                        key={daoId}
+                        onClick={() => { setDaoFilter(daoId); setShowFilterMenu(false) }}
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-slate-50 ${
+                          daoFilter === daoId ? 'text-blue-600 font-semibold' : 'text-slate-700'
+                        }`}
+                      >
+                        {daoId === '' ? 'Toutes les DAOs' : (() => {
+                          const dao = getUniqueDAOs().find(d => d.id.toString() === daoId)
+                          return dao ? `${dao.reference} ${dao.objet ? `- ${dao.objet}` : ''}` : `DAO-${daoId}`
+                        })()}
+                      </button>
+                    ))}
                   </div>
                 </>
               )}
@@ -308,187 +465,233 @@ export default function TaskDashboard() {
           </div>
         </div>
 
-        {/* Liste des tâches */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTasks.map((task: Task) => {
-            const statutBadge = getStatutBadge(task.statut)
-            const priorityBadge = getPriorityBadge(task.priorite)
-            const progress = taskProgress[task.id] || 0
-            const taskComments = comments[task.id] || []
+        {/* Loading */}
+        {loading && (
+          <div className="text-center py-16">
+            <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-slate-300 border-t-transparent"></div>
+            <p className="mt-4 text-slate-600 font-medium">Chargement des tâches...</p>
+          </div>
+        )}
 
-            return (
-              <div key={task.id} className="bg-white rounded-xl border shadow-sm hover:shadow-md transition-shadow">
-                <div className="p-6">
-                  {/* En-tête tâche */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-800 mb-1">
-                        Tâche n°{task.id_task}
-                      </h3>
-                      <div className="text-sm text-slate-600 space-y-1">
-                        <div>DAO-{task.dao_id} {task.dao_reference && `(${task.dao_reference})`}</div>
-                        {task.dao_objet && (
-                          <div className="truncate max-w-[200px]" title={task.dao_objet}>
-                            {task.dao_objet}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${priorityBadge.cls}`}>
-                        {priorityBadge.label}
+        {/* Liste des DAOs */}
+        {!loading && filteredDAOGroups.length > 0 && (
+          <div className="space-y-3">
+            {filteredDAOGroups.map((dao: DAOGroup) => (
+              <div
+                key={dao.dao_id}
+                className="bg-white rounded-lg border border-slate-200 shadow-sm p-3 task-card"
+                onClick={() => toggleDAOExpansion(dao.dao_id)}
+              >
+                {/* En-tête DAO */}
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <h3 className="font-bold text-lg text-slate-800 mb-1 task-title">
+                      {dao.dao_numero || `DAO-${dao.dao_id}`} - {dao.dao_objet || 'Sans objet'}
+                    </h3>
+                    <div className="flex items-center gap-2 mb-1">
+                      {
+                        (() => {
+                          const statusInfo = computeStatusFromProgress(dao.averageProgress, null);
+                          return (
+                            <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${statusInfo.className}`}>
+                              {statusInfo.label}
+                            </span>
+                          );
+                        })()
+                      }
+                      <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+                        {dao.totalTasks} tâche{dao.totalTasks > 1 ? 's' : ''}
                       </span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${statutBadge.cls}`}>
-                        {statutBadge.label}
-                      </span>
                     </div>
                   </div>
-
-                  {/* Description */}
-                  {task.description && (
-                    <p className="text-sm text-slate-600 mb-4 line-clamp-2">
-                      {task.description}
-                    </p>
-                  )}
-
-                  {/* Progression */}
-                  <div className="mb-4">
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="font-medium text-slate-700">Progression</span>
-                      <span className="font-medium text-slate-700">{progress}%</span>
-                    </div>
-                    <div className="w-full bg-slate-200 rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(progress)}`}
-                        style={{ width: `${progress}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Actions progression */}
-                  <div className="flex items-center gap-2 mb-4">
-                    <button
-                      onClick={() => updateProgress(task.id, Math.max(0, progress - 10))}
-                      className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg transition-colors"
-                    >
-                      -10%
-                    </button>
-                    <button
-                      onClick={() => updateProgress(task.id, Math.min(100, progress + 10))}
-                      className="px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs font-medium rounded-lg transition-colors"
-                    >
-                      +10%
-                    </button>
-                    <button
-                      onClick={() => updateProgress(task.id, 100)}
-                      className="px-3 py-1 bg-green-100 hover:bg-green-200 text-green-700 text-xs font-medium rounded-lg transition-colors"
-                    >
-                      100%
-                    </button>
-                  </div>
-
-                  {/* Dates */}
-                  <div className="flex items-center gap-4 text-xs text-slate-500 mb-4">
-                    {task.date_creation && (
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        <span>Création: {new Date(task.date_creation).toLocaleDateString('fr-FR')}</span>
-                      </div>
-                    )}
-                    {task.date_echeance && (
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        <span>Échéance: {new Date(task.date_echeance).toLocaleDateString('fr-FR')}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Commentaires */}
-                  <div className="border-t pt-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
-                        <MessageSquare className="h-4 w-4" />
-                        <span>{taskComments.length} commentaire{taskComments.length > 1 ? 's' : ''}</span>
-                      </div>
-                      <button
-                        onClick={() => setCommentingTask(task.id)}
-                        className="text-blue-600 hover:text-blue-700 text-sm font-medium transition-colors"
-                      >
-                        <MessageSquare className="h-4 w-4 inline mr-1" />
-                        Commenter
-                      </button>
-                    </div>
-
-                    {/* Liste des commentaires */}
-                    {taskComments.length > 0 && (
-                      <div className="space-y-2 mb-3">
-                        {taskComments.slice(0, 2).map((comment: Comment) => (
-                          <div key={comment.id} className="bg-slate-50 rounded-lg p-3">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs font-medium text-slate-700">
-                                {comment.username || 'Utilisateur'}
-                              </span>
-                              <span className="text-xs text-slate-500">
-                                {new Date(comment.created_at).toLocaleDateString('fr-FR')}
-                              </span>
-                            </div>
-                            <p className="text-sm text-slate-600">{comment.content}</p>
-                          </div>
-                        ))}
-                        {taskComments.length > 2 && (
-                          <div className="text-xs text-slate-500 text-center">
-                            +{taskComments.length - 2} autre{taskComments.length - 2 > 1 ? 's' : ''} commentaire{taskComments.length - 2 > 1 ? 's' : ''}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Formulaire de commentaire */}
-                    {commentingTask === task.id && (
-                      <div className="space-y-2">
-                        <textarea
-                          value={commentText}
-                          onChange={e => setCommentText(e.target.value)}
-                          placeholder="Ajouter un commentaire..."
-                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 resize-none"
-                          rows={3}
-                        />
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={addComment}
-                            disabled={!commentText.trim()}
-                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white text-sm font-medium rounded-lg transition-colors disabled:cursor-not-allowed"
-                          >
-                            Envoyer
-                          </button>
-                          <button
-                            onClick={() => {
-                              setCommentingTask(null)
-                              setCommentText('')
-                            }}
-                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition-colors"
-                          >
-                            Annuler
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                  <div className="flex flex-col gap-2 ml-4">
+                    <span className="text-xs font-medium text-slate-600">
+                      {dao.completedTasks}/{dao.totalTasks} terminée{dao.completedTasks > 1 ? 's' : ''}
+                    </span>
+                    <span className="text-xs font-medium text-slate-600">
+                      {dao.averageProgress}% moyen
+                    </span>
                   </div>
                 </div>
+
+                {/* Barre de progression globale du DAO */}
+                <div className="mb-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-slate-600 w-20">Progression:</span>
+                    <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-blue-500 transition-all duration-300"
+                        style={{ width: `${dao.averageProgress}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-bold text-slate-700 w-12 text-right">
+                      {dao.averageProgress}%
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); toggleDiscussion(dao.dao_id); }}
+                        className="flex items-center gap-2 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                        <span>Commentaires</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Icône d'expansion */}
+                <div className="flex items-center justify-center">
+                  <svg 
+                    className={`w-4 h-4 text-slate-600 transition-transform duration-200 ${expandedDAOs.includes(dao.dao_id) ? 'rotate-180' : ''}`}
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+
+                {/* Section des tâches détaillées (expandable) */}
+                {expandedDAOs.includes(dao.dao_id) && (
+                  <div className="mt-4 pt-4 border-t border-slate-200" onClick={(e) => e.stopPropagation()}>
+                    <div className="space-y-2">
+                      {dao.tasks.map((task: Task) => {
+                        const statutBadge = getStatutBadge(task.statut)
+                        const priorityBadge = getPriorityBadge(task.priorite)
+                        const progress = taskProgress[task.id] || 0
+
+                        return (
+                          <div key={task.id} className="bg-slate-50 rounded-lg p-2 border border-slate-100">
+                            <div className="flex items-start justify-between mb-1">
+                              <div className="flex-1">
+                                <h4 className="font-semibold text-sm text-slate-800 mb-1">
+                                  {task.titre}
+                                </h4>
+                                <div className="flex items-center gap-1 mb-1">
+                                  <span className={`px-1 py-0.5 rounded-full text-xs font-medium border ${getPriorityColor(task.priorite)}`}>
+                                    {priorityBadge.label}
+                                  </span>
+                                  <span className={`px-1 py-0.5 rounded-full text-xs font-medium ${getStatusColor(task.statut)}`}>
+                                    {statutBadge.label}
+                                  </span>
+                                </div>
+                              </div>
+                              <span className="text-xs font-medium text-slate-600">
+                                {progress}%
+                              </span>
+                            </div>
+                            
+                            {/* Barre de progression de la tâche */}
+                            <div className="mb-2 no-navigate">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="100"
+                                  value={progress}
+                                  onChange={(e) => updateProgress(task.id, parseInt(e.target.value))}
+                                  className="flex-1 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer slider align-middle"
+                                  style={{
+                                    background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${progress}%, #e2e8f0 ${progress}%, #e2e8f0 100%)`
+                                  }}
+                                />
+                                <span className="text-xs font-medium text-slate-700 w-8 text-right">
+                                  {progress}%
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Informations supplémentaires */}
+                            <div className="flex items-center justify-between text-xs text-slate-500">
+                              <div className="flex items-center gap-2">
+                                {task.date_echeance && (
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    <span>{new Date(task.date_echeance).toLocaleDateString('fr-FR')}</span>
+                                  </div>
+                                )}
+                                {task.assigned_username && (
+                                  <div className="flex items-center gap-1">
+                                    <User className="h-3 w-3" />
+                                    <span>{task.assigned_username}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
-            )
-          })}
-        </div>
+            ))}
+          </div>
+        )}
+
+        {/* Bulle de discussion */}
+        {openDiscussionDAO && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setOpenDiscussionDAO(null)}>
+            <div 
+              className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Discussion - DAO {filteredDAOGroups.find(d => d.dao_id === openDiscussionDAO)?.dao_numero || `DAO-${openDiscussionDAO}`}
+                </h3>
+                <button 
+                  onClick={() => setOpenDiscussionDAO(null)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div className="mb-4">
+                <textarea
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  placeholder="Écrivez votre commentaire ici..."
+                  className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  rows={4}
+                />
+              </div>
+              
+              <div className="flex justify-end gap-2">
+                <button 
+                  onClick={() => setOpenDiscussionDAO(null)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  Annuler
+                </button>
+                <button 
+                  onClick={() => {
+                    // Logique d'envoi du commentaire ici
+                    console.log('Commentaire envoyé:', commentText)
+                    setCommentText('')
+                    setOpenDiscussionDAO(null)
+                  }}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  Envoyer
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Message si aucune tâche */}
-        {filteredTasks.length === 0 && (
+        {filteredDAOGroups.length === 0 && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-6 py-12 text-center">
             <AlertCircle className="h-12 w-12 text-slate-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-slate-800 mb-2">
-              {searchTerm || statusFilter || priorityFilter ? 'Aucune tâche ne correspond à votre recherche' : 'Aucune tâche assignée'}
+              {searchTerm || statusFilter || priorityFilter || daoFilter ? 'Aucune tâche ne correspond à votre recherche' : 'Aucune tâche assignée'}
             </h3>
             <p className="text-sm text-slate-600">
-              {searchTerm || statusFilter || priorityFilter ? 'Essayez de modifier vos filtres' : 'Les tâches vous seront assignées par votre chef de projet'}
+              {searchTerm || statusFilter || priorityFilter || daoFilter ? 'Essayez de modifier vos filtres' : 'Les tâches vous seront assignées par votre chef de projet'}
             </p>
           </div>
         )}
