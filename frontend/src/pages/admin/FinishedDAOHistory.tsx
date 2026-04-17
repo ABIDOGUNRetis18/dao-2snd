@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, ArrowLeft, Calendar, FileText } from 'lucide-react'
+import { Search, ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 interface FinishedDAO {
@@ -8,10 +8,12 @@ interface FinishedDAO {
   objet: string
   date_depot: string
   date_fin: string
-  equipe: string
-  chef_projet: string
-  statut: 'termine' | 'annule'
-  montant_total?: number
+  reference: string
+  autorite: string
+  chef_projet_nom: string
+  groupement: string
+  nom_partenaire?: string
+  statut: string
 }
 
 export default function FinishedDAOHistory() {
@@ -35,6 +37,7 @@ export default function FinishedDAOHistory() {
 
       const data = await response.json()
       if (data.success) {
+        console.log('Données DAO terminés reçues:', data.data.daos)
         setDaos(data.data.daos || [])
       }
     } catch (error) {
@@ -53,8 +56,10 @@ export default function FinishedDAOHistory() {
     const matchesSearch = searchTerm === '' || 
       dao.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
       dao.objet.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dao.equipe.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dao.chef_projet.toLowerCase().includes(searchTerm.toLowerCase())
+      dao.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dao.autorite.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dao.chef_projet_nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dao.groupement.toLowerCase().includes(searchTerm.toLowerCase())
     
     return matchesSearch
   })
@@ -75,14 +80,7 @@ export default function FinishedDAOHistory() {
     }
   }
 
-  const calculateDuration = (dateDepot: string, dateFin: string) => {
-    const start = new Date(dateDepot)
-    const end = new Date(dateFin)
-    const diffTime = Math.abs(end.getTime() - start.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays
-  }
-
+  
   
   return (
     <div className="min-h-screen bg-slate-50 p-6">
@@ -109,7 +107,7 @@ export default function FinishedDAOHistory() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
             <input
               type="text"
-              placeholder="Rechercher par numéro, objet, équipe ou chef de projet..."
+              placeholder="Rechercher par numéro, objet, référence, type, autorité, chef ou groupement..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -130,29 +128,16 @@ export default function FinishedDAOHistory() {
           <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200">
+                <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Numéro
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Objet
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Chef de projet
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Date de dépôt
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Date de fin
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Durée
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Statut
-                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Numéro</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Objet</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date Dépôt</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Référence</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Autorité</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Chef de projet</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Groupement</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Statut</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-200">
@@ -165,38 +150,30 @@ export default function FinishedDAOHistory() {
                         console.log('Ouvrir le détail du DAO:', dao.id)
                       }}
                     >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <FileText className="h-4 w-4 text-slate-400 mr-2" />
-                          <span className="text-sm font-medium text-slate-900">
-                            {dao.numero}
-                          </span>
-                        </div>
+                      <td className="px-4 py-3 text-sm font-medium text-slate-900">{dao.numero}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700">{dao.objet}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700">
+                        {new Date(dao.date_depot).toLocaleDateString('fr-FR')}
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-slate-900 max-w-xs truncate">
-                          {dao.objet}
-                        </div>
+                      <td className="px-4 py-3 text-sm text-slate-700">{dao.reference}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700">{dao.autorite}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700">
+                        {dao.chef_projet_nom || 'Non assigné'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                        {dao.chef_projet}
+                      <td className="px-4 py-3 text-sm text-slate-700">
+                        {dao.groupement === "oui" ? (
+                          dao.nom_partenaire ? (
+                            <span style={{ whiteSpace: "pre-wrap" }}>
+                              {dao.nom_partenaire.replace(/,/g, ",\n")}
+                            </span>
+                          ) : (
+                            "-"
+                          )
+                        ) : (
+                          "-"
+                        )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center text-sm text-slate-600">
-                          <Calendar className="h-4 w-4 text-slate-400 mr-2" />
-                          {new Date(dao.date_depot).toLocaleDateString('fr-FR')}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center text-sm text-slate-600">
-                          <Calendar className="h-4 w-4 text-slate-400 mr-2" />
-                          {new Date(dao.date_fin).toLocaleDateString('fr-FR')}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                        {calculateDuration(dao.date_depot, dao.date_fin)} jours
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 py-3">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(dao.statut)}`}>
                           {getStatusLabel(dao.statut)}
                         </span>

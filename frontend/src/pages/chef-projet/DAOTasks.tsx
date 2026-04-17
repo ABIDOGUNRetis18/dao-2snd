@@ -304,7 +304,7 @@ export default function ChefProjetDAOTasks() {
         {/* HEADER */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-6 py-4 flex items-center gap-3">
           <button
-            onClick={() => navigate('/admin/my-dao')}
+            onClick={() => navigate('/admin/my-daos')}
             className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"
           >
             <ArrowLeft className="h-5 w-5" />

@@ -167,7 +167,7 @@ async function createTasksTable() {
             console.log('Table tasks (instances) existe déjà');
             return;
         }
-        // Créer la table tasks (instances concrètes)
+        // Créer la table tasks (instances concrètes) avec contraintes d'isolation
         await (0, exports.query)(`
       CREATE TABLE tasks (
         id SERIAL PRIMARY KEY,
@@ -182,8 +182,19 @@ async function createTasksTable() {
         progress INTEGER DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
         date_creation DATE DEFAULT CURRENT_DATE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        
+        -- Contraintes d'isolation
+        CONSTRAINT tasks_dao_id_not_null CHECK (dao_id IS NOT NULL),
+        CONSTRAINT tasks_dao_id_positive CHECK (dao_id > 0)
       )
+    `);
+        // Index pour optimiser les performances et garantir l'isolation
+        await (0, exports.query)(`
+      CREATE INDEX idx_tasks_dao_id ON tasks(dao_id)
+    `);
+        await (0, exports.query)(`
+      CREATE INDEX idx_tasks_dao_id_assigned_to ON tasks(dao_id, assigned_to)
     `);
         console.log('Table tasks (instances) créée avec succès');
     }

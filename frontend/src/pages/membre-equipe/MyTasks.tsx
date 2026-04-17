@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Search, ArrowLeft, Calendar, User, FileText, Clock, AlertTriangle, CheckCircle, TrendingUp, BarChart3 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { API_ENDPOINTS, apiGet, apiPut } from '../../config/api'
+import { getTaskStatusFromProgress } from '../../utils/taskStatusUtils'
 
 interface Task {
   id: number
@@ -80,16 +81,23 @@ export default function MembreEquipeMyTasks() {
     }
   }
 
+  
   const updateTaskProgress = async (taskId: number, progress: number) => {
     try {
+      // Utiliser la logique centralisée du statut selon votre système API
+      const statut = getTaskStatusFromProgress(progress)
+      
+      console.log(`🔄 Membre équipe - Mise à jour tâche ${taskId}: ${progress}% -> ${statut}`)
+      
       const res = await apiPut(
         API_ENDPOINTS.TASK_PROGRESS(taskId),
-        { progress }
+        { progress, statut }
       )
       if (res.success) {
+        console.log(`✅ Membre équipe - Tâche ${taskId} mise à jour via API`)
         setTasks(tasks.map(task => 
           task.id === taskId 
-            ? { ...task, progress, statut: progress === 100 ? 'termine' : progress > 0 ? 'en_cours' : 'a_faire' }
+            ? { ...task, progress, statut }
             : task
         ))
       }
@@ -123,11 +131,13 @@ export default function MembreEquipeMyTasks() {
   }
 
   const getStatusColor = (status: string | null) => {
+    if (!status) return 'bg-gray-100 text-gray-800'
     switch (status) {
-      case 'termine': return 'text-green-600 bg-green-100'
-      case 'en_cours': return 'text-blue-600 bg-blue-100'
-      case 'a_faire': return 'text-gray-600 bg-gray-100'
-      default: return 'text-gray-600 bg-gray-100'
+      case 'a_faire': return 'bg-gray-100 text-gray-800'
+      case 'en_attente': return 'bg-yellow-100 text-yellow-800'
+      case 'en_cours': return 'bg-blue-100 text-blue-800'
+      case 'termine': return 'bg-green-100 text-green-800'
+      default: return 'bg-gray-100 text-gray-800'
     }
   }
 

@@ -370,11 +370,17 @@ async function getFinishedDaos(req, res) {
         d.numero,
         d.objet,
         d.date_depot,
+        d.reference,
+        d.autorite,
+        d.chef_id,
+        d.chef_projet_nom,
+        d.groupement,
+        d.nom_partenaire,
+        d.statut,
         d.created_at as date_fin,
-        d.chef_projet_nom as equipe,
-        d.chef_projet_nom as chef_projet,
-        d.statut
+        u.email as chef_projet_email
       FROM daos d
+      LEFT JOIN users u ON d.chef_id = u.id
       WHERE d.statut IN ('TERMINEE', 'ANNULE', 'ARCHIVE')
       ORDER BY d.created_at DESC
     `);
@@ -421,66 +427,58 @@ async function markDaoAsFinished(req, res) {
 }
 async function checkAndUpdateDaoStatus(daoId) {
     try {
-        // Récupérer toutes les tâches du DAO (assignées et non assignées)
+        // Récupérer toutes les tâches du DAO depuis la table tasks uniquement
         const tasksResult = await (0, database_1.query)(`
       SELECT 
         id, 
-        statut, 
-        progress,
-        assigned_to,
-        created_at
+        progress
       FROM tasks 
       WHERE dao_id = $1
     `, [daoId]);
-        // Récupérer les informations du DAO pour la logique temporelle
+        // Récupérer le statut actuel du DAO
         const daoResult = await (0, database_1.query)(`
-      SELECT date_depot, created_at, statut as current_statut
+      SELECT statut as current_statut
       FROM daos 
       WHERE id = $1
     `, [daoId]);
         if (daoResult.rowCount === 0) {
             return;
         }
-        const dao = daoResult.rows[0];
-        const totalTasks = tasksResult.rows.length;
-        const assignedTasks = tasksResult.rows.filter((task) => task.assigned_to !== null);
-        const completedTasks = assignedTasks.filter((task) => task.statut === 'termine' || Number(task.progress || 0) >= 100);
-        let newStatus;
-        // Logique simplifiée à 3 statuts
-        if (assignedTasks.length === 0) {
-            // Par défaut : EN_COURS si aucune tâche assignée
-            newStatus = 'EN_COURS';
+        const currentDao = daoResult.rows[0];
+        const allTasks = tasksResult.rows;
+        let newStatut;
+        // Logique exacte selon la spécification
+        if (allTasks.length === 0) {
+            // Si aucune tâche, par défaut EN_COURS
+            newStatut = 'EN_COURS';
         }
         else {
-            // Calculer la progression moyenne sur les TÂCHES ASSIGNÉES uniquement
-            const totalProgress = assignedTasks.reduce((sum, task) => sum + Number(task.progress || 0), 0);
-            const avgProgress = assignedTasks.length > 0 ? totalProgress / assignedTasks.length : 0;
-            // Compter les tâches assignées complétées (progress = 100 OU statut = 'termine')
-            const allCompletedTasks = assignedTasks.filter((task) => task.statut === 'termine' || Number(task.progress || 0) >= 100);
-            // TERMINEE : Toutes les tâches assignées sont complétées ET progression moyenne = 100%
-            if (allCompletedTasks.length === assignedTasks.length && Math.round(avgProgress) === 100) {
-                newStatus = 'TERMINEE';
+            // Calculer progression moyenne
+            const totalProgress = allTasks.reduce((sum, task) => sum + (task.progress || 0), 0);
+            const averageProgress = Math.round(totalProgress / allTasks.length);
+            // Compter les tâches terminées (progress = 100)
+            const completedTasks = allTasks.filter((task) => (task.progress || 0) === 100);
+            // LOGIQUE CRUCIALE exacte comme dans la spécification
+            if (completedTasks.length === allTasks.length && averageProgress === 100) {
+                newStatut = 'TERMINEE'; // TOUTES les tâches à 100%
             }
-            else if (avgProgress > 0) {
-                // EN_COURS : Il y a de la progression mais pas tout terminé
-                newStatus = 'EN_COURS';
+            else if (averageProgress > 0) {
+                newStatut = 'EN_COURS';
             }
             else {
-                // A_RISQUE : Aucune progression ET plus de 3 jours depuis la date de dépôt
-                const threeDaysAgo = new Date();
-                threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-                if (dao.date_depot && new Date(dao.date_depot) < threeDaysAgo) {
-                    newStatus = 'A_RISQUE';
-                }
-                else {
-                    newStatus = 'EN_COURS'; // Par défaut
-                }
+                newStatut = 'A_RISQUE';
             }
         }
         // Mettre à jour le statut seulement s'il a changé
-        if (newStatus !== dao.current_statut) {
-            await (0, database_1.query)("UPDATE daos SET statut = $1 WHERE id = $2", [newStatus, daoId]);
-            console.log(`DAO ${daoId}: statut mis à jour de '${dao.current_statut}' à '${newStatus}'`);
+        if (currentDao.current_statut !== newStatut) {
+            await (0, database_1.query)("UPDATE daos SET statut = $1 WHERE id = $2", [newStatut, daoId]);
+            // Log de notification exact comme dans la spécification
+            console.log(`\u2705 Statut du DAO ${daoId} mis à jour de "${currentDao.current_statut}" \u00e0 "${newStatut}"`);
+            // Log détaillé pour le debugging
+            const totalProgress = allTasks.reduce((sum, task) => sum + (task.progress || 0), 0);
+            const avgProgress = Math.round(totalProgress / allTasks.length);
+            const completedTasks = allTasks.filter((task) => (task.progress || 0) === 100);
+            console.log(`Détails - Tâches totales: ${allTasks.length}, Tâches terminées: ${completedTasks.length}, Progression moyenne: ${avgProgress}%`);
         }
     }
     catch (error) {

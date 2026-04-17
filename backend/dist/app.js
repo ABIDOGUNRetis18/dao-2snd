@@ -68,6 +68,12 @@ app.use('/api/task-assignment', taskAssignment_1.default);
 app.use('/api/task', taskModels_1.default);
 app.use('/api/chef-teams', chef_teams_1.default);
 app.use('/api/member-tasks', memberTasks_1.default);
+// Routes de test pour la synchronisation du statut
+const statusTest_1 = __importDefault(require("./routes/statusTest"));
+app.use('/api/status-test', statusTest_1.default);
+// Routes de mise à jour massive des statuts
+const batchStatus_1 = __importDefault(require("./routes/batchStatus"));
+app.use('/api/batch-status', batchStatus_1.default);
 // Route de test
 app.get('/api/test', (req, res) => {
     res.json({

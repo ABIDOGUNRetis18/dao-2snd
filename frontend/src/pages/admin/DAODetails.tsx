@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
-  ArrowLeft, X, Send, User, UserCheck, 
-  MessageCircle, Download, Clock
+  ArrowLeft, X, Send, 
+  MessageCircle, Clock
 } from "lucide-react";
 import { Link, useParams } from 'react-router-dom'
 
@@ -424,7 +424,7 @@ export default function DAODetails() {
           <div className="flex items-center justify-between h-16">
             {/* Navigation retour */}
             <div className="flex items-center">
-              <Link to="/admin/all-daos" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <Link to="/admin/my-daos" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <ArrowLeft className="w-5 h-5 text-gray-700" />
               </Link>
               <div className="ml-4">
@@ -432,7 +432,6 @@ export default function DAODetails() {
                 <p className="text-sm text-gray-500">{dao.objet || dao.reference}</p>
                 <div className="flex items-center gap-4 mt-1">
                   <div className="flex items-center gap-1 text-xs text-gray-500">
-                    <User className="w-3 h-3" />
                     <span>Chef: {dao.chef_projet || 'Non assigné'}</span>
                   </div>
                   {dao.date_depot && (
@@ -481,25 +480,7 @@ export default function DAODetails() {
               >
                 <MessageCircle className="w-5 h-5" />
               </button>
-              <button 
-                onClick={() => window.print()}
-                className="p-2 rounded-lg hover:bg-gray-100 text-gray-700 transition-colors"
-                title="Exporter en PDF"
-              >
-                <Download className="w-5 h-5" />
-              </button>
-              <button 
-                disabled={isReadOnlyMode}
-                className={`p-2 rounded-lg transition-colors ${
-                  isReadOnlyMode 
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                    : 'hover:bg-gray-100 text-gray-700'
-                }`}
-                title={isReadOnlyMode ? "Actions limitées (vous n'êtes pas le chef)" : "Actions du DAO"}
-              >
-                <UserCheck className="w-5 h-5" />
-              </button>
-            </div>
+                                        </div>
           </div>
         </div>
       </header>
@@ -577,7 +558,6 @@ export default function DAODetails() {
                   <div className="flex-1">
                     <h5 className="font-medium text-sm mb-1">{task.name}</h5>
                     <div className="flex items-center gap-2 text-xs text-gray-600">
-                      <User className="w-3 h-3" />
                       <span>{task.assigned_username || 'Non assigné'}</span>
                     </div>
                   </div>

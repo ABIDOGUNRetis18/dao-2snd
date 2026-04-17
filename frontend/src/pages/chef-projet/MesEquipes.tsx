@@ -141,7 +141,7 @@ export default function MesEquipes() {
       </div>
 
       {/* Statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center">
             <Users className="h-8 w-8 text-blue-600" />
@@ -166,17 +166,6 @@ export default function MesEquipes() {
             <div className="ml-3">
               <p className="text-2xl font-bold text-gray-900">{stats.totalDaos}</p>
               <p className="text-sm text-gray-600">DAOs Assignés</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-500 to-green-500 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">{stats.averageProgress}%</span>
-            </div>
-            <div className="ml-3">
-              <p className="text-2xl font-bold text-gray-900">{stats.averageProgress}%</p>
-              <p className="text-sm text-gray-600">Progression Moyenne</p>
             </div>
           </div>
         </div>

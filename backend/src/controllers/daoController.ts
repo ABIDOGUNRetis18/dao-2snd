@@ -443,11 +443,17 @@ export async function getFinishedDaos(req: Request, res: Response) {
         d.numero,
         d.objet,
         d.date_depot,
+        d.reference,
+        d.autorite,
+        d.chef_id,
+        d.chef_projet_nom,
+        d.groupement,
+        d.nom_partenaire,
+        d.statut,
         d.created_at as date_fin,
-        d.chef_projet_nom as equipe,
-        d.chef_projet_nom as chef_projet,
-        d.statut
+        u.email as chef_projet_email
       FROM daos d
+      LEFT JOIN users u ON d.chef_id = u.id
       WHERE d.statut IN ('TERMINEE', 'ANNULE', 'ARCHIVE')
       ORDER BY d.created_at DESC
     `);

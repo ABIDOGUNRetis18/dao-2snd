@@ -124,14 +124,20 @@ async function updateDaoStatus(daoId: number) {
     // 3. Compter tâches complétées
     const completedTasks = allTasks.filter((task: any) => (task.progress || 0) === 100);
 
-    // 4. Déterminer nouveau statut
+    // 4. DÉTERMINER LE NOUVEAU STATUT - LOGIQUE ADMIN CENTRALISÉE
+    console.log("=== DÉBUT VÉRIFICATION STATUT DAO ===");
+    console.log(`DAO ${daoId}: ${completedTasks.length}/${allTasks.length} tâches terminées, progression moyenne: ${averageProgress}%`);
+
     let newStatut;
     if (completedTasks.length === allTasks.length && averageProgress === 100) {
-      newStatut = 'TERMINE';
+      newStatut = 'TERMINEE';    // TOUTES les tâches à 100%
+      console.log(`DAO ${daoId}: Toutes les tâches à 100% -> TERMINEE`);
     } else if (averageProgress > 0) {
-      newStatut = 'EN_COURS';
+      newStatut = 'EN_COURS';    // Au moins une tâche commencée
+      console.log(`DAO ${daoId}: Progression > 0% (${averageProgress}%) -> EN_COURS`);
     } else {
-      newStatut = 'A_RISQUE';
+      newStatut = 'A_RISQUE';    // Aucune tâche commencée
+      console.log(`DAO ${daoId}: Aucune progression (0%) -> A_RISQUE`);
     }
 
     // 5. Mettre à jour si changement
@@ -150,6 +156,7 @@ async function updateDaoStatus(daoId: number) {
       console.log(`Statut du DAO ${daoId} mis à jour: ${currentStatut} -> ${newStatut} (progression: ${averageProgress}%)`);
     }
 
+    console.log(`=== FIN VÉRIFICATION STATUT DAO ===`);
     console.log(`DAO ${daoId}: progression=${averageProgress}%, statut=${newStatut}, tâches complétées=${completedTasks.length}/${allTasks.length}`);
   } catch (error) {
     console.error('Erreur lors de la mise à jour du statut du DAO:', error);

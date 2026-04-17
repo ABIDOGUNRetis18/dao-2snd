@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Search, ArrowLeft, Trash2, Edit, Archive, Users } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 interface DAO {
   id: number
@@ -17,6 +17,7 @@ interface DAO {
 }
 
 export default function AllDAOs() {
+  const navigate = useNavigate()
   const [daos, setDaos] = useState<DAO[]>([])
   const [daoTasks, setDaoTasks] = useState<{[key: number]: any[]}>({})
   const [daoMembers, setDaoMembers] = useState<{[key: number]: any[]}>({})
@@ -228,7 +229,7 @@ export default function AllDAOs() {
   }
 
   const handleEdit = (daoId: number) => {
-    window.location.href = `/admin/edit-dao/${daoId}`
+    navigate(`/admin/edit-dao/${daoId}`)
   }
 
   const handleArchive = async (daoId: number) => {
@@ -302,19 +303,19 @@ export default function AllDAOs() {
       {/* DAO Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {loading ? (
-          <div key="loading" className="col-span-full text-center py-12">
+          <div className="col-span-full text-center py-12">
             <div className="text-slate-500">Chargement...</div>
           </div>
         ) : filteredDaos.length === 0 ? (
-          <div key="no-results" className="col-span-full text-center py-12">
+          <div className="col-span-full text-center py-12">
             <div className="text-slate-500">Aucun DAO trouvé.</div>
           </div>
         ) : (
           filteredDaos.map((dao) => (
             <div 
-              key={`dao-${dao.id}`} 
+              key={dao.id} 
               className="bg-white rounded border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-blue-300 overflow-hidden"
-              onClick={() => window.location.href = `/admin/dao/${dao.id}/details`}
+              onClick={() => navigate(`/admin/dao/${dao.id}/details`)}
             >
               {/* Header minimal */}
               <div className="p-2 border-b border-slate-100">
@@ -399,7 +400,7 @@ export default function AllDAOs() {
                 </div>
                 
                 <button 
-                  onClick={() => window.location.href = `/admin/dao/${dao.id}/details`}
+                  onClick={() => navigate(`/admin/dao/${dao.id}/details`)}
                   className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs py-1 px-1.5 rounded transition-colors flex items-center justify-center gap-0.5"
                   title="Voir détails"
                 >
