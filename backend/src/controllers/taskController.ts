@@ -350,12 +350,16 @@ export async function updateTaskStatus(req: AuthenticatedRequest, res: Response)
 
     const currentTask = currentTaskResult.rows[0];
 
-    // Vérifier si l'utilisateur est assigné à la tâche
+    // Vérifier si l'utilisateur est assigné à la tâche ou si c'est un admin
     const isAssigned = await isTaskAssigned(Number(taskId), userId);
-    if (!isAssigned) {
+    const userResult = await query('SELECT role_id FROM users WHERE id = $1', [userId]);
+    const userRole = userResult.rows[0]?.role_id;
+    
+    // Les admins (role_id = 2) peuvent modifier toutes les tâches
+    if (!isAssigned && userRole !== 2) {
       return res.status(403).json({
         success: false,
-        message: 'Seul le membre assigné à cette tâche peut la modifier'
+        message: 'Seul le membre assigné à cette tâche ou un administrateur peut la modifier'
       });
     }
 
@@ -400,11 +404,18 @@ export async function updateTaskStatus(req: AuthenticatedRequest, res: Response)
       });
     }
 
+    const updatedTask = result.rows[0];
+
+    // Vérifier automatiquement si le DAO doit être marqué comme terminé
+    if (updatedTask.dao_id) {
+      await checkAndUpdateDaoStatus(updatedTask.dao_id);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Statut de la tâche mis à jour avec succès',
       data: {
-        task: result.rows[0]
+        task: updatedTask
       }
     });
   } catch (error) {
@@ -451,12 +462,16 @@ export async function updateTaskProgress(req: AuthenticatedRequest, res: Respons
 
     const currentTask = currentTaskResult.rows[0];
 
-    // Vérifier si l'utilisateur est assigné à la tâche
+    // Vérifier si l'utilisateur est assigné à la tâche ou si c'est un admin
     const isAssigned = await isTaskAssigned(Number(taskId), userId);
-    if (!isAssigned) {
+    const userResult = await query('SELECT role_id FROM users WHERE id = $1', [userId]);
+    const userRole = userResult.rows[0]?.role_id;
+    
+    // Les admins (role_id = 2) peuvent modifier toutes les tâches
+    if (!isAssigned && userRole !== 2) {
       return res.status(403).json({
         success: false,
-        message: 'Seul le membre assigné à cette tâche peut la modifier'
+        message: 'Seul le membre assigné à cette tâche ou un administrateur peut la modifier'
       });
     }
 
@@ -499,11 +514,18 @@ export async function updateTaskProgress(req: AuthenticatedRequest, res: Respons
       });
     }
 
+    const updatedTask = result.rows[0];
+
+    // Vérifier automatiquement si le DAO doit être marqué comme terminé
+    if (updatedTask.dao_id) {
+      await checkAndUpdateDaoStatus(updatedTask.dao_id);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Progression de la tâche mise à jour avec succès',
       data: {
-        task: result.rows[0]
+        task: updatedTask
       }
     });
   } catch (error) {

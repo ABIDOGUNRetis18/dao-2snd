@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, ArrowLeft, Calendar, FileText, Users } from 'lucide-react'
+import { Search, ArrowLeft, Calendar, FileText } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 interface FinishedDAO {
@@ -83,13 +83,7 @@ export default function FinishedDAOHistory() {
     return diffDays
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(amount)
-  }
-
+  
   return (
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="max-w-6xl mx-auto">
@@ -145,9 +139,6 @@ export default function FinishedDAOHistory() {
                       Objet
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Équipe
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                       Chef de projet
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
@@ -161,9 +152,6 @@ export default function FinishedDAOHistory() {
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
                       Statut
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Montant total
                     </th>
                   </tr>
                 </thead>
@@ -190,12 +178,6 @@ export default function FinishedDAOHistory() {
                           {dao.objet}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center text-sm text-slate-600">
-                          <Users className="h-4 w-4 text-slate-400 mr-2" />
-                          {dao.equipe}
-                        </div>
-                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
                         {dao.chef_projet}
                       </td>
@@ -218,9 +200,6 @@ export default function FinishedDAOHistory() {
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(dao.statut)}`}>
                           {getStatusLabel(dao.statut)}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
-                        {dao.montant_total ? formatCurrency(dao.montant_total) : '-'}
                       </td>
                     </tr>
                   ))}

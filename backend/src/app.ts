@@ -71,6 +71,14 @@ app.use('/api/task', taskModelRoutes);
 app.use('/api/chef-teams', chefTeamsRoutes);
 app.use('/api/member-tasks', memberTasksRoutes);
 
+// Routes de test pour la synchronisation du statut
+import statusTestRoutes from './routes/statusTest';
+app.use('/api/status-test', statusTestRoutes);
+
+// Routes de mise à jour massive des statuts
+import batchStatusRoutes from './routes/batchStatus';
+app.use('/api/batch-status', batchStatusRoutes);
+
 // Route de test
 app.get('/api/test', (req, res) => {
   res.json({
