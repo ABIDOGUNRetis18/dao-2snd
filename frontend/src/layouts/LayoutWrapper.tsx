@@ -30,7 +30,6 @@ const menuItemsByRole: Record<number, MenuItem[]> = {
     { path: '/chef-projet/mes-daos', label: 'Mes DAO', icon: 'folder_shared' },
     { path: '/chef-projet/mes-equipes', label: 'Mes équipes', icon: 'groups' },
     { path: '/chef-projet/mes-taches', label: 'Mes tâches', icon: 'assignment' },
-    { path: '/chef-projet/history', label: 'Historique', icon: 'history' },
   ],
   4: [
     { path: '/membre-equipe', label: 'Tableau de bord', icon: 'dashboard' },

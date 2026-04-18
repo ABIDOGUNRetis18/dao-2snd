@@ -149,30 +149,7 @@ export default function MesDAOs() {
     return 'bg-gray-400'
   }
 
-  const handleEdit = (daoId: number) => {
-    navigate(`/chef-projet/dao/${daoId}/edit`)
-  }
-
-  const handleDelete = async (daoId: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce DAO ?')) return
-    
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`http://localhost:3001/api/dao/${daoId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      
-      if (response.ok) {
-        loadDaos()
-      }
-    } catch (error) {
-      console.error('Erreur lors de la suppression du DAO:', error)
-    }
-  }
-
+  
   
   
   // Filtrage des DAO
@@ -291,46 +268,20 @@ export default function MesDAOs() {
               </div>
               
               {/* Actions simplifiées pour chef-projet */}
-              <div className="p-2 border-t border-slate-100 bg-slate-50">
-                <div className="flex gap-1">
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      navigate(`/chef-projet/dao/${dao.id}/tasks`)
-                    }}
-                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs py-1 px-1.5 rounded transition-colors flex items-center justify-center gap-0.5"
-                    title="Voir détails"
-                  >
-                    Détails
-                    <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
-                    </svg>
-                  </button>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleEdit(dao.id)
-                    }}
-                    className="flex-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs py-1 px-1.5 rounded transition-colors"
-                    title="Modifier"
-                  >
-                    <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </button>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDelete(dao.id)
-                    }}
-                    className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs py-1 px-1.5 rounded transition-colors"
-                    title="Supprimer"
-                  >
-                    <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
+              <div className="p-3 border-t border-slate-100 bg-slate-50">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    navigate(`/chef-projet/dao/${dao.id}/tasks`)
+                  }}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm py-2 px-3 rounded-lg transition-colors flex items-center justify-center gap-2 font-medium"
+                  title="Voir détails"
+                >
+                  Détails
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7-7" />
+                  </svg>
+                </button>
               </div>
             </div>
           ))
