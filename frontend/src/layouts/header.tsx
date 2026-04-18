@@ -3,17 +3,11 @@ import { useAuth } from '../contexts/AuthContext'
 interface AppHeaderProps {
   title?: string
   subtitle?: string
-  searchTerm?: string
-  onSearchChange?: (searchTerm: string) => void
-  showSearch?: boolean
 }
 
 export default function AppHeader({ 
   title = "Tableau de bord", 
-  subtitle = "Vue d'ensemble",
-  searchTerm = "",
-  onSearchChange,
-  showSearch = true 
+  subtitle = "Vue d'ensemble"
 }: AppHeaderProps) {
   const { user } = useAuth()
 
@@ -36,26 +30,10 @@ export default function AppHeader({
         <h2 className="font-headline font-bold tracking-tight text-blue-900 text-xl">{title}</h2>
         <p className="text-xs text-slate-500">{subtitle}</p>
       </div>
-      <div className="flex items-center gap-6">
-        {showSearch && (
-          <div className="relative">
-            <input
-              className="bg-surface-container-low border-none rounded-full py-2 pl-10 pr-4 text-sm w-64 focus:ring-2 focus:ring-primary"
-              placeholder="Rechercher..."
-              type="text"
-              value={searchTerm}
-              onChange={(e) => onSearchChange?.(e.target.value)}
-            />
-            <span className="material-symbols-outlined absolute left-3 top-2 text-slate-400 text-sm">search</span>
-          </div>
-        )}
-        <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4">
           <button className="p-2 text-slate-500 hover:bg-slate-200/50 rounded-full transition-colors relative">
             <span className="material-symbols-outlined">notifications</span>
             <span className="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full"></span>
-          </button>
-          <button className="p-2 text-slate-500 hover:bg-slate-200/50 rounded-full transition-colors">
-            <span className="material-symbols-outlined">settings</span>
           </button>
           <div className="flex items-center gap-3 ml-2 border-l border-slate-200 pl-6">
             <div className="text-right">
@@ -69,7 +47,6 @@ export default function AppHeader({
             </div>
           </div>
         </div>
-      </div>
     </header>
   )
 }

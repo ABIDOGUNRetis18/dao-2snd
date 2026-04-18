@@ -3,7 +3,6 @@ import { computeAdminStatus } from "../../utils/statusUtils";
 
 export default function AdminDashboard() {
   const [daoData, setDaoData] = useState<any[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
 
   // Fonction getDAOStatus - Utilise maintenant le statut de la base de données via computeAdminStatus
   const getDAOStatus = (dao: any) => {
@@ -27,16 +26,7 @@ export default function AdminDashboard() {
     }).length,
   };
 
-  // Filtrer les DAOs selon le terme de recherche
-  const filteredDaos = daoData.filter(
-    (dao) =>
-      dao.numero?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dao.objet?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dao.reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dao.autorite?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dao.chef_projet_nom?.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
-
+  
   useEffect(() => {
     // Charger les données des DAOs
     const fetchDAOs = async () => {
@@ -60,34 +50,13 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-6">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Tableau de bord Administrateur
-        </h1>
-        <p className="text-gray-600">
-          Vue d'ensemble de tous les DAOs et leur état d'avancement
-        </p>
-      </div>
-
-      {/* Search Bar */}
-      <div className="mb-6">
-        <input
-          type="text"
-          placeholder="Rechercher..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full md:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-
       {/* DAO List Title */}
       <div className="mb-6">
         <h2 className="text-xl font-headline font-bold text-blue-900">Liste des DAOs</h2>
       </div>
 
       {/* Stats Section */}
-      <section className="grid grid-cols-1 md:grid-cols-4 gap-6 -mt-2">
+      <section className="grid grid-cols-1 md:grid-cols-4 gap-6 -mt-4">
         {/* Card 1 */}
         <div className="bg-blue-600 p-6 rounded-xl border-b-4 border-blue-800 flex justify-between items-start shadow-lg">
           <div>
@@ -135,7 +104,7 @@ export default function AdminDashboard() {
       </section>
 
       {/* Table Section */}
-      <section className="mt-12">
+      <section className="mt-16 space-y-6">
         <div className="bg-surface-container-lowest rounded-xl overflow-hidden">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -151,19 +120,17 @@ export default function AdminDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredDaos.length === 0 ? (
+              {daoData.length === 0 ? (
                 <tr>
                   <td
                     colSpan={8}
                     className="px-6 py-4 text-center text-sm text-gray-500"
                   >
-                    {searchTerm
-                      ? "Aucun DAO trouvé pour cette recherche"
-                      : "Aucun DAO disponible"}
+                    Aucun DAO disponible
                   </td>
                 </tr>
               ) : (
-                filteredDaos.map((dao: any, index: number) => (
+                daoData.map((dao: any, index: number) => (
                   <tr key={index} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-5">
                       <span className="font-bold text-blue-900 text-sm">{dao.numero}</span>

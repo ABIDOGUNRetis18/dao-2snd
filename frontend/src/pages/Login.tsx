@@ -88,43 +88,12 @@ export default function Login() {
     }
   }
 
-  const handleDemoLogin = (demoUsername: string, demoPassword: string) => {
-    setUsername(demoUsername)
-    setPassword(demoPassword)
-  }
-
+  
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-surface text-on-surface">
-      {/* Left Section: Visual Narrative */}
-      <section className="hidden md:flex md:w-1/2 relative overflow-hidden bg-surface-container">
-        <img 
-          alt="Modern corporate office lobby" 
-          className="absolute inset-0 w-full h-full object-cover" 
-          src="https://lh3.googleusercontent.com/aida-public/AB6AXuBUpkILUw87ZsXWKuYveDkAnNSpd10ApZabn_zQ1JFBa47iACJIltR3B5FDxAH_zYMD0V_F0daWEYzp_Rc8jIbplcZF4ALiG6Fomn2c_6Lv8GjwPFZ55y65M1R5w9U1O7XCXHdTH3TPB2YhZdxOgCTYpLdTIAlHU-0PjOK9rckKvHk02bFyIAoww1CXxT8fmbIXW3zduo3aq172sXEEVkBbC_DCgFyPzgv9eVL4AFSSziac3wgBL-qzIxUmY2hsSI6uQgo1JOz2BDk"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
-        <div className="relative z-10 flex flex-col justify-between p-16 w-full text-white">
-          <div>
-            <span className="text-xs font-bold tracking-[0.3em] uppercase opacity-90 mb-4 block drop-shadow-md">Ingénierie de Précision</span>
-            <h1 className="text-5xl lg:text-7xl font-bold leading-tight tracking-tighter drop-shadow-lg">
-              Innovant le <br/>
-              <span className="text-secondary-fixed">Futur.</span>
-            </h1>
-          </div>
-          <div className="max-w-md">
-            <p className="text-lg opacity-95 font-light leading-relaxed mb-8 drop-shadow-md">
-              2SND Technologies fournit des solutions de qualité industrielle pour les défis d'ingénierie complexes. Accédez à votre tableau de bord pour gérer les instruments de précision et les données en temps réel.
-            </p>
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-[2px] bg-secondary"></div>
-              <span className="text-sm font-semibold tracking-widest uppercase drop-shadow-sm">Portail Membre</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Right Section: Login Interface */}
-      <section className="w-full md:w-1/2 flex items-center justify-center bg-surface px-8 py-12 md:px-24">
+    <div className="min-h-screen flex items-center justify-center bg-surface text-on-surface">
+      
+      {/* Login Interface */}
+      <section className="w-full max-w-md px-8 py-12">
         <div className="w-full max-w-[440px]">
           {/* Brand Anchor */}
           <div className="mb-12">
@@ -133,8 +102,6 @@ export default function Login() {
               className="h-10 mb-8" 
               src="https://lh3.googleusercontent.com/aida-public/AB6AXuCD9u9eksxnhsui0mQ7c-L_Dcx-pj9DFBtbum_BI5tBakeq9RyvjoiqAp4Jh8nkurMs320e6_jOStGpUa0crZGlpN9kvfXg-MBFYZUTcBCp85QPFvQqb-UMXt_eSAXu8Dx0XO7OaAFghtLEaDMIcFnWEck6jwEuBN1m7QwPyZuqpARxCMAOoAOncM_p_6sKhiqadCfue0WsZ1IyIZQa_nXNylJIINWEWJPoYCG4khbHFygkwcRpLauKYmSFKQIHaeP9wlrAHI0RLSs"
             />
-            <h2 className="text-3xl font-bold text-on-surface tracking-tight mb-2">Bon Retour</h2>
-            <p className="text-on-surface-variant font-medium opacity-70">Entrez vos identifiants pour accéder à votre espace de travail sécurisé.</p>
           </div>
 
           {/* Error message */}
@@ -231,29 +198,7 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Demo Access */}
-          <div className="mt-12 pt-10 border-t border-outline-variant/30">
-            <h3 className="text-[10px] font-bold tracking-[0.2em] text-outline uppercase mb-6">Environnements de Démonstration</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <button 
-                type="button"
-                onClick={() => handleDemoLogin('jdupont', 'directeur123')}
-                className="flex flex-col items-start p-4 rounded-xl bg-surface-container-low hover:bg-surface-container-high transition-colors text-left group"
-              >
-                <span className="text-xs font-bold text-on-surface mb-1">Ingénieur Principal</span>
-                <span className="text-[10px] text-on-surface-variant opacity-60">jdupont@2snd.com</span>
-              </button>
-              <button 
-                type="button"
-                onClick={() => handleDemoLogin('admin', 'admin123')}
-                className="flex flex-col items-start p-4 rounded-xl bg-surface-container-low hover:bg-surface-container-high transition-colors text-left group"
-              >
-                <span className="text-xs font-bold text-on-surface mb-1">Administrateur Système</span>
-                <span className="text-[10px] text-on-surface-variant opacity-60">admin@2snd.com</span>
-              </button>
-            </div>
-          </div>
-
+          
           {/* Footer Links */}
           <footer className="mt-12 flex justify-between items-center text-[11px] text-on-surface-variant opacity-50 font-medium">
             <p>© 2024 2SND Technologies</p>
