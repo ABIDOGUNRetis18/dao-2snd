@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Search, MessageSquare, User, CheckCircle, Clock, AlertCircle } from 'lucide-react'
+import { Search, User, Clock, CheckCircle, MessageSquare, AlertCircle } from 'lucide-react'
 import { computeStatusFromProgress } from '../../utils/daoStatusUtils'
 
 interface Task {
@@ -212,65 +212,61 @@ export default function MembreEquipe() {
 
         {/* Cartes de statistiques */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 mb-1">Tâches totales</p>
-                <p className="text-2xl font-bold text-gray-900">{totalTasks}</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <MessageSquare className="w-6 h-6 text-blue-600" />
-              </div>
+          <div className="bg-white p-6 rounded-xl border-b-4 border-blue-600 flex justify-between items-start shadow-sm">
+            <div>
+              <p className="text-xs font-bold text-slate-500 mb-1">Tâches totales</p>
+              <h3 className="text-3xl font-bold text-blue-900">{totalTasks}</h3>
+              <p className="text-xs text-blue-600 mt-2 font-semibold">Charge de travail</p>
+            </div>
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
+              <MessageSquare className="w-6 h-6" />
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 mb-1">Terminées</p>
-                <p className="text-2xl font-bold text-green-600">{completedTasks}</p>
-              </div>
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-green-600" />
-              </div>
+          <div className="bg-white p-6 rounded-xl border-b-4 border-green-500 flex justify-between items-start shadow-sm">
+            <div>
+              <p className="text-xs font-bold text-slate-500 mb-1">Terminées</p>
+              <h3 className="text-3xl font-bold text-slate-900">{completedTasks}</h3>
+              <p className="text-xs text-green-600 mt-2 font-semibold">Objectifs atteints</p>
+            </div>
+            <div className="p-3 bg-green-50 text-green-600 rounded-lg">
+              <CheckCircle className="w-6 h-6" />
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 mb-1">En cours</p>
-                <p className="text-2xl font-bold text-blue-600">{inProgressTasks}</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Clock className="w-6 h-6 text-blue-600" />
-              </div>
+          <div className="bg-white p-6 rounded-xl border-b-4 border-orange-500 flex justify-between items-start shadow-sm">
+            <div>
+              <p className="text-xs font-bold text-slate-500 mb-1">En cours</p>
+              <h3 className="text-3xl font-bold text-slate-900">{inProgressTasks}</h3>
+              <p className="text-xs text-slate-400 mt-2 font-semibold">Processus actifs</p>
+            </div>
+            <div className="p-3 bg-orange-50 text-orange-500 rounded-lg">
+              <Clock className="w-6 h-6" />
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 mb-1">En attente</p>
-                <p className="text-2xl font-bold text-orange-600">{pendingTasks}</p>
-              </div>
-              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-orange-600" />
-              </div>
+          <div className="bg-white p-6 rounded-xl border-b-4 border-red-500 flex justify-between items-start shadow-sm">
+            <div>
+              <p className="text-xs font-bold text-slate-500 mb-1">En attente</p>
+              <h3 className="text-3xl font-bold text-slate-900">{pendingTasks}</h3>
+              <p className="text-xs text-slate-400 mt-2 font-semibold">À démarrer</p>
+            </div>
+            <div className="p-3 bg-red-50 text-red-500 rounded-lg">
+              <AlertCircle className="w-6 h-6" />
             </div>
           </div>
         </div>
 
-        {/* Recherche */}
-        <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+        {/* Search Bar */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8">
+          <div className="flex items-center gap-3">
+            <Search className="h-5 w-5 text-slate-400" />
             <input
               type="text"
               placeholder="Rechercher un DAO..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
         </div>

@@ -22,7 +22,7 @@ const roleLabels: { [key: number]: string } = {
 }
 
 const roleOptions = [
-  { value: 1, label: 'Directeur General' },
+  { value: 1, label: 'Directeur Général' },
   { value: 2, label: 'Administrateur' },
   { value: 3, label: 'Chef de Projet' },
   { value: 4, label: 'Membre d\'équipe' },
@@ -495,7 +495,7 @@ export default function CreateUser() {
                             {user.username}
                             {user.id === 1 && (
                               <span className="px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded-full">
-                                Admin Principal
+                                Administrateur Principal
                               </span>
                             )}
                           </div>

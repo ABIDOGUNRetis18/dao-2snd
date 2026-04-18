@@ -148,46 +148,50 @@ export default function DirecteurGeneral() {
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-lg font-semibold text-slate-800">Total DAO</h3>
-              <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center">
-                <FileText className="h-6 w-6 text-blue-600" />
-              </div>
+          <div className="bg-white p-6 rounded-xl border-b-4 border-blue-600 flex justify-between items-start shadow-sm">
+            <div>
+              <p className="text-xs font-bold text-slate-500 mb-1">Total DAO</p>
+              <h3 className="text-3xl font-bold text-blue-900">{stats.totalDaos}</h3>
+              <p className="text-xs text-blue-600 mt-2 font-semibold">Projets totaux</p>
             </div>
-            <p className="text-3xl font-bold text-blue-600">{stats.totalDaos}</p>
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
+              <FileText className="h-6 w-6" />
+            </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-lg font-semibold text-slate-800">Utilisateurs</h3>
-              <div className="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center">
-                <Users className="h-6 w-6 text-green-600" />
-              </div>
+          <div className="bg-white p-6 rounded-xl border-b-4 border-green-500 flex justify-between items-start shadow-sm">
+            <div>
+              <p className="text-xs font-bold text-slate-500 mb-1">Utilisateurs</p>
+              <h3 className="text-3xl font-bold text-slate-900">{stats.totalUsers}</h3>
+              <p className="text-xs text-green-600 mt-2 font-semibold">Équipe active</p>
             </div>
-            <p className="text-3xl font-bold text-green-600">{stats.totalUsers}</p>
+            <div className="p-3 bg-green-50 text-green-600 rounded-lg">
+              <Users className="h-6 w-6" />
+            </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-lg font-semibold text-slate-800">Projets Actifs</h3>
-              <div className="w-12 h-12 bg-purple-50 rounded-full flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-purple-600" />
-              </div>
+          <div className="bg-white p-6 rounded-xl border-b-4 border-purple-500 flex justify-between items-start shadow-sm">
+            <div>
+              <p className="text-xs font-bold text-slate-500 mb-1">Projets Actifs</p>
+              <h3 className="text-3xl font-bold text-slate-900">{stats.activeProjects}</h3>
+              <p className="text-xs text-purple-600 mt-2 font-semibold">En cours</p>
             </div>
-            <p className="text-3xl font-bold text-purple-600">{stats.activeProjects}</p>
+            <div className="p-3 bg-purple-50 text-purple-600 rounded-lg">
+              <TrendingUp className="h-6 w-6" />
+            </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-lg font-semibold text-slate-800">Taux de Réussite</h3>
-              <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center">
-                <BarChart3 className="h-6 w-6 text-emerald-600" />
-              </div>
+          <div className="bg-white p-6 rounded-xl border-b-4 border-emerald-500 flex justify-between items-start shadow-sm">
+            <div>
+              <p className="text-xs font-bold text-slate-500 mb-1">Taux de Réussite</p>
+              <h3 className="text-3xl font-bold text-slate-900">
+                {stats.totalDaos > 0 ? Math.round((stats.completedTasks / stats.totalDaos) * 100) : 0}%
+              </h3>
+              <p className="text-xs text-emerald-600 mt-2 font-semibold">Performance</p>
             </div>
-            <p className="text-3xl font-bold text-emerald-600">
-              {stats.totalDaos > 0 ? Math.round((stats.completedTasks / stats.totalDaos) * 100) : 0}%
-            </p>
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
+              <BarChart3 className="h-6 w-6" />
+            </div>
           </div>
         </div>
 

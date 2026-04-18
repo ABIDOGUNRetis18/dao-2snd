@@ -65,8 +65,15 @@ export async function updateTaskProgress(req: Request, res: Response) {
       updateQuery += ` progress = $${paramIndex}`;
       queryParams.push(progress);
       paramIndex++;
-      
-      // Mettre à jour automatiquement le statut en fonction de la progression
+    }
+
+    if (statut) {
+      if (paramIndex > 1) updateQuery += ',';
+      updateQuery += ` statut = $${paramIndex}`;
+      queryParams.push(statut);
+      paramIndex++;
+    } else if (progress !== undefined) {
+      // Mettre à jour automatiquement le statut en fonction de la progression seulement si aucun statut explicite n'est fourni
       if (paramIndex > 1) updateQuery += ',';
       updateQuery += ` statut = CASE 
         WHEN $${paramIndex} = 100 THEN 'termine' 
@@ -75,13 +82,6 @@ export async function updateTaskProgress(req: Request, res: Response) {
       END`;
       paramIndex++;
       queryParams.push(progress);
-    }
-
-    if (statut) {
-      if (paramIndex > 1) updateQuery += ',';
-      updateQuery += ` statut = $${paramIndex}`;
-      queryParams.push(statut);
-      paramIndex++;
     }
 
     updateQuery += `, updated_at = CURRENT_TIMESTAMP WHERE id = $${paramIndex} RETURNING *`;

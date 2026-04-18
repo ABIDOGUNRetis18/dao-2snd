@@ -116,13 +116,7 @@ export default function ChefProjetDashboard() {
     atRiskDaos: daos.filter(d => d.statut === 'A_RISQUE').length
   };
 
-  const statsDisplay = [
-    { label: 'Total DAOs', value: stats.totalDaos, icon: Calendar, color: 'bg-blue-500' },
-    { label: 'Terminés', value: stats.completedDaos, icon: CheckSquare, color: 'bg-green-500' },
-    { label: 'En cours', value: stats.inProgressDaos, icon: Hourglass, color: 'bg-yellow-500' },
-    { label: 'À risque', value: stats.atRiskDaos, icon: AlertTriangle, color: 'bg-red-500' }
-  ];
-
+  
   return (
     <div className="space-y-6">
       {/* Header card */}
@@ -177,20 +171,47 @@ export default function ChefProjetDashboard() {
       </div>
 
       {/* Statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {statsDisplay.map((stat, index) => (
-          <div key={index} className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-600">{stat.label}</p>
-                <p className="text-2xl font-bold text-slate-900">{stat.value}</p>
-              </div>
-              <div className={`p-3 rounded-full ${stat.color}`}>
-                <stat.icon className="h-6 w-6 text-white" />
-              </div>
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="bg-white p-6 rounded-xl border-b-4 border-blue-600 flex justify-between items-start shadow-sm">
+          <div>
+            <p className="text-xs font-bold text-slate-500 mb-1">Total DAOs</p>
+            <h3 className="text-3xl font-bold text-blue-900">{stats.totalDaos}</h3>
+            <p className="text-xs text-blue-600 mt-2 font-semibold">Projets actifs</p>
           </div>
-        ))}
+          <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
+            <Calendar className="h-6 w-6" />
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-xl border-b-4 border-green-500 flex justify-between items-start shadow-sm">
+          <div>
+            <p className="text-xs font-bold text-slate-500 mb-1">Terminés</p>
+            <h3 className="text-3xl font-bold text-slate-900">{stats.completedDaos}</h3>
+            <p className="text-xs text-green-600 mt-2 font-semibold">Objectifs atteints</p>
+          </div>
+          <div className="p-3 bg-green-50 text-green-600 rounded-lg">
+            <CheckSquare className="h-6 w-6" />
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-xl border-b-4 border-orange-500 flex justify-between items-start shadow-sm">
+          <div>
+            <p className="text-xs font-bold text-slate-500 mb-1">En cours</p>
+            <h3 className="text-3xl font-bold text-slate-900">{stats.inProgressDaos}</h3>
+            <p className="text-xs text-slate-400 mt-2 font-semibold">Processus actifs</p>
+          </div>
+          <div className="p-3 bg-orange-50 text-orange-500 rounded-lg">
+            <Hourglass className="h-6 w-6" />
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-xl border-b-4 border-red-500 flex justify-between items-start shadow-sm">
+          <div>
+            <p className="text-xs font-bold text-slate-500 mb-1">À risque</p>
+            <h3 className="text-3xl font-bold text-slate-900">{stats.atRiskDaos}</h3>
+            <p className="text-xs text-slate-400 mt-2 font-semibold">Alertes critiques</p>
+          </div>
+          <div className="p-3 bg-red-50 text-red-500 rounded-lg">
+            <AlertTriangle className="h-6 w-6" />
+          </div>
+        </div>
       </div>
 
       {/* Table */}
