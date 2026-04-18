@@ -368,7 +368,7 @@ export default function MyTasks() {
           <div className="flex items-center gap-4">
             <Link
               to="/admin"
-              className="p-3 text-slate-600 hover:bg-slate-100 rounded-lg transition-all duration-300 shadow-sm hover:shadow-md"
+              className="p-2 text-slate-500 hover:bg-slate-200/50 rounded-full transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />
             </Link>
@@ -378,18 +378,6 @@ export default function MyTasks() {
                 {daoGroups.length} DAO{daoGroups.length > 1 ? 's' : ''} trouvé{daoGroups.length > 1 ? 's' : ''}
               </p>
             </div>
-          </div>
-          <div className="flex items-center gap-4">
-            {user && (
-              <div className="flex items-center gap-2">
-                <div className="text-sm text-slate-600">
-                  Bienvenue, <span className="font-semibold">{user.username}</span>
-                </div>
-                <div className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
-                  Admin
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
