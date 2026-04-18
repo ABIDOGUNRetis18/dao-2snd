@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Search, User, Clock, CheckCircle, MessageSquare, AlertCircle } from 'lucide-react'
+import { Search, User, Clock, MessageSquare } from 'lucide-react'
 import { computeStatusFromProgress } from '../../utils/daoStatusUtils'
 
 interface Task {
@@ -191,68 +191,54 @@ export default function MembreEquipe() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard Membre d'Équipe</h1>
-            <p className="text-gray-600">Bienvenue sur votre espace de travail</p>
-          </div>
-          {currentUser && (
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">{currentUser.username}</p>
-                <p className="text-xs text-gray-500">Membre d'équipe</p>
-              </div>
-              <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-                <User className="w-6 h-6 text-white" />
-              </div>
-            </div>
-          )}
-        </div>
-
+        
         {/* Cartes de statistiques */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-xl border-b-4 border-blue-600 flex justify-between items-start shadow-sm">
+          {/* Card 1 */}
+          <div className="bg-blue-500 p-6 rounded-xl border-b-4 border-blue-600 flex justify-between items-start shadow-lg">
             <div>
-              <p className="text-xs font-bold text-slate-500 mb-1">Tâches totales</p>
-              <h3 className="text-3xl font-bold text-blue-900">{totalTasks}</h3>
-              <p className="text-xs text-blue-600 mt-2 font-semibold">Charge de travail</p>
+              <p className="text-xs font-bold text-blue-100 mb-1">Tâches totales</p>
+              <h3 className="text-3xl font-headline font-bold text-white">{totalTasks}</h3>
+              <p className="text-[10px] text-blue-200 mt-2 font-semibold">Workload total</p>
             </div>
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
-              <MessageSquare className="w-6 h-6" />
+            <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+              <span className="material-symbols-outlined">assignment</span>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-xl border-b-4 border-green-500 flex justify-between items-start shadow-sm">
+          {/* Card 2 */}
+          <div className="bg-green-500 p-6 rounded-xl border-b-4 border-green-600 flex justify-between items-start shadow-lg">
             <div>
-              <p className="text-xs font-bold text-slate-500 mb-1">Terminées</p>
-              <h3 className="text-3xl font-bold text-slate-900">{completedTasks}</h3>
-              <p className="text-xs text-green-600 mt-2 font-semibold">Objectifs atteints</p>
+              <p className="text-xs font-bold text-green-100 mb-1">Terminées</p>
+              <h3 className="text-3xl font-headline font-bold text-white">{completedTasks}</h3>
+              <p className="text-[10px] text-green-200 mt-2 font-semibold">All targets met</p>
             </div>
-            <div className="p-3 bg-green-50 text-green-600 rounded-lg">
-              <CheckCircle className="w-6 h-6" />
+            <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+              <span className="material-symbols-outlined">check_circle</span>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-xl border-b-4 border-orange-500 flex justify-between items-start shadow-sm">
+          {/* Card 3 */}
+          <div className="bg-orange-400 p-6 rounded-xl border-b-4 border-orange-500 flex justify-between items-start shadow-lg">
             <div>
-              <p className="text-xs font-bold text-slate-500 mb-1">En cours</p>
-              <h3 className="text-3xl font-bold text-slate-900">{inProgressTasks}</h3>
-              <p className="text-xs text-slate-400 mt-2 font-semibold">Processus actifs</p>
+              <p className="text-xs font-bold text-orange-100 mb-1">En cours</p>
+              <h3 className="text-3xl font-headline font-bold text-white">{inProgressTasks}</h3>
+              <p className="text-[10px] text-orange-200 mt-2 font-semibold">Active processes</p>
             </div>
-            <div className="p-3 bg-orange-50 text-orange-500 rounded-lg">
-              <Clock className="w-6 h-6" />
+            <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+              <span className="material-symbols-outlined">hourglass_empty</span>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-xl border-b-4 border-red-500 flex justify-between items-start shadow-sm">
+          {/* Card 4 */}
+          <div className="bg-red-400 p-6 rounded-xl border-b-4 border-red-500 flex justify-between items-start shadow-lg">
             <div>
-              <p className="text-xs font-bold text-slate-500 mb-1">En attente</p>
-              <h3 className="text-3xl font-bold text-slate-900">{pendingTasks}</h3>
-              <p className="text-xs text-slate-400 mt-2 font-semibold">À démarrer</p>
+              <p className="text-xs font-bold text-red-100 mb-1">En attente</p>
+              <h3 className="text-3xl font-headline font-bold text-white">{pendingTasks}</h3>
+              <p className="text-[10px] text-red-200 mt-2 font-semibold">Pending tasks</p>
             </div>
-            <div className="p-3 bg-red-50 text-red-500 rounded-lg">
-              <AlertCircle className="w-6 h-6" />
+            <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+              <span className="material-symbols-outlined">pending_actions</span>
             </div>
           </div>
         </div>

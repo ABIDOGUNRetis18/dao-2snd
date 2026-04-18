@@ -173,7 +173,7 @@ export default function ChefProjetDashboard() {
       {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {/* Card 1 */}
-        <div className="bg-blue-600 p-6 rounded-xl border-b-4 border-blue-800 flex justify-between items-start shadow-lg">
+        <div className="bg-blue-500 p-6 rounded-xl border-b-4 border-blue-600 flex justify-between items-start shadow-lg">
           <div>
             <p className="text-xs font-bold text-blue-100 mb-1">Total DAOs</p>
             <h3 className="text-3xl font-headline font-bold text-white">{stats.totalDaos}</h3>
@@ -184,7 +184,7 @@ export default function ChefProjetDashboard() {
           </div>
         </div>
         {/* Card 2 */}
-        <div className="bg-green-600 p-6 rounded-xl border-b-4 border-green-800 flex justify-between items-start shadow-lg">
+        <div className="bg-green-500 p-6 rounded-xl border-b-4 border-green-600 flex justify-between items-start shadow-lg">
           <div>
             <p className="text-xs font-bold text-green-100 mb-1">Terminés</p>
             <h3 className="text-3xl font-headline font-bold text-white">{stats.completedDaos}</h3>
@@ -195,7 +195,7 @@ export default function ChefProjetDashboard() {
           </div>
         </div>
         {/* Card 3 */}
-        <div className="bg-orange-500 p-6 rounded-xl border-b-4 border-orange-700 flex justify-between items-start shadow-lg">
+        <div className="bg-orange-400 p-6 rounded-xl border-b-4 border-orange-500 flex justify-between items-start shadow-lg">
           <div>
             <p className="text-xs font-bold text-orange-100 mb-1">En cours</p>
             <h3 className="text-3xl font-headline font-bold text-white">{stats.inProgressDaos}</h3>
@@ -206,7 +206,7 @@ export default function ChefProjetDashboard() {
           </div>
         </div>
         {/* Card 4 */}
-        <div className="bg-red-500 p-6 rounded-xl border-b-4 border-red-700 flex justify-between items-start shadow-lg">
+        <div className="bg-red-400 p-6 rounded-xl border-b-4 border-red-500 flex justify-between items-start shadow-lg">
           <div>
             <p className="text-xs font-bold text-red-100 mb-1">À risque</p>
             <h3 className="text-3xl font-headline font-bold text-white">{stats.atRiskDaos}</h3>

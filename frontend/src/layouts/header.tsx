@@ -36,14 +36,15 @@ export default function AppHeader({
             <span className="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full"></span>
           </button>
           <div className="flex items-center gap-3 ml-2 border-l border-slate-200 pl-6">
-            <div className="text-right">
-              <p className="text-sm font-bold text-blue-900">{user?.username || 'Admin User'}</p>
-              <p className="text-[10px] text-slate-500 font-medium">{getRoleName(user?.role_id || 2)}</p>
+            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white shadow-sm">
+              <img 
+                src={`https://ui-avatars.com/api/?name=${user?.username || 'User'}&background=3B82F6&color=fff&size=128`}
+                alt="Avatar utilisateur"
+                className="w-full h-full object-cover"
+              />
             </div>
-            <div className="w-10 h-10 rounded-full bg-slate-300 flex items-center justify-center border-2 border-white shadow-sm">
-              <span className="text-slate-600 font-bold text-sm">
-                {user?.username ? getInitial(user.username) : 'A'}
-              </span>
+            <div className="text-right">
+              <p className="text-sm font-medium text-slate-700">{user?.username || 'Utilisateur'}</p>
             </div>
           </div>
         </div>

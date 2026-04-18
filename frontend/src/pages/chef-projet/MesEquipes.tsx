@@ -143,7 +143,7 @@ export default function MesEquipes() {
       {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {/* Card 1 */}
-        <div className="bg-blue-600 p-6 rounded-xl border-b-4 border-blue-800 flex justify-between items-start shadow-lg">
+        <div className="bg-blue-500 p-6 rounded-xl border-b-4 border-blue-600 flex justify-between items-start shadow-lg">
           <div>
             <p className="text-xs font-bold text-blue-100 mb-1">Équipes Totales</p>
             <h3 className="text-3xl font-headline font-bold text-white">{stats.totalTeams}</h3>
@@ -154,7 +154,7 @@ export default function MesEquipes() {
           </div>
         </div>
         {/* Card 2 */}
-        <div className="bg-green-600 p-6 rounded-xl border-b-4 border-green-800 flex justify-between items-start shadow-lg">
+        <div className="bg-green-500 p-6 rounded-xl border-b-4 border-green-600 flex justify-between items-start shadow-lg">
           <div>
             <p className="text-xs font-bold text-green-100 mb-1">Membres Totaux</p>
             <h3 className="text-3xl font-headline font-bold text-white">{stats.totalMembers}</h3>
@@ -165,7 +165,7 @@ export default function MesEquipes() {
           </div>
         </div>
         {/* Card 3 */}
-        <div className="bg-purple-600 p-6 rounded-xl border-b-4 border-purple-800 flex justify-between items-start shadow-lg">
+        <div className="bg-purple-500 p-6 rounded-xl border-b-4 border-purple-600 flex justify-between items-start shadow-lg">
           <div>
             <p className="text-xs font-bold text-purple-100 mb-1">DAOs Assignés</p>
             <h3 className="text-3xl font-headline font-bold text-white">{stats.totalDaos}</h3>
