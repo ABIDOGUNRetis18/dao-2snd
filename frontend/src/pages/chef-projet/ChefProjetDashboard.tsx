@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { SlidersHorizontal, RefreshCw, Calendar, Hourglass, AlertTriangle, CheckSquare } from 'lucide-react'
+import { SlidersHorizontal, RefreshCw } from 'lucide-react'
 
 interface DAO {
   id: number
@@ -172,44 +172,48 @@ export default function ChefProjetDashboard() {
 
       {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-xl border-b-4 border-blue-600 flex justify-between items-start shadow-sm">
+        {/* Card 1 */}
+        <div className="bg-blue-600 p-6 rounded-xl border-b-4 border-blue-800 flex justify-between items-start shadow-lg">
           <div>
-            <p className="text-xs font-bold text-slate-500 mb-1">Total DAOs</p>
-            <h3 className="text-3xl font-bold text-blue-900">{stats.totalDaos}</h3>
-            <p className="text-xs text-blue-600 mt-2 font-semibold">Projets actifs</p>
+            <p className="text-xs font-bold text-blue-100 mb-1">Total DAOs</p>
+            <h3 className="text-3xl font-headline font-bold text-white">{stats.totalDaos}</h3>
+            <p className="text-[10px] text-blue-200 mt-2 font-semibold">Active projects</p>
           </div>
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
-            <Calendar className="h-6 w-6" />
+          <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+            <span className="material-symbols-outlined">calendar_today</span>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-xl border-b-4 border-green-500 flex justify-between items-start shadow-sm">
+        {/* Card 2 */}
+        <div className="bg-green-600 p-6 rounded-xl border-b-4 border-green-800 flex justify-between items-start shadow-lg">
           <div>
-            <p className="text-xs font-bold text-slate-500 mb-1">Terminés</p>
-            <h3 className="text-3xl font-bold text-slate-900">{stats.completedDaos}</h3>
-            <p className="text-xs text-green-600 mt-2 font-semibold">Objectifs atteints</p>
+            <p className="text-xs font-bold text-green-100 mb-1">Terminés</p>
+            <h3 className="text-3xl font-headline font-bold text-white">{stats.completedDaos}</h3>
+            <p className="text-[10px] text-green-200 mt-2 font-semibold">All targets met</p>
           </div>
-          <div className="p-3 bg-green-50 text-green-600 rounded-lg">
-            <CheckSquare className="h-6 w-6" />
+          <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+            <span className="material-symbols-outlined">check_circle</span>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-xl border-b-4 border-orange-500 flex justify-between items-start shadow-sm">
+        {/* Card 3 */}
+        <div className="bg-orange-500 p-6 rounded-xl border-b-4 border-orange-700 flex justify-between items-start shadow-lg">
           <div>
-            <p className="text-xs font-bold text-slate-500 mb-1">En cours</p>
-            <h3 className="text-3xl font-bold text-slate-900">{stats.inProgressDaos}</h3>
-            <p className="text-xs text-slate-400 mt-2 font-semibold">Processus actifs</p>
+            <p className="text-xs font-bold text-orange-100 mb-1">En cours</p>
+            <h3 className="text-3xl font-headline font-bold text-white">{stats.inProgressDaos}</h3>
+            <p className="text-[10px] text-orange-200 mt-2 font-semibold">Active processes</p>
           </div>
-          <div className="p-3 bg-orange-50 text-orange-500 rounded-lg">
-            <Hourglass className="h-6 w-6" />
+          <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+            <span className="material-symbols-outlined">hourglass_empty</span>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-xl border-b-4 border-red-500 flex justify-between items-start shadow-sm">
+        {/* Card 4 */}
+        <div className="bg-red-500 p-6 rounded-xl border-b-4 border-red-700 flex justify-between items-start shadow-lg">
           <div>
-            <p className="text-xs font-bold text-slate-500 mb-1">À risque</p>
-            <h3 className="text-3xl font-bold text-slate-900">{stats.atRiskDaos}</h3>
-            <p className="text-xs text-slate-400 mt-2 font-semibold">Alertes critiques</p>
+            <p className="text-xs font-bold text-red-100 mb-1">À risque</p>
+            <h3 className="text-3xl font-headline font-bold text-white">{stats.atRiskDaos}</h3>
+            <p className="text-[10px] text-red-200 mt-2 font-semibold">Critical alerts</p>
           </div>
-          <div className="p-3 bg-red-50 text-red-500 rounded-lg">
-            <AlertTriangle className="h-6 w-6" />
+          <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+            <span className="material-symbols-outlined">error</span>
           </div>
         </div>
       </div>

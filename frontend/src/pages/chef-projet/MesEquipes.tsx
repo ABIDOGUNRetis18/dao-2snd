@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Users, TrendingUp, User, Search, ChevronRight } from 'lucide-react'
+import { Users, User, Search, ChevronRight } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
 interface TeamMember {
@@ -142,31 +142,37 @@ export default function MesEquipes() {
 
       {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center">
-            <Users className="h-4 w-4 text-blue-600" />
-            <div className="ml-3">
-              <p className="text-xl font-bold text-gray-900">{stats.totalTeams}</p>
-              <p className="text-sm text-gray-600">Équipes Totales</p>
-            </div>
+        {/* Card 1 */}
+        <div className="bg-blue-600 p-6 rounded-xl border-b-4 border-blue-800 flex justify-between items-start shadow-lg">
+          <div>
+            <p className="text-xs font-bold text-blue-100 mb-1">Équipes Totales</p>
+            <h3 className="text-3xl font-headline font-bold text-white">{stats.totalTeams}</h3>
+            <p className="text-[10px] text-blue-200 mt-2 font-semibold">Team units</p>
+          </div>
+          <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+            <span className="material-symbols-outlined">groups</span>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center">
-            <User className="h-4 w-4 text-green-600" />
-            <div className="ml-3">
-              <p className="text-xl font-bold text-gray-900">{stats.totalMembers}</p>
-              <p className="text-sm text-gray-600">Membres Totaux</p>
-            </div>
+        {/* Card 2 */}
+        <div className="bg-green-600 p-6 rounded-xl border-b-4 border-green-800 flex justify-between items-start shadow-lg">
+          <div>
+            <p className="text-xs font-bold text-green-100 mb-1">Membres Totaux</p>
+            <h3 className="text-3xl font-headline font-bold text-white">{stats.totalMembers}</h3>
+            <p className="text-[10px] text-green-200 mt-2 font-semibold">Team members</p>
+          </div>
+          <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+            <span className="material-symbols-outlined">person</span>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <div className="flex items-center">
-            <TrendingUp className="h-4 w-4 text-purple-600" />
-            <div className="ml-3">
-              <p className="text-xl font-bold text-gray-900">{stats.totalDaos}</p>
-              <p className="text-sm text-gray-600">DAOs Assignés</p>
-            </div>
+        {/* Card 3 */}
+        <div className="bg-purple-600 p-6 rounded-xl border-b-4 border-purple-800 flex justify-between items-start shadow-lg">
+          <div>
+            <p className="text-xs font-bold text-purple-100 mb-1">DAOs Assignés</p>
+            <h3 className="text-3xl font-headline font-bold text-white">{stats.totalDaos}</h3>
+            <p className="text-[10px] text-purple-200 mt-2 font-semibold">Active projects</p>
+          </div>
+          <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+            <span className="material-symbols-outlined">trending_up</span>
           </div>
         </div>
       </div>
