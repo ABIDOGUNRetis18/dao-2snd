@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { computeStatusFromProgress } from '../../utils/daoStatusUtils'
 
 interface DAO {
   id: number
@@ -24,10 +25,20 @@ export default function MesDAOs() {
   const navigate = useNavigate()
   const [daos, setDaos] = useState<DAO[]>([])
   const [daoTasks, setDaoTasks] = useState<{[key: number]: any[]}>({})
+  const [allTasks, setAllTasks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statutFilter, setStatutFilter] = useState('')
   const [showStatutMenu, setShowStatutMenu] = useState(false)
+
+  // Fonction unifiée pour calculer la progression comme sur les autres pages
+  const calculateDaoProgress = (daoId: number) => {
+    const daoTasks = allTasks.filter(task => task.dao_id === daoId);
+    if (daoTasks.length === 0) return 0;
+    
+    const totalProgress = daoTasks.reduce((sum, task) => sum + (task.progress || 0), 0);
+    return Math.round(totalProgress / daoTasks.length);
+  };
 
   useEffect(() => {
     loadDaos()
@@ -88,25 +99,87 @@ export default function MesDAOs() {
     const token = localStorage.getItem('token')
     const tasksData: {[key: number]: any[]} = {}
     
-    for (const dao of daos) {
-      try {
-        const response = await fetch(`http://localhost:3001/api/dao/${dao.id}/tasks`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          tasksData[dao.id] = data.data.tasks || []
+    try {
+      // Charger toutes les tâches d'un coup comme sur les autres pages
+      const response = await fetch('http://localhost:3001/api/tasks', {
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
-      } catch (error) {
-        console.error(`Erreur lors du chargement des tâches pour DAO ${dao.id}:`, error)
-        tasksData[dao.id] = []
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        const allTasksData = data.data.tasks || []
+        setAllTasks(allTasksData)
+        console.log('[Admin Mes DAO] Toutes les tâches chargées:', allTasksData.length)
+        
+        // Garder la compatibilité avec l'ancien format si nécessaire
+        for (const dao of daos) {
+          tasksData[dao.id] = allTasksData.filter(task => task.dao_id === dao.id)
+        }
+        setDaoTasks(tasksData)
       }
+    } catch (error) {
+      console.error('Erreur lors du chargement des tâches:', error)
+      setAllTasks([])
+      setDaoTasks({})
     }
-    
-    setDaoTasks(tasksData)
+  }
+
+  // Rafraîchir les données quand les tâches changent (comme dans Mes tâches)
+  useEffect(() => {
+    if (allTasks.length > 0 && daos.length > 0) {
+      // Mettre à jour daoTasks quand allTasks change
+      const updatedDaoTasks: {[key: number]: any[]} = {}
+      daos.forEach(dao => {
+        updatedDaoTasks[dao.id] = allTasks.filter((task: any) => task.dao_id === dao.id)
+      })
+      setDaoTasks(updatedDaoTasks)
+      console.log('[Mes DAO Admin] Tâches mises à jour pour', Object.keys(updatedDaoTasks).length, 'DAOs')
+    }
+  }, [allTasks, daos])
+
+  // Fonction pour mettre à jour une tâche et rafraîchir les données (comme dans Mes tâches)
+  const updateTaskProgress = async (taskId: number, progress: number, statut?: string) => {
+    try {
+      const token = localStorage.getItem('token')
+      const autoStatut = progress === 0 ? 'a_faire' : progress === 100 ? 'termine' : 'en_cours'
+      const finalStatut = statut || autoStatut
+      
+      const response = await fetch(`http://localhost:3001/api/task-progress/${taskId}/progress`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ progress, statut: finalStatut })
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        console.log('[Mes DAO Admin] Tâche mise à jour:', result)
+        
+        // Mettre à jour allTasks localement (comme dans Mes tâches)
+        setAllTasks(prev => {
+          const updatedTasks = prev.map(task => 
+            task.id === taskId 
+              ? { ...task, progress, statut: finalStatut }
+              : task
+          )
+          
+          // Mettre à jour daoTasks aussi (comme dans Mes tâches)
+          const updatedDaoTasks = { ...daoTasks }
+          Object.keys(updatedDaoTasks).forEach(daoId => {
+            updatedDaoTasks[Number(daoId)] = updatedTasks.filter(task => task.dao_id === Number(daoId))
+          })
+          setDaoTasks(updatedDaoTasks)
+          
+          return updatedTasks
+        })
+      }
+    } catch (error) {
+      console.error('[Mes DAO Admin] Erreur mise à jour tâche:', error)
+    }
   }
 
   // Fonction computeStatus selon la documentation
@@ -139,9 +212,13 @@ export default function MesDAOs() {
     return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
   };
 
-  // Statut basé sur la logique de la documentation
+  // Statut basé sur la progression des tâches comme Mes tâches
   const getDAOStatus = (dao: DAO) => {
-    return computeStatus(dao)
+    // Utiliser la fonction unifiée comme sur les autres pages
+    const progress = calculateDaoProgress(dao.id);
+    
+    // Utiliser la même logique que Mes tâches
+    return computeStatusFromProgress(progress, dao.statut);
   }
 
   // Calculer le statut basé sur la logique métier simplifiée

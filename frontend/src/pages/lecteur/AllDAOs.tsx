@@ -1,7 +1,6 @@
-import { useEffect, useState, useMemo } from 'react'
-import { Search, ArrowLeft, Trash2, Edit, Archive, Users } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
-import { computeStatusFromProgress } from '../../utils/daoStatusUtils'
+import { useEffect, useState } from 'react'
+import { Search, ArrowLeft, Users } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 interface DAO {
   id: number
@@ -17,70 +16,16 @@ interface DAO {
   created_at: string
 }
 
-export default function AllDAOs() {
-  const navigate = useNavigate()
+export default function AllDAOsLecteur() {
   const [daos, setDaos] = useState<DAO[]>([])
   const [daoTasks, setDaoTasks] = useState<{[key: number]: any[]}>({})
   const [daoMembers, setDaoMembers] = useState<{[key: number]: any[]}>({})
-  const [allTasks, setAllTasks] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
-
-  // Fonction de progression comme dans Mes tâches
-  const calculateDaoProgress = (daoId: number) => {
-    // Utiliser allTasks si disponible, sinon fallback sur daoTasks
-    let tasksToUse = allTasks.filter(task => task.dao_id === daoId);
-    
-    // Fallback si allTasks est vide (pendant le chargement)
-    if (tasksToUse.length === 0 && Object.keys(daoTasks).length > 0) {
-      tasksToUse = daoTasks[daoId] || [];
-    }
-    
-    if (tasksToUse.length === 0) return 0;
-    
-    // Logique exacte de Mes tâches
-    const totalProgress = tasksToUse.reduce((sum, task) => sum + (task.progress || 0), 0);
-    const averageProgress = Math.round(totalProgress / tasksToUse.length);
-    
-    // Débogage
-    console.log(`[DEBUG] DAO ${daoId}:`, {
-      tasks: tasksToUse.length,
-      tasksProgress: tasksToUse.map(t => ({ id: t.id, progress: t.progress, statut: t.statut })),
-      totalProgress,
-      averageProgress
-    });
-    
-    return averageProgress;
-  };
 
   useEffect(() => {
     loadDaos()
   }, [])
-
-  // Rafraîchir les données quand les tâches changent (comme dans Mes tâches)
-  useEffect(() => {
-    if (allTasks.length > 0 && daos.length > 0) {
-      // Mettre à jour daoTasks quand allTasks change
-      const updatedDaoTasks: {[key: number]: any[]} = {}
-      daos.forEach(dao => {
-        updatedDaoTasks[dao.id] = allTasks.filter(task => task.dao_id === dao.id)
-      })
-      setDaoTasks(updatedDaoTasks)
-      
-      // Débogage de l'association tâches-DAO
-      console.log('[DEBUG ASSOCIATION] Tâches-DAO:', {
-        totalTasks: allTasks.length,
-        totalDaos: daos.length,
-        daoIds: [...new Set(allTasks.map(t => t.dao_id))],
-        tasksByDao: Object.fromEntries(
-          Object.entries(updatedDaoTasks).map(([daoId, tasks]) => [
-            daoId, 
-            { count: tasks.length, progresses: tasks.map(t => t.progress) }
-          ])
-        )
-      })
-    }
-  }, [allTasks, daos])
 
   const loadDaos = async () => {
     try {
@@ -99,8 +44,22 @@ export default function AllDAOs() {
       const data = await response.json()
       if (data.success) {
         // Filtrer pour ne pas afficher les DAO archivés (mais afficher les terminés)
-        const activeDaos = (data.data.daos || []).filter((dao: any) => dao.statut !== 'ARCHIVE')
+        let activeDaos: any[] = []
+        
+        if (Array.isArray(data.data)) {
+          activeDaos = data.data
+        } else if (data.data && typeof data.data === 'object') {
+          const possibleArrays = Object.values(data.data).filter(Array.isArray)
+          if (possibleArrays.length > 0) {
+            activeDaos = possibleArrays[0]
+          } else {
+            activeDaos = []
+          }
+        }
+        
+        activeDaos = activeDaos.filter((dao: any) => dao.statut !== 'ARCHIVE')
         setDaos(activeDaos)
+        
         // Charger les tâches et les membres pour chaque DAO
         await loadTasksForAllDaos(activeDaos)
         await loadMembersForAllDaos(activeDaos)
@@ -116,32 +75,32 @@ export default function AllDAOs() {
     const token = localStorage.getItem('token')
     const tasksData: {[key: number]: any[]} = {}
     
-    try {
-      // Charger toutes les tâches d'un coup comme sur les autres pages
-      const response = await fetch('http://localhost:3001/api/tasks', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        const allTasksData = data.data.tasks || []
-        setAllTasks(allTasksData)
-        console.log('[Tous les DAO Admin] Toutes les tâches chargées:', allTasksData.length)
+    console.log('[Lecteur - Tous les DAO] Chargement des tâches pour', daos.length, 'DAOs')
+    
+    for (const dao of daos) {
+      try {
+        const response = await fetch(`http://localhost:3001/api/tasks?daoId=${dao.id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
         
-        // Garder la compatibilité avec l'ancien format
-        for (const dao of daos) {
-          tasksData[dao.id] = allTasksData.filter((task: any) => task.dao_id === dao.id)
+        if (response.ok) {
+          const data = await response.json()
+          tasksData[dao.id] = data.data?.tasks || []
+          console.log(`DAO ${dao.id}: ${tasksData[dao.id].length} tâches chargées`)
+        } else {
+          console.warn(`Erreur HTTP pour DAO ${dao.id}:`, response.status)
+          tasksData[dao.id] = []
         }
-        setDaoTasks(tasksData)
-        console.log('[Tous les DAO Admin] Tâches organisées pour', Object.keys(tasksData).length, 'DAOs')
+      } catch (error) {
+        console.error(`Erreur lors du chargement des tâches pour DAO ${dao.id}:`, error)
+        tasksData[dao.id] = []
       }
-    } catch (error) {
-      console.error('Erreur lors du chargement des tâches:', error)
-      setAllTasks([])
-      setDaoTasks({})
     }
+    
+    console.log('[Lecteur - Tous les DAO] Toutes les tâches chargées')
+    setDaoTasks(tasksData)
   }
 
   const loadMembersForAllDaos = async (daos: DAO[]) => {
@@ -167,50 +126,6 @@ export default function AllDAOs() {
     }
     
     setDaoMembers(membersData)
-    console.log('[Tous les DAO Admin] Membres chargés pour', Object.keys(membersData).length, 'DAOs')
-  }
-
-  // Fonction pour mettre à jour une tâche et rafraîchir les données
-  const updateTaskProgress = async (taskId: number, progress: number, statut?: string) => {
-    try {
-      const token = localStorage.getItem('token')
-      const autoStatut = progress === 0 ? 'a_faire' : progress === 100 ? 'termine' : 'en_cours'
-      const finalStatut = statut || autoStatut
-      
-      const response = await fetch(`http://localhost:3001/api/task-progress/${taskId}/progress`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ progress, statut: finalStatut })
-      })
-      
-      if (response.ok) {
-        const result = await response.json()
-        console.log('Tâche mise à jour:', result)
-        
-        // Mettre à jour allTasks localement
-        setAllTasks(prev => {
-          const updatedTasks = prev.map(task => 
-            task.id === taskId 
-              ? { ...task, progress, statut: finalStatut }
-              : task
-          )
-          
-          // Mettre à jour daoTasks aussi
-          const updatedDaoTasks = { ...daoTasks }
-          Object.keys(updatedDaoTasks).forEach(daoId => {
-            updatedDaoTasks[Number(daoId)] = updatedTasks.filter(task => task.dao_id === Number(daoId))
-          })
-          setDaoTasks(updatedDaoTasks)
-          
-          return updatedTasks
-        })
-      }
-    } catch (error) {
-      console.error('Erreur mise à jour tâche:', error)
-    }
   }
 
   // Fonction computeStatus selon la documentation
@@ -243,13 +158,9 @@ export default function AllDAOs() {
     return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
   };
 
-  // Statut basé sur la progression des tâches comme Mes tâches
+  // Statut basé sur la logique de la documentation
   const getDAOStatus = (dao: DAO) => {
-    // Utiliser la fonction unifiée comme sur les autres pages
-    const progress = calculateDaoProgress(dao.id);
-    
-    // Utiliser la même logique que Mes tâches
-    return computeStatusFromProgress(progress, dao.statut);
+    return computeStatus(dao)
   }
 
   // Calculer le statut basé sur la logique métier simplifiée
@@ -288,8 +199,19 @@ export default function AllDAOs() {
     return 'EN_COURS'
   }
 
+  const getProgression = (dao: DAO) => {
+    const tasks = daoTasks[dao.id] || []
+    if (tasks.length === 0) return 0
+
+    // Calcul de la progression moyenne selon la documentation
+    const totalProgress = tasks.reduce((sum: number, task: any) => sum + (task.progress || 0), 0)
+    const avgProgress = Math.round(totalProgress / tasks.length)
+    
+    return avgProgress
+  }
+
   const getProgressionColor = (dao: DAO) => {
-    const progress = calculateDaoProgress(dao.id)
+    const progress = getProgression(dao)
     // Couleurs selon la documentation
     if (progress === 100) return 'bg-green-600'
     if (progress > 0) return 'bg-blue-600'
@@ -297,56 +219,6 @@ export default function AllDAOs() {
   }
 
   
-  const handleDelete = async (daoId: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce DAO ?')) return
-    
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`http://localhost:3001/api/dao/${daoId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      
-      if (response.ok) {
-        loadDaos()
-      }
-    } catch (error) {
-      console.error('Erreur lors de la suppression du DAO:', error)
-    }
-  }
-
-  const handleEdit = (daoId: number) => {
-    navigate(`/admin/edit-dao/${daoId}`)
-  }
-
-  const handleArchive = async (daoId: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir archiver ce DAO ?')) return
-    
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`http://localhost:3001/api/dao/${daoId}/archive`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      
-      if (response.ok) {
-        // Mettre à jour la liste pour enlever le DAO archivé
-        setDaos(daos.filter(dao => dao.id !== daoId))
-        alert('DAO archivé avec succès')
-      } else {
-        alert('Erreur lors de l\'archivage du DAO')
-      }
-    } catch (error) {
-      console.error('Erreur lors de l\'archivage:', error)
-      alert('Erreur réseau lors de l\'archivage')
-    }
-  }
-
   // Filtrage des DAO
   const filteredDaos = daos.filter(dao => {
     const matchesSearch = searchTerm === '' || 
@@ -357,36 +229,12 @@ export default function AllDAOs() {
     return matchesSearch
   })
 
-  // Forcer le recalcul du statut quand les tâches changent (comme dans Mes tâches)
-  const daosWithStatus = useMemo(() => {
-    const result = filteredDaos.map(dao => {
-      const progress = calculateDaoProgress(dao.id);
-      const status = getDAOStatus(dao);
-      
-      // Débogage du statut
-      console.log(`[DEBUG STATUS] DAO ${dao.id}:`, {
-        progress,
-        statusLabel: status.label,
-        statusClass: status.className,
-        daoStatut: dao.statut
-      });
-      
-      return {
-        ...dao,
-        status,
-        progress
-      };
-    });
-    
-    return result;
-  }, [filteredDaos, allTasks])
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link
-          to="/admin"
+          to="/lecteur"
           className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
         >
           <ArrowLeft className="h-5 w-5" />
@@ -424,18 +272,17 @@ export default function AllDAOs() {
             <div className="text-slate-500">Aucun DAO trouvé.</div>
           </div>
         ) : (
-          daosWithStatus.map((dao) => (
+          filteredDaos.map((dao) => (
             <div 
               key={dao.id} 
-              className="bg-white rounded border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-blue-300 overflow-hidden"
-              onClick={() => navigate(`/admin/dao/${dao.id}/details`)}
+              className="bg-white rounded border border-slate-200 shadow-sm transition-all duration-200 overflow-hidden"
             >
               {/* Header minimal */}
               <div className="p-2 border-b border-slate-100">
                 <div className="flex items-center justify-between mb-0.5">
                   <span className="text-sm font-bold text-slate-900">{dao.numero}</span>
-                  <span className={`px-1.5 py-0.5 text-xs font-medium rounded-full ${dao.status.className}`}>
-                    {dao.status.label}
+                  <span className={`px-1.5 py-0.5 text-xs font-medium rounded-full ${getDAOStatus(dao).className}`}>
+                    {getDAOStatus(dao).label}
                   </span>
                 </div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-0.5 truncate leading-tight">{dao.objet}</h3>
@@ -446,12 +293,12 @@ export default function AllDAOs() {
               <div className="px-2 py-1.5 bg-slate-50">
                 <div className="flex items-center justify-between mb-0.5">
                   <span className="text-xs font-medium text-slate-600">Progression</span>
-                  <span className="text-xs font-bold text-blue-600">{dao.progress}%</span>
+                  <span className="text-xs font-bold text-blue-600">{getProgression(dao)}%</span>
                 </div>
                 <div className="w-full bg-slate-200 rounded-full h-1">
                   <div 
                     className={`h-1 rounded-full transition-all duration-300 ${getProgressionColor(dao)}`}
-                    style={{ width: `${dao.progress}%` }}
+                    style={{ width: `${getProgression(dao)}%` }}
                   />
                 </div>
               </div>
@@ -486,44 +333,7 @@ export default function AllDAOs() {
                 </div>
               </div>
               
-              {/* Actions minimales */}
-              <div className="p-2 border-t border-slate-100 bg-slate-50">
-                <div className="flex gap-1 mb-1.5" onClick={(e) => e.stopPropagation()}>
-                  <button 
-                    onClick={() => handleEdit(dao.id)}
-                    className="w-5 h-5 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors flex items-center justify-center"
-                    title="Modifier"
-                  >
-                    <Edit className="h-2.5 w-2.5" />
-                  </button>
-                  <button 
-                    onClick={() => handleArchive(dao.id)}
-                    className="w-5 h-5 bg-amber-500 hover:bg-amber-600 text-white rounded transition-colors flex items-center justify-center"
-                    title="Archiver"
-                  >
-                    <Archive className="h-2.5 w-2.5" />
-                  </button>
-                  <button 
-                    onClick={() => handleDelete(dao.id)}
-                    className="w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded transition-colors flex items-center justify-center"
-                    title="Supprimer"
-                  >
-                    <Trash2 className="h-2.5 w-2.5" />
-                  </button>
-                </div>
-                
-                <button 
-                  onClick={() => navigate(`/admin/dao/${dao.id}/details`)}
-                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs py-1 px-1.5 rounded transition-colors flex items-center justify-center gap-0.5"
-                  title="Voir détails"
-                >
-                  Détails
-                  <svg className="h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              </div>
-            </div>
+                          </div>
           ))
         )}
       </div>

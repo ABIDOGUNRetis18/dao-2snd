@@ -38,8 +38,8 @@ export default function AppHeader({
           <div className="flex items-center gap-3 ml-2 border-l border-slate-200 pl-6">
             <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white shadow-sm">
               <img 
-                src={`https://ui-avatars.com/api/?name=${user?.username || 'User'}&background=3B82F6&color=fff&size=128`}
-                alt="Avatar utilisateur"
+                src={`https://api.dicebear.com/7.x/identicon/svg?seed=${user?.username || 'User'}&backgroundColor=b6e3f4,c0aede,d1d4f9&radius=50`}
+                alt="Avatar identicon utilisateur"
                 className="w-full h-full object-cover"
               />
             </div>

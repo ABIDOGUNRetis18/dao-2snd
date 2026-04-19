@@ -1,52 +1,119 @@
 import { useState, useEffect } from "react";
 import { computeAdminStatus } from "../../utils/statusUtils";
+import { computeStatusFromProgress } from "../../utils/daoStatusUtils";
 
 export default function AdminDashboard() {
   const [daoData, setDaoData] = useState<any[]>([]);
+  const [tasksData, setTasksData] = useState<any[]>([]);
 
-  // Fonction getDAOStatus - Utilise maintenant le statut de la base de données via computeAdminStatus
-  const getDAOStatus = (dao: any) => {
-    return computeAdminStatus(dao);
+  // Fonction pour calculer la progression moyenne des tâches d'un DAO
+  const calculateDaoProgress = (daoId: number) => {
+    const daoTasks = tasksData.filter(task => task.dao_id === daoId);
+    if (daoTasks.length === 0) return 0;
+    
+    const totalProgress = daoTasks.reduce((sum, task) => sum + (task.progress || 0), 0);
+    return Math.round(totalProgress / daoTasks.length);
   };
 
-  // Statistiques calculées - utilise le statut de la base de données
+  // Fonction getDAOStatus - Utilise maintenant la logique basée sur la progression comme Mes tâches
+  const getDAOStatus = (dao: any) => {
+    const progress = calculateDaoProgress(dao.id);
+    return computeStatusFromProgress(progress, dao.statut);
+  };
+
+  // Statistiques calculées - utilise la logique basée sur la progression comme Mes tâches
   const stats = {
     totalDaos: daoData.length,
     completedDaos: daoData.filter((d) => {
-      const status = computeAdminStatus(d);
+      const status = getDAOStatus(d);
       return status.label === "Terminée";
     }).length,
     inProgressDaos: daoData.filter((d) => {
-      const status = computeAdminStatus(d);
+      const status = getDAOStatus(d);
       return status.label === "En cours" || status.label === "EN COURS";
     }).length,
     atRiskDaos: daoData.filter((d) => {
-      const status = computeAdminStatus(d);
+      const status = getDAOStatus(d);
       return status.label === "À risque";
     }).length,
   };
 
   
   useEffect(() => {
-    // Charger les données des DAOs
-    const fetchDAOs = async () => {
+    // Charger les données des DAOs et des tâches
+    const fetchData = async () => {
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch("http://localhost:3001/api/dao", {
+        
+        // Charger les DAOs
+        const daoResponse = await fetch("http://localhost:3001/api/dao", {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          setDaoData(data.data.daos || []);
+        if (daoResponse.ok) {
+          const daoData = await daoResponse.json();
+          setDaoData(daoData.data.daos || []);
+        }
+
+        // Charger toutes les tâches
+        const tasksResponse = await fetch("http://localhost:3001/api/tasks", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (tasksResponse.ok) {
+          const tasksData = await tasksResponse.json();
+          setTasksData(tasksData.data.tasks || []);
         }
       } catch (error) {
-        console.error("Erreur lors du chargement des DAOs:", error);
+        console.error("Erreur lors du chargement des données:", error);
       }
     };
 
-    fetchDAOs();
+    fetchData();
   }, []);
+
+  // Rafraîchir les données quand les tâches changent (comme dans Mes tâches)
+  useEffect(() => {
+    if (tasksData.length > 0 && daoData.length > 0) {
+      console.log('[Admin Dashboard] Tâches mises à jour:', tasksData.length, 'pour', daoData.length, 'DAOs')
+    }
+  }, [tasksData, daoData])
+
+  // Fonction pour mettre à jour une tâche et rafraîchir les données (comme dans Mes tâches)
+  const updateTaskProgress = async (taskId: number, progress: number, statut?: string) => {
+    try {
+      const token = localStorage.getItem('token')
+      const autoStatut = progress === 0 ? 'a_faire' : progress === 100 ? 'termine' : 'en_cours'
+      const finalStatut = statut || autoStatut
+      
+      const response = await fetch(`http://localhost:3001/api/task-progress/${taskId}/progress`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ progress, statut: finalStatut })
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        console.log('[Admin Dashboard] Tâche mise à jour:', result)
+        
+        // Mettre à jour tasksData localement (comme dans Mes tâches)
+        setTasksData(prev => {
+          const updatedTasks = prev.map(task => 
+            task.id === taskId 
+              ? { ...task, progress, statut: finalStatut }
+              : task
+          )
+          
+          return updatedTasks
+        })
+      }
+    } catch (error) {
+      console.error('[Admin Dashboard] Erreur mise à jour tâche:', error)
+    }
+  }
 
   return (
     <div className="p-6">

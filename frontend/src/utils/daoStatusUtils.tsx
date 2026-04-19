@@ -46,31 +46,20 @@ export const computeStatus = (dao: DAO) => {
 };
 
 /**
- * Logique de statut basée sur la progression (alternative)
+ * Logique de statut basée sur la progression (priorité à la progression réelle)
  */
 export const computeStatusFromProgress = (progression: number, statut?: string | null) => {
-  const rawStatut = String(statut || "").toUpperCase();
-
-  // Priorité au statut explicite du DAO
-  if (rawStatut === "TERMINEE" || rawStatut === "TERMINE") {
-    return { label: "Terminée", className: "bg-green-100 text-green-800 border-green-200" };
-  }
-
-  if (rawStatut === "A_RISQUE") {
-    return { label: "À risque", className: "bg-red-100 text-red-800 border-red-200" };
-  }
-
-  if (rawStatut === "EN_COURS") {
-    return { label: "En cours", className: "bg-blue-100 text-blue-800 border-blue-200" };
-  }
-
-  // Sinon, basé sur la progression
+  // Logique basée uniquement sur la progression réelle des tâches
   if (progression === 0) {
     return { label: "À risque", className: "bg-red-100 text-red-800 border-red-200" };
   } else if (progression === 100) {
     return { label: "Terminée", className: "bg-green-100 text-green-800 border-green-200" };
-  } else {
+  } else if (progression >= 75) {
     return { label: "En cours", className: "bg-blue-100 text-blue-800 border-blue-200" };
+  } else if (progression >= 25) {
+    return { label: "En cours", className: "bg-yellow-100 text-yellow-800 border-yellow-200" };
+  } else {
+    return { label: "À risque", className: "bg-red-100 text-red-800 border-red-200" };
   }
 };
 

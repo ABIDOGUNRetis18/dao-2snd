@@ -25,6 +25,7 @@ import ChefProjetDAOTasks from './pages/chef-projet/DAOTasks'
 import MembreEquipe from './pages/membre-equipe/MembreEquipe'
 import MembreEquipeMyTasks from './pages/membre-equipe/MyTasks'
 import Lecteur from './pages/lecteur/Lecteur'
+import AllDAOsLecteur from './pages/lecteur/AllDAOs'
 import AuthenticatedLayout from './components/AuthenticatedLayout'
 
 function App() {
@@ -54,7 +55,10 @@ function App() {
             <Route path="membre-equipe" element={<MembreEquipe />} />
             <Route path="membre-equipe/tasks" element={<MembreEquipeMyTasks />} />
 
-            <Route path="lecteur" element={<Lecteur />} />
+            <Route path="lecteur">
+              <Route index element={<Lecteur />} />
+              <Route path="all-daos" element={<AllDAOsLecteur />} />
+            </Route>
 
             <Route path="admin">
               <Route index element={<AdminDashboard />} />
