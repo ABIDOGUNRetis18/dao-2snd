@@ -48,6 +48,7 @@ function App() {
               <Route path="mes-daos" element={<MesDAO />} />
               <Route path="mes-equipes" element={<MesEquipes />} />
               <Route path="mes-taches" element={<MesTaches />} />
+              <Route path="task/:id" element={<ChefProjetDAOTasks />} />
               <Route path="dao/:id" element={<ChefProjetDAODetails />} />
               <Route path="dao/:id/tasks" element={<ChefProjetDAOTasks />} />
             </Route>

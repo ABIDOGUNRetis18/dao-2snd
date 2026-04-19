@@ -300,7 +300,7 @@ export default function MyDAO() {
       )}
 
       {/* DAO Cards Grid - Structure simplifiée selon documentation */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
         {loading ? (
           <div className="col-span-full text-center py-12">
             <div className="text-slate-500">Chargement...</div>
@@ -316,33 +316,43 @@ export default function MyDAO() {
             return (
               <div 
                 key={dao.id} 
-                className="bg-white rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-blue-300"
-                onClick={() => navigate(`/admin/dao/${dao.id}/tasks`)}
+                className="bg-white rounded-xl border border-slate-200/60 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer hover:border-blue-400 hover:scale-105 overflow-hidden group"
+                onClick={() => navigate(`/chef-projet/dao/${dao.id}/tasks`)}
               >
-                {/* En-tête */}
-                <div className="p-4 border-b border-slate-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-lg font-bold text-slate-900">{dao.numero}</span>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${status.className}`}>
+                {/* En-tête avec gradient */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-3 border-b border-slate-100">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-base font-bold text-slate-900">{dao.numero}</span>
+                    <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${status.className}`}>
                       {status.label}
                     </span>
                   </div>
-                  <h3 className="text-sm font-semibold text-slate-800 mb-1">{dao.reference}</h3>
-                  <p className="text-sm text-slate-600">{dao.autorite}</p>
+                  <h3 className="text-sm font-semibold text-slate-800 mb-1 truncate">{dao.reference}</h3>
+                  <p className="text-xs text-slate-600 truncate">{dao.autorite}</p>
                 </div>
                 
-                {/* Informations simplifiées - Pas de barre de progression */}
-                <div className="p-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Date dépôt:</span>
-                    <span className="font-medium text-slate-700 text-sm">
+                {/* Informations */}
+                <div className="p-3 space-y-3 flex-1">
+                  <div className="flex items-center justify-between py-1.5 px-2 bg-slate-50 rounded-lg">
+                    <span className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Date
+                    </span>
+                    <span className="font-semibold text-slate-700 text-xs">
                       {dao.date_depot ? new Date(dao.date_depot).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short', year: 'numeric'}) : 'Non définie'}
                     </span>
                   </div>
                   
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500">Chef projet:</span>
-                    <span className="font-medium text-slate-700 text-sm">{dao.chef_projet || 'Non assigné'}</span>
+                  <div className="flex items-center justify-between py-1.5 px-2 bg-slate-50 rounded-lg">
+                    <span className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      Chef
+                    </span>
+                    <span className="font-semibold text-slate-700 text-xs truncate max-w-20">{dao.chef_projet || 'N/A'}</span>
                   </div>
                 </div>
               </div>

@@ -36,6 +36,8 @@ export default function ChefProjetDAOTasks() {
   const [daoProgress, setDaoProgress] = useState(0)
   const [daoStats, setDaoStats] = useState({ total_tasks: 0, assigned_tasks: 0, completed_tasks: 0 })
   const [daoInfo, setDaoInfo] = useState<any>(null)
+  const [newTaskName, setNewTaskName] = useState('')
+  const [saving, setSaving] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Permission checks
@@ -183,6 +185,30 @@ export default function ChefProjetDAOTasks() {
   }
 
   
+  const handleSaveTask = async () => {
+    if (!newTaskName.trim()) return
+    
+    try {
+      setSaving(true)
+      const response = await apiPost('/task', {
+        nom: newTaskName.trim()
+      })
+      
+      if (response.success) {
+        setNewTaskName('')
+        // Recharger les tâches
+        loadAll()
+      } else {
+        alert(response.error || 'Erreur lors de la création de la tâche')
+      }
+    } catch (error) {
+      console.error('Erreur lors de la création:', error)
+      alert('Erreur lors de la création de la tâche')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleAssign = async (task: TaskRow, memberId: string) => {
     // Check if user can assign tasks before allowing assignment
     if (!canAssignTasks) {
@@ -328,7 +354,29 @@ export default function ChefProjetDAOTasks() {
           )}
         </div>
 
-        {/* Section 1: Table des 15 tâches avec assignation selon la documentation */}
+        {/* Section 1: Création de nouvelles tâches */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+          <h2 className="text-sm font-semibold text-slate-700 mb-4">Créer une nouvelle tâche</h2>
+          <div className="flex gap-3">
+            <input
+              type="text"
+              placeholder="Nom de la nouvelle tâche..."
+              value={newTaskName}
+              onChange={e => setNewTaskName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSaveTask()}
+              className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition"
+            />
+            <button
+              onClick={handleSaveTask}
+              disabled={saving || !newTaskName.trim()}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-xl transition-colors whitespace-nowrap"
+            >
+              {saving ? 'Enregistrement...' : 'Enregistrer'}
+            </button>
+          </div>
+        </div>
+
+        {/* Section 2: Table des 15 tâches avec assignation selon la documentation */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
           <h2 className="text-sm font-semibold text-slate-700 mb-4">Tâches du DAO</h2>
 
