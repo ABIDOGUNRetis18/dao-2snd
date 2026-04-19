@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, User, Clock } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
 import { computeStatusFromProgress } from '../../utils/daoStatusUtils'
 import './MyTasks.css'
 
@@ -51,7 +50,6 @@ export default function MyTasks() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [progressTimeout, setProgressTimeout] = useState<number | null>(null)
-  const navigate = useNavigate()
 
   useEffect(() => {
     loadMyTasks()
@@ -285,10 +283,11 @@ export default function MyTasks() {
     }
   }
 
-  const handleTaskClick = (task: Task) => {
-    // Naviguer vers la page des tâches du DAO spécifique
-    navigate(`/admin/dao/${task.dao_id}/tasks`)
-  }
+  // Les tâches ne sont plus cliquables - restent sur la page Mes Tâches
+  // const handleTaskClick = (task: Task) => {
+  //   // Naviguer vers la page des tâches du DAO spécifique
+  //   navigate(`/admin/dao/${task.dao_id}/tasks`)
+  // }
 
 
 
@@ -366,12 +365,9 @@ export default function MyTasks() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <Link
-              to="/admin"
-              className="p-2 text-slate-500 hover:bg-slate-200/50 rounded-full transition-colors"
-            >
+            <div className="p-2 text-slate-500">
               <ArrowLeft className="h-5 w-5" />
-            </Link>
+            </div>
             <div>
               <h1 className="text-2xl font-bold text-slate-800 mb-1">Mes Tâches</h1>
               <p className="text-slate-500 text-sm">
@@ -463,7 +459,7 @@ export default function MyTasks() {
                   <div className="mt-4 pt-4 border-t border-slate-200" onClick={(e) => e.stopPropagation()}>
                     <div className="space-y-2">
                       {dao.tasks.map((task: Task) => (
-                        <div key={task.id} className="bg-slate-50 rounded-lg p-2 border border-slate-100 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleTaskClick(task)}>
+                        <div key={task.id} className="bg-slate-50 rounded-lg p-2 border border-slate-100 transition-colors">
                           <div className="flex items-start justify-between mb-1">
                             <div className="flex-1">
                               <h4 className="font-semibold text-sm text-slate-800 mb-1">
@@ -484,7 +480,7 @@ export default function MyTasks() {
                           </div>
                           
                           {/* Barre de progression de la tâche */}
-                          <div className="mb-2 no-navigate" onClick={(e) => e.stopPropagation()}>
+                          <div className="mb-2" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-2">
                               <input
                                 type="range"
