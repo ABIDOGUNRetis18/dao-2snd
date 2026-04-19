@@ -52,7 +52,7 @@ export async function getDaoTeamMembers(req: Request, res: Response) {
       INNER JOIN dao_members dm ON u.id = dm.user_id
       WHERE dm.dao_id = $1
         AND u.id != (SELECT chef_id FROM daos WHERE id = $1) -- Éviter les doublons avec le chef
-        AND u.role_id IN (3, 4) -- Chef de projet et Membre équipe
+        AND u.role_id IN (1, 2, 3, 4, 5) -- Inclure tous les rôles sauf les comptes système
       ORDER BY u.username
       `,
       [daoId]
@@ -99,9 +99,9 @@ export async function addTeamMember(req: Request, res: Response) {
       });
     }
 
-    // Vérifier que l'utilisateur existe et a le bon rôle
+    // Vérifier que l'utilisateur existe et a un rôle valide
     const userResult = await query(
-      'SELECT id, username, role_id FROM users WHERE id = $1 AND role_id IN (3, 4)',
+      'SELECT id, username, role_id FROM users WHERE id = $1 AND role_id IN (1, 2, 3, 4, 5)',
       [userId]
     );
 
