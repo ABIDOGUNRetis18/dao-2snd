@@ -1,65 +1,81 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { computeStatusFromProgress } from '../../utils/daoStatusUtils'
+import { Search, ArrowLeft } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
-interface DAO {
-  id: number
-  numero: string
-  objet: string
-  reference: string
-  date_depot: string
-  autorite: string
-  chef_projet_nom: string
-  statut: 'EN_COURS' | 'A_RISQUE' | 'TERMINEE'
+interface Dao {
+  id: number;
+  numero: string;
+  reference: string;
+  autorite: string;
+  date_depot?: string;
+  statut?: string;
+  chef_projet?: string;
+  chef_id?: number;
 }
 
-const STATUTS = [
-  { value: '', label: 'Tous les statuts' },
-  { value: 'EN_COURS',   label: 'En cours' },
-  { value: 'A_RISQUE',   label: 'À risque' },
-  { value: 'TERMINEE',   label: 'Terminée' },
-]
 
 
-export default function MesDAOs() {
+export default function MyDAO() {
   const navigate = useNavigate()
-  const [daos, setDaos] = useState<DAO[]>([])
+  const [daos, setDaos] = useState<Dao[]>([])
   const [daoTasks, setDaoTasks] = useState<{[key: number]: any[]}>({})
-  const [allTasks, setAllTasks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
   const [statutFilter, setStatutFilter] = useState('')
   const [showStatutMenu, setShowStatutMenu] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  // Fonction unifiée pour calculer la progression comme sur les autres pages
-  const calculateDaoProgress = (daoId: number) => {
-    const daoTasks = allTasks.filter(task => task.dao_id === daoId);
-    if (daoTasks.length === 0) return 0;
-    
-    const totalProgress = daoTasks.reduce((sum, task) => sum + (task.progress || 0), 0);
-    return Math.round(totalProgress / daoTasks.length);
-  };
 
   useEffect(() => {
-    loadDaos()
-  }, [])
-
-  const loadDaos = async () => {
+    // 1. Récupération utilisateur depuis localStorage
+    const storedUser = localStorage.getItem("user")
+    if (!storedUser) {
+      console.error('[MyDAO] Aucun utilisateur trouvé dans localStorage')
+      setError('Utilisateur non connecté')
+      setLoading(false)
+      return
+    }
+    
     try {
-      // 1. Récupérer l'utilisateur connecté depuis localStorage
-      const storedUser = localStorage.getItem('user')
-      if (!storedUser) {
-        console.error('[Admin Mes DAO] Aucun utilisateur trouvé dans localStorage')
+      // 2. Parsing des données
+      const parsed = JSON.parse(storedUser)
+      const userId = Number(parsed.id)
+      const roleId = Number(parsed.role_id)
+      
+      // 3. Validation que l'ID utilisateur est valide
+      if (!userId || isNaN(userId)) {
+        console.error('[MyDAO] ID utilisateur invalide:', parsed.id)
+        setError('ID utilisateur invalide')
+        setLoading(false)
         return
       }
-      const parsed = JSON.parse(storedUser)
-      const currentUserId = Number(parsed.id)      // ID de l'Admin
-      const roleId = Number(parsed.role_id)       // role_id = 2 (Admin)
       
-      console.log('[Admin Mes DAO] User ID:', currentUserId, 'Role ID:', roleId)
+      console.log('[MyDAO] User ID:', userId, 'Role ID:', roleId)
+      setCurrentUserId(userId)
       
-      // 2. Récupérer TOUS les DAOs (Admin voit tout)
+      // 4. Charger les DAOs après validation
+      loadDaos(userId)
+    } catch (error) {
+      console.error('[MyDAO] Erreur parsing utilisateur:', error)
+      setError('Erreur de lecture des données utilisateur')
+      setLoading(false)
+    }
+  }, [])
+
+  const loadDaos = async (userId: number) => {
+    try {
+      setError(null)
       const token = localStorage.getItem('token')
+      
+      if (!token) {
+        setError('Token d\'authentification manquant')
+        setLoading(false)
+        return
+      }
+      
+      // Récupérer tous les DAOs
       const response = await fetch('http://localhost:3001/api/dao', {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -68,136 +84,94 @@ export default function MesDAOs() {
       
       if (!response.ok) {
         console.error('Erreur lors du chargement des DAO')
+        setError('Erreur lors du chargement des DAOs')
         return
       }
       
       const data = await response.json()
-      console.log('[Admin Mes DAO] Tous les DAOs reçus:', data.data?.daos?.length || 0)
-      
       if (data.success) {
         const allDaos = data.data.daos || []
         
-        // 3. Filtrage côté frontend : l'Admin ne voit que les DAOs dont il est le chef dans "Mes DAO"
-        const myDaos = allDaos.filter(
-          (dao: any) => Number(dao.chef_id) === Number(currentUserId)
-        )
+        // 4. Filtrage personnalisé : Number(dao.chef_id) === Number(currentUserId)
+        const myDaos = allDaos.filter((dao: any) => Number(dao.chef_id) === Number(userId))
         
-        console.log('[Admin Mes DAO] DAOs où Admin est chef:', myDaos.length)
-        
+        console.log('[MyDAO] DAOs filtrés pour utilisateur', userId, ':', myDaos.length, 'sur', allDaos.length)
         setDaos(myDaos)
+        
         // Charger les tâches pour chaque DAO
         await loadTasksForAllDaos(myDaos)
+      } else {
+        setError('Erreur de données du serveur')
       }
     } catch (error) {
       console.error('Erreur lors du chargement des DAO:', error)
+      setError('Erreur réseau lors du chargement')
     } finally {
       setLoading(false)
     }
   }
 
-  const loadTasksForAllDaos = async (daos: DAO[]) => {
+  const loadTasksForAllDaos = async (daos: Dao[]) => {
     const token = localStorage.getItem('token')
     const tasksData: {[key: number]: any[]} = {}
     
     try {
-      // Charger toutes les tâches d'un coup comme sur les autres pages
-      const response = await fetch('http://localhost:3001/api/tasks', {
-        headers: {
-          'Authorization': `Bearer ${token}`
+      // Charger les tâches assignées pour chaque DAO
+      for (const dao of daos) {
+        try {
+          const response = await fetch(`http://localhost:3001/api/dao/${dao.id}/tasks`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          })
+          
+          if (response.ok) {
+            const data = await response.json()
+            const daoTaskList = data.data.tasks || []
+            tasksData[dao.id] = daoTaskList
+          }
+        } catch (error) {
+          console.error(`Erreur lors du chargement des tâches pour DAO ${dao.id}:`, error)
+          tasksData[dao.id] = []
         }
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        const allTasksData = data.data.tasks || []
-        setAllTasks(allTasksData)
-        console.log('[Admin Mes DAO] Toutes les tâches chargées:', allTasksData.length)
-        
-        // Garder la compatibilité avec l'ancien format si nécessaire
-        for (const dao of daos) {
-          tasksData[dao.id] = allTasksData.filter(task => task.dao_id === dao.id)
-        }
-        setDaoTasks(tasksData)
       }
+      
+      setDaoTasks(tasksData)
     } catch (error) {
       console.error('Erreur lors du chargement des tâches:', error)
-      setAllTasks([])
       setDaoTasks({})
     }
   }
 
-  // Rafraîchir les données quand les tâches changent (comme dans Mes tâches)
-  useEffect(() => {
-    if (allTasks.length > 0 && daos.length > 0) {
-      // Mettre à jour daoTasks quand allTasks change
-      const updatedDaoTasks: {[key: number]: any[]} = {}
-      daos.forEach(dao => {
-        updatedDaoTasks[dao.id] = allTasks.filter((task: any) => task.dao_id === dao.id)
-      })
-      setDaoTasks(updatedDaoTasks)
-      console.log('[Mes DAO Admin] Tâches mises à jour pour', Object.keys(updatedDaoTasks).length, 'DAOs')
-    }
-  }, [allTasks, daos])
-
-  // Fonction pour mettre à jour une tâche et rafraîchir les données (comme dans Mes tâches)
-  const updateTaskProgress = async (taskId: number, progress: number, statut?: string) => {
-    try {
-      const token = localStorage.getItem('token')
-      const autoStatut = progress === 0 ? 'a_faire' : progress === 100 ? 'termine' : 'en_cours'
-      const finalStatut = statut || autoStatut
-      
-      const response = await fetch(`http://localhost:3001/api/task-progress/${taskId}/progress`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ progress, statut: finalStatut })
-      })
-      
-      if (response.ok) {
-        const result = await response.json()
-        console.log('[Mes DAO Admin] Tâche mise à jour:', result)
-        
-        // Mettre à jour allTasks localement (comme dans Mes tâches)
-        setAllTasks(prev => {
-          const updatedTasks = prev.map(task => 
-            task.id === taskId 
-              ? { ...task, progress, statut: finalStatut }
-              : task
-          )
-          
-          // Mettre à jour daoTasks aussi (comme dans Mes tâches)
-          const updatedDaoTasks = { ...daoTasks }
-          Object.keys(updatedDaoTasks).forEach(daoId => {
-            updatedDaoTasks[Number(daoId)] = updatedTasks.filter(task => task.dao_id === Number(daoId))
-          })
-          setDaoTasks(updatedDaoTasks)
-          
-          return updatedTasks
-        })
-      }
-    } catch (error) {
-      console.error('[Mes DAO Admin] Erreur mise à jour tâche:', error)
-    }
+  // Calculer la progression d'un DAO
+  const calculateDaoProgress = (daoId: number) => {
+    const tasks = daoTasks[daoId] || []
+    if (tasks.length === 0) return 0
+    const totalProgress = tasks.reduce((sum: number, task: any) => sum + (task.progress || 0), 0)
+    return Math.round(totalProgress / tasks.length)
   }
 
-  // Fonction computeStatus selon la documentation
-  const computeStatus = (dao: DAO): { label: string; className: string } => {
+  // Fonction computeStatus selon la documentation exacte (améliorée avec progression)
+  const computeStatus = (dao: Dao, progress?: number): { label: string; className: string } => {
     const today = new Date();
     const rawStatut = String(dao.statut || "").toUpperCase();
 
-    // 1. Statut terminé
+    // 1. Si progression = 100%, statut terminée
+    if (progress === 100) {
+      return { label: "Terminée", className: "px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800" };
+    }
+
+    // 2. Statut terminé
     if (rawStatut === "TERMINEE" || rawStatut === "TERMINE") {
       return { label: "Terminée", className: "px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800" };
     }
 
-    // 2. Pas de date de dépôt
+    // 3. Pas de date de dépôt
     if (!dao.date_depot) {
       return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
     }
 
-    // 3. Calcul selon la date d'échéance
+    // 4. Calcul selon la date d'échéance
     const dateDepot = new Date(dao.date_depot);
     const diffDays = Math.floor((dateDepot.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -212,172 +186,170 @@ export default function MesDAOs() {
     return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
   };
 
-  // Statut basé sur la progression des tâches comme Mes tâches
-  const getDAOStatus = (dao: DAO) => {
-    // Utiliser la fonction unifiée comme sur les autres pages
-    const progress = calculateDaoProgress(dao.id);
-    
-    // Utiliser la même logique que Mes tâches
-    return computeStatusFromProgress(progress, dao.statut);
-  }
 
-  // Calculer le statut basé sur la logique métier simplifiée
-  const calculateStatus = (dao: DAO) => {
-    const tasks = daoTasks[dao.id] || []
-    
-    // Si aucune tâche, statut par défaut
-    if (tasks.length === 0) {
-      return 'EN_COURS'
-    }
-    
-    // Calculer la progression moyenne sur TOUTES les tâches
-    const totalProgress = tasks.reduce((sum, task) => 
-      sum + Number(task.progress || 0), 0)
-    const avgProgress = tasks.length > 0 ? totalProgress / tasks.length : 0
-    
-    // Compter les tâches complétées (progress = 100 OU statut = 'termine')
-    const allCompletedTasks = tasks.filter(task => 
-      task.statut === 'termine' || Number(task.progress || 0) >= 100
-    )
-    
-    // TERMINEE : Toutes les tâches sont complétées ET progression moyenne = 100%
-    if (allCompletedTasks.length === tasks.length && Math.round(avgProgress) === 100) {
-      return 'TERMINEE'
-    }
-    
-    // Logique temporelle pour A_RISQUE (>=3 jours depuis la date de dépôt ET aucune progression)
-    const threeDaysAgo = new Date()
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
-    
-    if (avgProgress === 0 && dao.date_depot && new Date(dao.date_depot) < threeDaysAgo) {
-      return 'A_RISQUE'
-    }
-    
-    // Par défaut : EN_COURS
-    return 'EN_COURS'
-  }
 
-  const filtered = daos.filter(dao => {
-    const q = search.toLowerCase()
-    const matchSearch =
-      dao.numero?.toLowerCase().includes(q) ||
-      dao.objet?.toLowerCase().includes(q) ||
-      dao.chef_projet_nom?.toLowerCase().includes(q) ||
-      dao.autorite?.toLowerCase().includes(q)
-    const matchStatut = statutFilter === '' || dao.statut === statutFilter
-    return matchSearch && matchStatut
+  // Filtrage des DAO
+  const filteredDaos = daos.filter(dao => {
+    const matchesSearch = searchTerm === '' || 
+      dao.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dao.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dao.autorite.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    const progress = calculateDaoProgress(dao.id)
+    const status = computeStatus(dao, progress)
+    const matchesStatut = statutFilter === '' || 
+      (statutFilter === 'en_cours' && (status.label.includes('En cours') || status.label.includes('EN COURS'))) ||
+      (statutFilter === 'a_risque' && status.label.includes('À risque')) ||
+      (statutFilter === 'termine' && status.label.includes('Terminée'))
+    
+    return matchesSearch && matchesStatut
   })
 
-  const activeStatutLabel = STATUTS.find(s => s.value === statutFilter)?.label || 'Tous les statuts'
 
   return (
-    <div className="min-h-screen bg-slate-100 font-sans">
-      <div className="max-w-5xl mx-auto px-4 pt-6 space-y-4">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <Link
+          to="/admin"
+          className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Link>
+        <div>
+          <h1 className="text-xl font-bold text-slate-800">Mes DAO</h1>
+          <p className="text-slate-500 text-sm">
+            {filteredDaos.length} DAO trouvé{filteredDaos.length > 1 ? 's' : ''}
+          </p>
+        </div>
+      </div>
 
-        {/* ── HEADER CARD ── */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-6 py-4 flex items-center gap-4">
-          <h1 className="text-lg font-bold text-slate-800 flex-shrink-0">Mes DAO</h1>
-
-          <div className="flex-1" />
-
-          {/* Search */}
-          <input
-            type="text"
-            placeholder="Rechercher (n°, objet, équipe...)"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-72 px-4 py-2 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition"
-          />
-
-          {/* Statut filter */}
+      {/* Barre de recherche et filtres */}
+      <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
+        <div className="flex gap-4">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Rechercher par numéro, référence ou autorité..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          
           <div className="relative">
             <button
-              onClick={() => setShowStatutMenu(v => !v)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors flex items-center gap-2 whitespace-nowrap"
+              onClick={() => setShowStatutMenu(!showStatutMenu)}
+              className="px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent flex items-center gap-2"
             >
-              {activeStatutLabel}
-              <svg className="h-3.5 w-3.5 opacity-70" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd"/>
+              {statutFilter === '' ? 'Tous les statuts' : statutFilter === 'en_cours' ? 'En cours' : statutFilter === 'a_risque' ? 'À risque' : 'Terminé'}
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </button>
-
+            
             {showStatutMenu && (
-              <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-lg border border-slate-100 py-1 z-20">
-                {STATUTS.map(s => (
-                  <button
-                    key={s.value}
-                    onClick={() => { setStatutFilter(s.value); setShowStatutMenu(false) }}
-                    className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-slate-50 ${
-                      statutFilter === s.value ? 'text-blue-600 font-semibold' : 'text-slate-700'
-                    }`}
-                  >
-                    {s.label}
-                  </button>
-                ))}
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg border border-slate-200 shadow-lg z-10">
+                <button
+                  onClick={() => { setStatutFilter(''); setShowStatutMenu(false) }}
+                  className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm text-slate-700"
+                >
+                  Tous les statuts
+                </button>
+                <button
+                  onClick={() => { setStatutFilter('en_cours'); setShowStatutMenu(false) }}
+                  className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm text-slate-700"
+                >
+                  En cours
+                </button>
+                <button
+                  onClick={() => { setStatutFilter('a_risque'); setShowStatutMenu(false) }}
+                  className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm text-slate-700"
+                >
+                  À risque
+                </button>
+                <button
+                  onClick={() => { setStatutFilter('termine'); setShowStatutMenu(false) }}
+                  className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm text-slate-700"
+                >
+                  Terminé
+                </button>
               </div>
             )}
           </div>
         </div>
-
-        {/* ── HINT ── */}
-        <p className="text-xs text-slate-400 px-1">Cliquer sur une carte pour ouvrir le détail</p>
-
-        {/* ── DAO CARDS ── */}
-        {loading ? (
-          <div className="text-center py-16 text-sm text-slate-400">Chargement...</div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-sm text-slate-400">
-            {search || statutFilter ? 'Aucun DAO ne correspond à votre recherche.' : 'Aucun DAO trouvé.'}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filtered.map(dao => {
-              const badge = getDAOStatus(dao)
-              return (
-                <div
-                  key={dao.id}
-                  onClick={() => navigate(`/chef-projet/dao/${dao.id}/tasks`)}
-                  className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 cursor-pointer hover:shadow-md hover:border-blue-100 transition-all"
-                >
-                  {/* Top row */}
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h2 className="text-lg font-bold text-slate-800">N° {dao.numero}</h2>
-                      <p className="text-sm text-slate-400 mt-0.5">
-                        {dao.objet}{dao.reference ? ` - ${dao.reference}` : ''}
-                      </p>
-                    </div>
-                    <span className={badge.className}>
-                      {badge.label}
-                    </span>
-                  </div>
-
-                  {/* Divider */}
-                  <div className="border-t border-slate-50 my-3" />
-
-                  {/* Bottom row */}
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500">Date dépôt</span>
-                    <span className="font-semibold text-slate-700">
-                      {dao.date_depot
-                        ? new Date(dao.date_depot).toLocaleDateString('fr-FR')
-                        : '—'}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-sm text-slate-500">
-                    Chef: <span className="text-slate-700 font-medium">{dao.chef_projet_nom || '—'}</span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
       </div>
 
-      {/* Close dropdown on outside click */}
-      {showStatutMenu && (
-        <div className="fixed inset-0 z-10" onClick={() => setShowStatutMenu(false)} />
+      {/* Messages d'erreur */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="text-red-800 text-sm">{error}</div>
+          <button
+            onClick={() => {
+              setError(null)
+              if (currentUserId) {
+                loadDaos(currentUserId)
+              }
+            }}
+            className="mt-2 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+          >
+            Réessayer
+          </button>
+        </div>
       )}
+
+      {/* DAO Cards Grid - Structure simplifiée selon documentation */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {loading ? (
+          <div className="col-span-full text-center py-12">
+            <div className="text-slate-500">Chargement...</div>
+          </div>
+        ) : filteredDaos.length === 0 ? (
+          <div className="col-span-full text-center py-12">
+            <div className="text-slate-500">Aucun DAO trouvé.</div>
+          </div>
+        ) : (
+          filteredDaos.map((dao) => {
+            const progress = calculateDaoProgress(dao.id)
+            const status = computeStatus(dao, progress)
+            return (
+              <div 
+                key={dao.id} 
+                className="bg-white rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-blue-300"
+                onClick={() => navigate(`/admin/dao/${dao.id}/tasks`)}
+              >
+                {/* En-tête */}
+                <div className="p-4 border-b border-slate-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-lg font-bold text-slate-900">{dao.numero}</span>
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${status.className}`}>
+                      {status.label}
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-semibold text-slate-800 mb-1">{dao.reference}</h3>
+                  <p className="text-sm text-slate-600">{dao.autorite}</p>
+                </div>
+                
+                {/* Informations simplifiées - Pas de barre de progression */}
+                <div className="p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Date dépôt:</span>
+                    <span className="font-medium text-slate-700 text-sm">
+                      {dao.date_depot ? new Date(dao.date_depot).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short', year: 'numeric'}) : 'Non définie'}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-500">Chef projet:</span>
+                    <span className="font-medium text-slate-700 text-sm">{dao.chef_projet || 'Non assigné'}</span>
+                  </div>
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
     </div>
   )
 }

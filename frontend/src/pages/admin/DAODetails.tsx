@@ -4,6 +4,7 @@ import {
   MessageCircle, Clock
 } from "lucide-react";
 import { Link, useParams } from 'react-router-dom'
+import ProgressManager from '../../utils/progressManager'
 
 // Interfaces TypeScript
 interface Dao {
@@ -62,6 +63,37 @@ export default function DAODetails() {
   const [showMentionSuggestions, setShowMentionSuggestions] = useState(false)
   const [mentionSearch, setMentionSearch] = useState("")
   const commentInputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Initialiser ProgressManager pour la synchronisation en temps réel
+  const progressManager = ProgressManager.getInstance()
+
+  // S'abonner aux mises à jour de progression depuis d'autres pages
+  useEffect(() => {
+    progressManager.subscribe('dao-details-task-progress', (data) => {
+      console.log('[DAODetails] Progression mise à jour depuis autre page:', data)
+      // Mettre à jour les tâches locales si c'est pour ce DAO
+      if (data.daoId === Number(id)) {
+        setTasks(prev => prev.map(task => 
+          task.id === data.taskId 
+            ? { ...task, progress: data.progress, statut: data.statut }
+            : task
+        ))
+      }
+    })
+
+    progressManager.subscribe('dao-details-dao-update', (data) => {
+      console.log('[DAODetails] DAO mis à jour depuis autre page:', data)
+      if (data.daoId === Number(id)) {
+        setDao(prev => prev ? { ...prev, ...data.daoData } : null)
+      }
+    })
+
+    // Nettoyage
+    return () => {
+      progressManager.unsubscribe('dao-details-task-progress')
+      progressManager.unsubscribe('dao-details-dao-update')
+    }
+  }, [id])
 
   // Logique de permissions pour l'Admin
   const canManageDao = useMemo(() => {
@@ -185,6 +217,11 @@ export default function DAODetails() {
         
         console.log("Tâches adaptées et validées:", adaptedTasks);
         setTasks(adaptedTasks);
+        
+        // Notifier le ProgressManager des données de tâches chargées
+        adaptedTasks.forEach(task => {
+          progressManager.updateTaskProgress(task.id, Number(id), task.progress || 0, task.statut || 'a_faire');
+        });
         
         // Charger les commentaires pour la première tâche
         if (adaptedTasks.length > 0) {
@@ -424,7 +461,7 @@ export default function DAODetails() {
           <div className="flex items-center justify-between h-16">
             {/* Navigation retour */}
             <div className="flex items-center">
-              <Link to="/admin/my-daos" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <Link to="/admin/all-daos" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <ArrowLeft className="w-5 h-5 text-gray-700" />
               </Link>
               <div className="ml-4">

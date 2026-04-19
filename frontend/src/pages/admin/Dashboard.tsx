@@ -1,174 +1,300 @@
-import { useState, useEffect } from "react";
-import { computeAdminStatus } from "../../utils/statusUtils";
-import { computeStatusFromProgress } from "../../utils/daoStatusUtils";
+import { useState, useEffect, useMemo } from "react";
+
+interface Dao {
+  id: number;
+  numero: string;
+  reference: string;
+  autorite: string;
+  date_depot?: string;
+  chef_id?: number | null;
+  chef_projet?: string | null;
+  statut?: string | null;
+  groupement?: string | null;
+  nom_partenaire?: string | null;
+  type_dao?: string | null;
+  // objet: string; // Non utilisé dans le tableau admin
+}
+
+interface User {
+  id: number;
+  role_id: number;
+  name?: string;
+}
 
 export default function AdminDashboard() {
-  const [daoData, setDaoData] = useState<any[]>([]);
-  const [tasksData, setTasksData] = useState<any[]>([]);
+  const [daos, setDaos] = useState<Dao[]>([]);
+  const [daoTasks, setDaoTasks] = useState<{[key: number]: any[]}>({});
+  const [allTasks, setAllTasks] = useState<any[]>([]);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Fonction pour calculer la progression moyenne des tâches d'un DAO
-  const calculateDaoProgress = (daoId: number) => {
-    const daoTasks = tasksData.filter(task => task.dao_id === daoId);
-    if (daoTasks.length === 0) return 0;
+  // Fonction computeStatus selon la documentation exacte (améliorée avec progression)
+  const computeStatus = (dao: Dao, progress?: number): { label: string; className: string } => {
+    const today = new Date();
+    const rawStatut = String(dao.statut || "").toUpperCase();
+
+    // 1. Si progression = 100%, statut terminée
+    if (progress === 100) {
+      return { label: "Terminée", className: "px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800" };
+    }
+
+    // 2. Statut terminé
+    if (rawStatut === "TERMINEE" || rawStatut === "TERMINE") {
+      return { label: "Terminée", className: "px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800" };
+    }
+
+    // 3. Pas de date de dépôt
+    if (!dao.date_depot) {
+      return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
+    }
+
+    // 4. Calcul selon la date d'échéance
+    const dateDepot = new Date(dao.date_depot);
+    const diffDays = Math.floor((dateDepot.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays >= 5 || diffDays === 4) {
+      return { label: "EN COURS", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
+    }
+
+    if (diffDays <= 3) {
+      return { label: "À risque", className: "px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800" };
+    }
+
+    return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
+  };
+
+  // Logique de calcul des statistiques selon documentation exacte
+  const stats = useMemo(() => {
+    const total = daos.length;
+    let enCours = 0;
+    let aRisque = 0;
+    let terminees = 0;
     
-    const totalProgress = daoTasks.reduce((sum, task) => sum + (task.progress || 0), 0);
-    return Math.round(totalProgress / daoTasks.length);
-  };
-
-  // Fonction getDAOStatus - Utilise maintenant la logique basée sur la progression comme Mes tâches
-  const getDAOStatus = (dao: any) => {
-    const progress = calculateDaoProgress(dao.id);
-    return computeStatusFromProgress(progress, dao.statut);
-  };
-
-  // Statistiques calculées - utilise la logique basée sur la progression comme Mes tâches
-  const stats = {
-    totalDaos: daoData.length,
-    completedDaos: daoData.filter((d) => {
-      const status = getDAOStatus(d);
-      return status.label === "Terminée";
-    }).length,
-    inProgressDaos: daoData.filter((d) => {
-      const status = getDAOStatus(d);
-      return status.label === "En cours" || status.label === "EN COURS";
-    }).length,
-    atRiskDaos: daoData.filter((d) => {
-      const status = getDAOStatus(d);
-      return status.label === "À risque";
-    }).length,
-  };
+    daos.forEach(dao => {
+      const statut = String(dao.statut || "").toUpperCase();
+      
+      // Logique exacte selon documentation
+      if (statut === "TERMINEE" || statut === "TERMINE") {
+        terminees++;
+      } else if (!dao.date_depot) {
+        enCours++;
+      } else {
+        const dateDepot = new Date(dao.date_depot);
+        const today = new Date();
+        const diffDays = Math.floor((dateDepot.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (diffDays >= 5 || diffDays === 4) {
+          enCours++;
+        } else if (diffDays <= 3) {
+          aRisque++;
+        } else {
+          enCours++;
+        }
+      }
+    });
+    
+    return {
+      total,
+      enCours,
+      aRisque,
+      terminees
+    };
+  }, [daos]);
 
   
+  // Utiliser localStorage comme source principale (endpoint /api/me n'existe pas)
   useEffect(() => {
-    // Charger les données des DAOs et des tâches
-    const fetchData = async () => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
       try {
-        const token = localStorage.getItem("token");
-        
-        // Charger les DAOs
-        const daoResponse = await fetch("http://localhost:3001/api/dao", {
-          headers: { Authorization: `Bearer ${token}` },
+        const parsed = JSON.parse(storedUser);
+        setUser({ id: parsed.id, role_id: parsed.role_id, name: parsed.name });
+        console.log('[Admin Dashboard] Utilisateur chargé depuis localStorage:', parsed);
+      } catch (error) {
+        console.error('[Admin Dashboard] Erreur parsing utilisateur:', error);
+      }
+    } else {
+      console.log('[Admin Dashboard] Aucun utilisateur trouvé dans localStorage');
+    }
+  }, []);
+  
+  // Système de notifications automatiques selon documentation
+  useEffect(() => {
+    if (!user) return;
+    
+    const checkNotifications = async () => {
+      try {
+        const response = await fetch(`http://localhost:3001/api/notifications?userId=${user.id}&checkDeposits=true`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
         });
-
-        if (daoResponse.ok) {
-          const daoData = await daoResponse.json();
-          setDaoData(daoData.data.daos || []);
-        }
-
-        // Charger toutes les tâches
-        const tasksResponse = await fetch("http://localhost:3001/api/tasks", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (tasksResponse.ok) {
-          const tasksData = await tasksResponse.json();
-          setTasksData(tasksData.data.tasks || []);
+        if (response.ok) {
+          const notifications = await response.json();
+          console.log('Notifications vérifiées:', notifications);
+        } else {
+          console.log('[Admin Dashboard] Endpoint notifications non disponible (404):', response.status);
         }
       } catch (error) {
-        console.error("Erreur lors du chargement des données:", error);
+        console.error('Erreur lors de la vérification des notifications:', error);
       }
     };
-
-    fetchData();
+    
+    // Vérification immédiate
+    checkNotifications();
+    
+    // Vérification périodique toutes les 5 minutes
+    const interval = setInterval(checkNotifications, 5 * 60 * 1000);
+    
+    return () => clearInterval(interval);
+  }, [user]);
+  
+  // Charger les données des DAOs
+  useEffect(() => {
+    loadDaos();
   }, []);
 
-  // Rafraîchir les données quand les tâches changent (comme dans Mes tâches)
-  useEffect(() => {
-    if (tasksData.length > 0 && daoData.length > 0) {
-      console.log('[Admin Dashboard] Tâches mises à jour:', tasksData.length, 'pour', daoData.length, 'DAOs')
-    }
-  }, [tasksData, daoData])
 
-  // Fonction pour mettre à jour une tâche et rafraîchir les données (comme dans Mes tâches)
-  const updateTaskProgress = async (taskId: number, progress: number, statut?: string) => {
+  
+  const loadDaos = async () => {
     try {
-      const token = localStorage.getItem('token')
-      const autoStatut = progress === 0 ? 'a_faire' : progress === 100 ? 'termine' : 'en_cours'
-      const finalStatut = statut || autoStatut
+      setLoading(true);
+      setError(null);
+      const token = localStorage.getItem("token");
       
-      const response = await fetch(`http://localhost:3001/api/task-progress/${taskId}/progress`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+      console.log('[Admin Dashboard] Début chargement DAOs - Token:', token ? 'présent' : 'manquant');
+      
+      if (!token) {
+        setError('Token d\'authentification manquant');
+        return;
+      }
+      
+      console.log('[Admin Dashboard] Appel API: GET http://localhost:3001/api/dao');
+      
+      const response = await fetch("http://localhost:3001/api/dao", {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ progress, statut: finalStatut })
-      })
+        cache: "no-store"
+      });
+
+      console.log('[Admin Dashboard] Réponse API:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Admin Dashboard] Erreur HTTP:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        });
+        throw new Error(`Erreur HTTP ${response.status}: ${response.statusText}`);
+      }
       
-      if (response.ok) {
-        const result = await response.json()
-        console.log('[Admin Dashboard] Tâche mise à jour:', result)
-        
-        // Mettre à jour tasksData localement (comme dans Mes tâches)
-        setTasksData(prev => {
-          const updatedTasks = prev.map(task => 
-            task.id === taskId 
-              ? { ...task, progress, statut: finalStatut }
-              : task
-          )
-          
-          return updatedTasks
-        })
+      const data = await response.json();
+      console.log('[Admin Dashboard] Structure des données reçues:', {
+        success: data.success,
+        dataKeys: Object.keys(data),
+        dataContent: data,
+        dataType: typeof data,
+        dataPath: data.data,
+        daosPath: data.data?.daos,
+        daosDirectPath: data.daos,
+        daosLength: data.daos?.length,
+        isArray: Array.isArray(data.daos)
+      });
+      
+      if (data.success) {
+        const activeDaos = (data.data?.daos || []).filter((dao: Dao) => dao.statut !== 'ARCHIVE');
+        console.log('[Admin Dashboard] DAOs à charger:', activeDaos.length);
+        setDaos(activeDaos);
+      } else {
+        console.error('[Admin Dashboard] Échec API:', data);
+        throw new Error(data.message || 'Erreur de données du serveur');
       }
     } catch (error) {
-      console.error('[Admin Dashboard] Erreur mise à jour tâche:', error)
+      console.error("[Admin Dashboard] Erreur complète:", error);
+      setError(error instanceof Error ? error.message : 'Erreur réseau');
+    } finally {
+      setLoading(false);
     }
-  }
+  };
+
+
 
   return (
     <div className="p-6">
-      {/* DAO List Title */}
-      <div className="mb-6">
-        <h2 className="text-xl font-headline font-bold text-blue-900">Liste des DAOs</h2>
-      </div>
-
-      {/* Stats Section */}
-      <section className="grid grid-cols-1 md:grid-cols-4 gap-6 -mt-4">
-        {/* Card 1 */}
+      {/* Stats Section - Style chef projet avec couleurs pleines */}
+      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {/* Total DAO - Bleu */}
         <div className="bg-blue-500 p-6 rounded-xl border-b-4 border-blue-600 flex justify-between items-start shadow-lg">
           <div>
-            <p className="text-xs font-bold text-blue-100 mb-1">Total DAOs</p>
-            <h3 className="text-3xl font-headline font-bold text-white">{stats.totalDaos}</h3>
-            <p className="text-[10px] text-blue-200 mt-2 font-semibold">Active projects</p>
+            <p className="text-xs font-bold text-blue-100 mb-1">Total DAO</p>
+            <h3 className="text-3xl font-bold text-white">{stats.total}</h3>
+            <p className="text-[10px] text-blue-200 mt-2 font-semibold">Projets actifs</p>
           </div>
           <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
             <span className="material-symbols-outlined">calendar_today</span>
           </div>
         </div>
-        {/* Card 2 */}
-        <div className="bg-green-500 p-6 rounded-xl border-b-4 border-green-600 flex justify-between items-start shadow-lg">
-          <div>
-            <p className="text-xs font-bold text-green-100 mb-1">Terminés</p>
-            <h3 className="text-3xl font-headline font-bold text-white">{stats.completedDaos}</h3>
-            <p className="text-[10px] text-green-200 mt-2 font-semibold">All targets met</p>
-          </div>
-          <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
-            <span className="material-symbols-outlined">check_circle</span>
-          </div>
-        </div>
-        {/* Card 3 */}
+        
+        {/* En cours - Orange */}
         <div className="bg-orange-400 p-6 rounded-xl border-b-4 border-orange-500 flex justify-between items-start shadow-lg">
           <div>
             <p className="text-xs font-bold text-orange-100 mb-1">En cours</p>
-            <h3 className="text-3xl font-headline font-bold text-white">{stats.inProgressDaos}</h3>
-            <p className="text-[10px] text-orange-200 mt-2 font-semibold">Active processes</p>
+            <h3 className="text-3xl font-bold text-white">{stats.enCours}</h3>
+            <p className="text-[10px] text-orange-200 mt-2 font-semibold">Processus actifs</p>
           </div>
           <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
             <span className="material-symbols-outlined">hourglass_empty</span>
           </div>
         </div>
-        {/* Card 4 */}
+        
+        {/* À risque - Rouge */}
         <div className="bg-red-400 p-6 rounded-xl border-b-4 border-red-500 flex justify-between items-start shadow-lg">
           <div>
             <p className="text-xs font-bold text-red-100 mb-1">À risque</p>
-            <h3 className="text-3xl font-headline font-bold text-white">{stats.atRiskDaos}</h3>
-            <p className="text-[10px] text-red-200 mt-2 font-semibold">Critical alerts</p>
+            <h3 className="text-3xl font-bold text-white">{stats.aRisque}</h3>
+            <p className="text-[10px] text-red-200 mt-2 font-semibold">Alertes critiques</p>
           </div>
           <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
             <span className="material-symbols-outlined">error</span>
           </div>
         </div>
+        
+        {/* Terminés - Vert */}
+        <div className="bg-green-500 p-6 rounded-xl border-b-4 border-green-600 flex justify-between items-start shadow-lg">
+          <div>
+            <p className="text-xs font-bold text-green-100 mb-1">Terminés</p>
+            <h3 className="text-3xl font-bold text-white">{stats.terminees}</h3>
+            <p className="text-[10px] text-green-200 mt-2 font-semibold">Objectifs atteints</p>
+          </div>
+          <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+            <span className="material-symbols-outlined">check_circle</span>
+          </div>
+        </div>
       </section>
+
+      {/* Error Display */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="text-red-800">{error}</div>
+          <button
+            onClick={loadDaos}
+            className="mt-2 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+          >
+            Réessayer
+          </button>
+        </div>
+      )}
 
       {/* Table Section */}
       <section className="mt-16 space-y-6">
@@ -176,76 +302,110 @@ export default function AdminDashboard() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 text-slate-500 text-[11px] font-bold tracking-widest uppercase">
-                <th className="px-6 py-4">Numéro</th>
-                <th className="px-6 py-4">Objet</th>
-                <th className="px-6 py-4">Date Dépôt</th>
-                <th className="px-6 py-4">Référence</th>
-                <th className="px-6 py-4">Autorité</th>
-                <th className="px-6 py-4">Chef de Projet</th>
-                <th className="px-6 py-4">Groupement</th>
-                <th className="px-6 py-4">Statut</th>
+                <th className="px-6 py-4 border border-slate-100 rounded-t-lg">Nom</th>
+                <th className="px-6 py-4 border border-slate-100 rounded-t-lg">Type de DAO</th>
+                <th className="px-6 py-4 border border-slate-100 rounded-t-lg">Référence</th>
+                <th className="px-6 py-4 border border-slate-100 rounded-t-lg">Autorité contractante</th>
+                <th className="px-6 py-4 border border-slate-100 rounded-t-lg">Chef Projet</th>
+                <th className="px-6 py-4 border border-slate-100 rounded-t-lg">Groupement</th>
+                <th className="px-6 py-4 border border-slate-100 rounded-t-lg">Statut</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {daoData.length === 0 ? (
+              {loading ? (
                 <tr>
-                  <td
-                    colSpan={8}
-                    className="px-6 py-4 text-center text-sm text-gray-500"
+                  <td colSpan={7} className="px-6 py-8 text-center text-sm text-slate-500 border border-slate-100 rounded-b-lg">
+                    Chargement...
+                  </td>
+                </tr>
+              ) : daos.length === 0 ? (
+                <tr>
+                  <td 
+                    colSpan={7} 
+                    className="px-6 py-8 text-center text-sm text-slate-500 border border-slate-100 rounded-b-lg"
                   >
-                    Aucun DAO disponible
+                    Aucun DAO pour le moment
                   </td>
                 </tr>
               ) : (
-                daoData.map((dao: any, index: number) => (
-                  <tr key={index} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-5">
-                      <span className="font-bold text-blue-900 text-sm">{dao.numero}</span>
-                    </td>
-                    <td className="px-6 py-5 text-sm text-slate-600">{dao.objet}</td>
-                    <td className="px-6 py-5 text-sm text-slate-600">
-                      {dao.date_depot
-                        ? new Date(dao.date_depot).toLocaleDateString("fr-FR")
-                        : "-"}
-                    </td>
-                    <td className="px-6 py-5 text-sm text-slate-600">
-                      {dao.reference || "-"}
-                    </td>
-                    <td className="px-6 py-5 text-sm text-slate-600">
-                      {dao.autorite || "-"}
-                    </td>
-                    <td className="px-6 py-5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold">
-                          {dao.chef_projet_nom?.charAt(0).toUpperCase() || 'A'}
-                        </div>
-                        <span className="text-sm text-slate-600 font-medium">
-                          {dao.chef_projet_nom || 'admin'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-5 text-sm text-gray-400 text-center">
-                      {dao.groupement === "oui" ? (
-                        dao.nom_partenaire ? (
-                          <span style={{ whiteSpace: "pre-wrap" }}>
-                            {dao.nom_partenaire.replace(/,/g, ",\n")}
+                daos.map((dao: Dao, index: number) => {
+                  const status = computeStatus(dao);
+                  console.log('[Admin Dashboard] DAO %d:', index, {
+                    id: dao.id,
+                    numero: dao.numero,
+                    reference: dao.reference,
+                    autorite: dao.autorite,
+                    chef_projet: dao.chef_projet,
+                    type_dao: dao.type_dao,
+                    groupement: dao.groupement,
+                    nom_partenaire: dao.nom_partenaire,
+                    statut: dao.statut,
+                    computedStatus: status
+                  });
+                  return (
+                    <tr key={index} className="hover:bg-slate-50/50 transition-colors">
+                      {/* Nom - Numéro du DAO */}
+                      <td className="px-6 py-5 border-l border-r border-b border-slate-100">
+                        <span className="font-bold text-blue-900 text-sm">{dao.numero}</span>
+                      </td>
+                      
+                      {/* Type de DAO - Badge */}
+                      <td className="px-6 py-5 border-l border-r border-b border-slate-100">
+                        {dao.type_dao ? (
+                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                            {dao.type_dao}
                           </span>
                         ) : (
-                          "-"
-                        )
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 text-xs font-medium rounded-full ${getDAOStatus(dao).className}`}
-                      >
-                        {getDAOStatus(dao).label}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                          <span className="text-slate-400 text-sm">-</span>
+                        )}
+                      </td>
+                      
+                      {/* Référence */}
+                      <td className="px-6 py-5 border-l border-r border-b border-slate-100 text-sm text-slate-600">
+                        {dao.reference || "-"}
+                      </td>
+                      
+                      {/* Autorité contractante */}
+                      <td className="px-6 py-5 border-l border-r border-b border-slate-100 text-sm text-slate-600">
+                        {dao.autorite || "-"}
+                      </td>
+                      
+                      {/* Chef Projet */}
+                      <td className="px-6 py-5 border-l border-r border-b border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold">
+                            {dao.chef_projet?.charAt(0).toUpperCase() || 'A'}
+                          </div>
+                          <span className="text-sm text-slate-600 font-medium">
+                            {dao.chef_projet || 'N/A'}
+                          </span>
+                        </div>
+                      </td>
+                      
+                      {/* Groupement - Logique conditionnelle */}
+                      <td className="px-6 py-5 border-l border-r border-b border-slate-100 text-sm text-slate-600">
+                        {dao.groupement === "oui" ? (
+                          dao.nom_partenaire ? (
+                            <span style={{ whiteSpace: "pre-wrap" }}>
+                              {dao.nom_partenaire.replace(/,/g, ",\n")}
+                            </span>
+                          ) : (
+                            <span>-</span>
+                          )
+                        ) : (
+                          <span>-</span>
+                        )}
+                      </td>
+                      
+                      {/* Statut - Badge calculé */}
+                      <td className="px-6 py-4 border-l border-r border-b border-slate-100 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${status.className}`}>
+                          {status.label}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

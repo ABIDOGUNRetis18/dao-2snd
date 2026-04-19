@@ -13,10 +13,11 @@ export async function getAllDaos(req: AuthenticatedRequest, res: Response) {
         d.reference,
         d.autorite,
         d.chef_id,
-        d.chef_projet_nom,
+        d.chef_projet_nom as chef_projet,
         d.groupement,
         d.nom_partenaire,
         d.statut,
+        d.type_dao,
         d.created_at,
         u.email as chef_projet_email
       FROM daos d

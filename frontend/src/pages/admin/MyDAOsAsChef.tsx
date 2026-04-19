@@ -251,7 +251,7 @@ export default function MyDAOsAsChef() {
             <div 
               key={dao.id} 
               className="bg-white rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer hover:border-blue-300"
-              onClick={() => window.location.href = `/chef-projet/dao/${dao.id}/tasks`}
+              onClick={() => window.location.href = `/admin/dao/${dao.id}/tasks`}
             >
               {/* Card Header */}
               <div className="p-4 border-b border-slate-200">
