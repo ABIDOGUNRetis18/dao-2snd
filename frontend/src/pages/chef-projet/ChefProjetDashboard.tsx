@@ -42,8 +42,20 @@ export default function ChefProjetDashboard() {
   const [statutFilter, setStatutFilter]     = useState('')
   const [showFilterMenu, setShowFilterMenu] = useState(false)
   const [refreshing, setRefreshing]         = useState(false)
+  const [currentUserId, setCurrentUserId]   = useState<number | null>(null)
 
   useEffect(() => { 
+    // Récupérer l'utilisateur connecté pour filtrer ses DAOs
+    const storedUser = localStorage.getItem("user")
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser)
+        setCurrentUserId(Number(parsed.id))
+      } catch (error) {
+        console.error('Erreur parsing utilisateur:', error)
+      }
+    }
+    
     loadDaos() 
     
     // Rafraîchissement automatique toutes les 30 secondes
@@ -59,13 +71,36 @@ export default function ChefProjetDashboard() {
     else setRefreshing(true)
     try {
       const token = localStorage.getItem('token')
-      const res = await fetch('http://localhost:3001/api/dao/mes-daos', {
+      
+      // Utiliser l'API pour récupérer les DAOs assignés à ce chef de projet
+      let daoUrl = 'http://localhost:3001/api/dao/mes-daos'
+      
+      // Si on a l'ID utilisateur, utiliser l'API filtrée par chefId
+      if (currentUserId) {
+        daoUrl = `http://localhost:3001/api/dao?chefId=${currentUserId}`
+      }
+      
+      const res = await fetch(daoUrl, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (res.ok) {
         const data = await res.json()
         if (data.success) {
-          const daoList = data.data.daos || []
+          let daoList = data.data.daos || []
+          
+          // Si on utilise l'API sans chefId, filtrer manuellement pour n'afficher que les DAOs du chef
+          if (!currentUserId) {
+            const storedUser = localStorage.getItem("user")
+            if (storedUser) {
+              try {
+                const parsed = JSON.parse(storedUser)
+                const userId = Number(parsed.id)
+                daoList = daoList.filter((dao: any) => Number(dao.chef_id) === userId)
+              } catch (error) {
+                console.error('Erreur parsing utilisateur pour filtrage:', error)
+              }
+            }
+          }
           
           // Pour chaque DAO, calculer la progression
           const daosWithProgress = await Promise.all(
