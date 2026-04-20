@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FileText, SlidersHorizontal, RefreshCw, Calendar, Hourglass, AlertTriangle } from 'lucide-react'
+import { SlidersHorizontal, RefreshCw } from 'lucide-react'
 
 interface DAO {
   id: number
@@ -10,6 +10,9 @@ interface DAO {
   autorite: string
   chef_projet_nom: string
   statut: 'EN_ATTENTE' | 'EN_COURS' | 'A_RISQUE' | 'TERMINEE' | 'ARCHIVE'
+  progression?: number
+  groupement: string
+  nom_partenaire?: string
 }
 
 const STATUTS = [
@@ -39,20 +42,91 @@ export default function ChefProjetDashboard() {
   const [statutFilter, setStatutFilter]     = useState('')
   const [showFilterMenu, setShowFilterMenu] = useState(false)
   const [refreshing, setRefreshing]         = useState(false)
+  const [currentUserId, setCurrentUserId]   = useState<number | null>(null)
 
-  useEffect(() => { loadDaos() }, [])
+  useEffect(() => { 
+    // Récupérer l'utilisateur connecté pour filtrer ses DAOs
+    const storedUser = localStorage.getItem("user")
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser)
+        setCurrentUserId(Number(parsed.id))
+      } catch (error) {
+        console.error('Erreur parsing utilisateur:', error)
+      }
+    }
+    
+    loadDaos() 
+    
+    // Rafraîchissement automatique toutes les 30 secondes
+    const interval = setInterval(() => {
+      loadDaos(true)
+    }, 30000)
+    
+    return () => clearInterval(interval)
+  }, [])
 
   const loadDaos = async (silent = false) => {
     if (!silent) setLoading(true)
     else setRefreshing(true)
     try {
       const token = localStorage.getItem('token')
-      const res = await fetch('http://localhost:3001/api/dao/mes-daos', {
+      
+      // Utiliser l'API pour récupérer les DAOs assignés à ce chef de projet
+      let daoUrl = 'http://localhost:3001/api/dao/mes-daos'
+      
+      // Si on a l'ID utilisateur, utiliser l'API filtrée par chefId
+      if (currentUserId) {
+        daoUrl = `http://localhost:3001/api/dao?chefId=${currentUserId}`
+      }
+      
+      const res = await fetch(daoUrl, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (res.ok) {
         const data = await res.json()
-        if (data.success) setDaos(data.data.daos || [])
+        if (data.success) {
+          let daoList = data.data.daos || []
+          
+          // Si on utilise l'API sans chefId, filtrer manuellement pour n'afficher que les DAOs du chef
+          if (!currentUserId) {
+            const storedUser = localStorage.getItem("user")
+            if (storedUser) {
+              try {
+                const parsed = JSON.parse(storedUser)
+                const userId = Number(parsed.id)
+                daoList = daoList.filter((dao: any) => Number(dao.chef_id) === userId)
+              } catch (error) {
+                console.error('Erreur parsing utilisateur pour filtrage:', error)
+              }
+            }
+          }
+          
+          // Pour chaque DAO, calculer la progression
+          const daosWithProgress = await Promise.all(
+            daoList.map(async (dao: any) => {
+              try {
+                const tasksRes = await fetch(`http://localhost:3001/api/task-assignment/dao/${dao.id}`, {
+                  headers: { 'Authorization': `Bearer ${token}` }
+                })
+                const tasksData = await tasksRes.json()
+                const tasks = tasksData.data?.assignments || []
+                
+                if (tasks.length > 0) {
+                  const totalProgress = tasks.reduce((sum: number, task: any) => sum + (task.progress || 0), 0)
+                  const averageProgress = Math.round(totalProgress / tasks.length)
+                  return { ...dao, progression: averageProgress }
+                }
+                return { ...dao, progression: 0 }
+              } catch (error) {
+                console.error('Erreur lors du chargement de la progression pour le DAO', dao.id, error)
+                return { ...dao, progression: 0 }
+              }
+            })
+          )
+          
+          setDaos(daosWithProgress)
+        }
       }
     } catch { /* silent */ }
     finally { setLoading(false); setRefreshing(false) }
@@ -69,10 +143,15 @@ export default function ChefProjetDashboard() {
     return matchSearch && matchStatut
   })
 
-  const totalAssignes = daos.length
-  const enCours       = daos.filter(d => d.statut === 'EN_COURS').length
-  const aRisque       = daos.filter(d => d.statut === 'A_RISQUE').length
+  // Statistiques calculées comme l'admin
+  const stats = {
+    totalDaos: daos.length,
+    completedDaos: daos.filter(d => d.statut === 'TERMINEE').length,
+    inProgressDaos: daos.filter(d => d.statut === 'EN_COURS').length,
+    atRiskDaos: daos.filter(d => d.statut === 'A_RISQUE').length
+  };
 
+  
   return (
     <div className="space-y-6">
       {/* Header card */}
@@ -126,29 +205,50 @@ export default function ChefProjetDashboard() {
         </button>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-        <div className="bg-white px-8 py-5 flex items-center gap-4 border-r border-slate-200">
-          <Calendar className="h-9 w-9 text-slate-400 flex-shrink-0" />
+      {/* Statistiques */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {/* Card 1 */}
+        <div className="bg-blue-500 p-6 rounded-xl border-b-4 border-blue-600 flex justify-between items-start shadow-lg">
           <div>
-            <p className="text-xs text-slate-500 mb-0.5">Total assignés</p>
-            <p className="text-3xl font-bold text-slate-700">{totalAssignes}</p>
+            <p className="text-xs font-bold text-blue-100 mb-1">Total DAOs</p>
+            <h3 className="text-3xl font-headline font-bold text-white">{stats.totalDaos}</h3>
+            <p className="text-[10px] text-blue-200 mt-2 font-semibold">Active projects</p>
+          </div>
+          <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+            <span className="material-symbols-outlined">calendar_today</span>
           </div>
         </div>
-
-        <div className="bg-yellow-50 px-8 py-5 flex items-center gap-4 border-r border-yellow-100">
-          <Hourglass className="h-9 w-9 text-yellow-500 flex-shrink-0" />
+        {/* Card 2 */}
+        <div className="bg-green-500 p-6 rounded-xl border-b-4 border-green-600 flex justify-between items-start shadow-lg">
           <div>
-            <p className="text-xs text-yellow-600 mb-0.5">En cours</p>
-            <p className="text-3xl font-bold text-yellow-600">{enCours}</p>
+            <p className="text-xs font-bold text-green-100 mb-1">Terminés</p>
+            <h3 className="text-3xl font-headline font-bold text-white">{stats.completedDaos}</h3>
+            <p className="text-[10px] text-green-200 mt-2 font-semibold">All targets met</p>
+          </div>
+          <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+            <span className="material-symbols-outlined">check_circle</span>
           </div>
         </div>
-
-        <div className="bg-red-50 px-8 py-5 flex items-center gap-4">
-          <AlertTriangle className="h-9 w-9 text-red-400 flex-shrink-0" />
+        {/* Card 3 */}
+        <div className="bg-orange-400 p-6 rounded-xl border-b-4 border-orange-500 flex justify-between items-start shadow-lg">
           <div>
-            <p className="text-xs text-red-500 mb-0.5">À risque</p>
-            <p className="text-3xl font-bold text-red-500">{aRisque}</p>
+            <p className="text-xs font-bold text-orange-100 mb-1">En cours</p>
+            <h3 className="text-3xl font-headline font-bold text-white">{stats.inProgressDaos}</h3>
+            <p className="text-[10px] text-orange-200 mt-2 font-semibold">Active processes</p>
+          </div>
+          <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+            <span className="material-symbols-outlined">hourglass_empty</span>
+          </div>
+        </div>
+        {/* Card 4 */}
+        <div className="bg-red-400 p-6 rounded-xl border-b-4 border-red-500 flex justify-between items-start shadow-lg">
+          <div>
+            <p className="text-xs font-bold text-red-100 mb-1">À risque</p>
+            <h3 className="text-3xl font-headline font-bold text-white">{stats.atRiskDaos}</h3>
+            <p className="text-[10px] text-red-200 mt-2 font-semibold">Critical alerts</p>
+          </div>
+          <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+            <span className="material-symbols-outlined">error</span>
           </div>
         </div>
       </div>
@@ -162,45 +262,56 @@ export default function ChefProjetDashboard() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/50">
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500">Nom</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500">Référence</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500">Autorité contractante</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500">Date de clôture</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500">Statut</th>
+          <table className="w-full">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Numéro</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Objet</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date Dépôt</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Référence</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Autorité</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Groupement</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Statut</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="bg-white divide-y divide-slate-200">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-16 text-sm text-slate-400">Chargement...</td>
+                  <td colSpan={7} className="text-center py-16 text-sm text-slate-400">Chargement...</td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-16 text-sm text-slate-400">
+                  <td colSpan={7} className="text-center py-16 text-sm text-slate-400">
                     {search || statutFilter ? 'Aucun DAO ne correspond à votre recherche.' : 'Aucun DAO assigné.'}
                   </td>
                 </tr>
               ) : filtered.map(dao => {
                 const badge = getStatutBadge(dao.statut)
+                
                 return (
-                  <tr
-                    key={dao.id}
-                    className="border-b border-slate-50 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors"
-                  >
-                    <td className="px-6 py-3.5">
-                      <p className="font-semibold text-slate-800">{dao.numero}</p>
-                      <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[180px]">{dao.objet}</p>
+                  <tr key={dao.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 text-sm font-medium text-slate-900">{dao.numero}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700">{dao.objet}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700">
+                      {new Date(dao.date_depot).toLocaleDateString('fr-FR')}
                     </td>
-                    <td className="px-6 py-3.5 text-slate-600">{dao.reference || '—'}</td>
-                    <td className="px-6 py-3.5 text-slate-600">{dao.autorite || '—'}</td>
-                    <td className="px-6 py-3.5 text-slate-600">
-                      {dao.date_depot ? new Date(dao.date_depot).toLocaleDateString('fr-FR') : '—'}
+                    <td className="px-4 py-3 text-sm text-slate-700">{dao.reference}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700">{dao.autorite}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700">
+                      {dao.groupement === "oui" ? (
+                        dao.nom_partenaire ? (
+                          <span style={{ whiteSpace: "pre-wrap" }}>
+                            {dao.nom_partenaire.replace(/,/g, ",\n")}
+                          </span>
+                        ) : (
+                          "-"
+                        )
+                      ) : (
+                        "-"
+                      )}
                     </td>
-                    <td className="px-6 py-3.5">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${badge.cls}`}>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${badge.cls}`}>
                         {badge.label}
                       </span>
                     </td>

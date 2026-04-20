@@ -5,32 +5,36 @@ const database_1 = require("../utils/database");
 async function getMyTasks(req, res) {
     try {
         const userId = req.user.userId; // ID de l'utilisateur connecté
-        // Récupérer les tâches assignées à l'utilisateur connecté depuis la table task
-        const result = await (0, database_1.query)(`
+        // Récupérer les tâches assignées à l'utilisateur connecté
+        // La table task contient les modèles, la table tasks contient les instances assignées
+        // On utilise uniquement tasks car c'est là que sont stockées les assignations réelles
+        const tasksResult = await (0, database_1.query)(`
       SELECT 
-        t.id,
-        t.nom as titre,
-        t.dao_id,
-        t.progress,
-        t.statut,
-        t.assigned_to,
+        ts.id as id,
+        ts.id_task,
+        COALESCE(tm.nom, ts.titre) as titre,
+        ts.dao_id,
+        ts.progress,
+        ts.statut,
+        ts.assigned_to,
         u.username as assigned_username,
         u.email as assigned_email,
         d.numero as dao_numero,
         d.objet as dao_objet,
         d.chef_projet_nom as chef_projet_nom,
-        CURRENT_TIMESTAMP as created_at,
-        CURRENT_TIMESTAMP as updated_at
-      FROM task t
-      JOIN daos d ON t.dao_id = d.id
-      LEFT JOIN users u ON t.assigned_to = u.id
-      WHERE t.assigned_to = $1
-      ORDER BY t.id DESC
+        ts.created_at,
+        ts.updated_at
+      FROM tasks ts
+      LEFT JOIN task tm ON ts.id_task = tm.id
+      JOIN daos d ON ts.dao_id = d.id
+      LEFT JOIN users u ON ts.assigned_to = u.id
+      WHERE ts.assigned_to = $1
+      ORDER BY ts.created_at DESC
     `, [userId]);
         // Formatter les données
-        const tasks = result.rows.map((task) => ({
+        const tasks = tasksResult.rows.map((task) => ({
             id: task.id,
-            id_task: task.id,
+            id_task: task.id_task,
             nom: task.titre,
             dao_id: task.dao_id,
             dao_numero: task.dao_numero,

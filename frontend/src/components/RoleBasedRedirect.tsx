@@ -51,7 +51,7 @@ export default function RoleBasedRedirect({ children }: RoleBasedRedirectProps) 
                 navigate('/admin/directeur-general')
                 break
               case 2: // Administrateur
-                navigate('/admin/directeur-general')
+                navigate('/admin')
                 break
               case 3: // Chef de Projet
                 navigate('/admin/chef-projet')

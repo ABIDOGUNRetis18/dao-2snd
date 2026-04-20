@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Search, ArrowLeft, Calendar, User, FileText, Clock, AlertTriangle, CheckCircle, TrendingUp, BarChart3 } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
-import { API_ENDPOINTS, apiGet, apiPut } from '../../config/api'
+import { User, Clock, MessageSquare, ArrowLeft } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { computeStatusFromProgress } from '../../utils/daoStatusUtils'
+import '../admin/MyTasks.css'
 
 interface Task {
   id: number
@@ -10,6 +11,7 @@ interface Task {
   dao_id: number
   dao_numero: string
   dao_objet: string
+  dao_statut: string | null
   statut: string | null
   progress: number | null
   priority: 'low' | 'medium' | 'high' | null
@@ -29,346 +31,509 @@ interface User {
   role_id: number
 }
 
+interface DAOGroup {
+  dao_id: number
+  dao_numero: string
+  dao_objet: string
+  dao_statut: string | null
+  tasks: Task[]
+  totalTasks: number
+  completedTasks: number
+  averageProgress: number
+}
+
 export default function MembreEquipeMyTasks() {
-  const navigate = useNavigate()
-  const [tasks, setTasks] = useState<Task[]>([])
+  const [daoGroups, setDaoGroups] = useState<DAOGroup[]>([])
+  const [expandedDAOs, setExpandedDAOs] = useState<number[]>([])
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [priorityFilter, setPriorityFilter] = useState('all')
+  const [openDiscussionDAO, setOpenDiscussionDAO] = useState<number | null>(null)
+  const [commentText, setCommentText] = useState('')
 
   useEffect(() => {
     loadMyTasks()
-  }, [])
+    loadCurrentUser()
+    // loadNotifications() // Désactivé - non utile pour cette section
+    
+      }, [])
+
+  const loadCurrentUser = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch('http://localhost:3001/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const userData = await res.json()
+        setUser(userData.user)
+      }
+    } catch (error) {
+      console.error('Erreur chargement utilisateur:', error)
+    }
+  }
+
+  const groupTasksByDAO = (tasks: Task[]): DAOGroup[] => {
+    const daoMap = new Map<number, DAOGroup>()
+    
+    tasks.forEach(task => {
+      if (!daoMap.has(task.dao_id)) {
+        daoMap.set(task.dao_id, {
+          dao_id: task.dao_id,
+          dao_numero: task.dao_numero,
+          dao_objet: task.dao_objet,
+          dao_statut: task.dao_statut,
+          tasks: [],
+          totalTasks: 0,
+          completedTasks: 0,
+          averageProgress: 0
+        })
+      }
+      
+      const daoGroup = daoMap.get(task.dao_id)!
+      daoGroup.tasks.push(task)
+    })
+    
+    // Calculer les statistiques pour chaque DAO
+    daoMap.forEach(daoGroup => {
+      daoGroup.totalTasks = daoGroup.tasks.length
+      daoGroup.completedTasks = daoGroup.tasks.filter(t => t.statut === 'termine').length
+      const totalProgress = daoGroup.tasks.reduce((sum, task) => sum + (task.progress || 0), 0)
+      daoGroup.averageProgress = Math.round(totalProgress / daoGroup.totalTasks)
+      
+      // Déterminer automatiquement le statut du DAO en fonction des tâches
+      const allTasksCompleted = daoGroup.completedTasks === daoGroup.totalTasks && daoGroup.totalTasks > 0
+      const hasTaskInProgress = daoGroup.tasks.some(t => t.statut === 'en_cours')
+      const hasTaskNotStarted = daoGroup.tasks.some(t => t.statut === 'a_faire')
+      
+      if (allTasksCompleted) {
+        // Toutes les tâches sont terminées
+        daoGroup.dao_statut = 'TERMINEE'
+      } else if (hasTaskInProgress || hasTaskNotStarted) {
+        // Au moins une tâche est en cours ou à faire
+        daoGroup.dao_statut = 'EN_COURS'
+      } else {
+        // Sinon, on garde le statut original
+        // Pas de changement par défaut pour éviter les conflits
+      }
+      
+      console.log(`🔍 DAO ${daoGroup.dao_id}: ${daoGroup.completedTasks}/${daoGroup.totalTasks} terminées -> statut: ${daoGroup.dao_statut}`)
+    })
+    
+    return Array.from(daoMap.values())
+  }
 
   const loadMyTasks = async () => {
     try {
-      // Récupérer les informations de l'utilisateur connecté
-      const userRes = await apiGet(API_ENDPOINTS.PROFILE)
-      if (userRes.success) {
-        setUser(userRes.data?.user)
-      }
+      const token = localStorage.getItem('token')
+      const headers = { 'Authorization': `Bearer ${token}` }
 
-      // Récupérer toutes les tâches assignées à cet utilisateur
-      const tasksRes = await apiGet(API_ENDPOINTS.TASK_MY_TASKS)
-      if (tasksRes.success) {
-        setTasks(tasksRes.data?.tasks || [])
+      const res = await fetch('http://localhost:3001/api/my-tasks', { headers })
+      
+      if (res.ok) {
+        const d = await res.json()
+        if (d.success) {
+          const tasksData = d.data.tasks || []
+          const groupedDAOs = groupTasksByDAO(tasksData)
+          setDaoGroups(groupedDAOs)
+        }
+      } else {
+        console.error('Erreur lors du chargement des tâches')
       }
     } catch (error) {
-      console.error('Erreur lors du chargement des tâches:', error)
+      console.error('Erreur réseau:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const updateTaskStatus = async (taskId: number, newStatus: string) => {
-    try {
-      const res = await apiPut(
-        API_ENDPOINTS.TASK_STATUS(taskId),
-        { statut: newStatus }
-      )
-      if (res.success) {
-        setTasks(tasks.map(task => 
-          task.id === taskId 
-            ? { ...task, statut: newStatus, progress: newStatus === 'termine' ? 100 : newStatus === 'en_cours' ? 50 : 0 }
-            : task
-        ))
-      }
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour du statut:', error)
-    }
-  }
-
-  const updateTaskProgress = async (taskId: number, progress: number) => {
-    try {
-      const res = await apiPut(
-        API_ENDPOINTS.TASK_PROGRESS(taskId),
-        { progress }
-      )
-      if (res.success) {
-        setTasks(tasks.map(task => 
-          task.id === taskId 
-            ? { ...task, progress, statut: progress === 100 ? 'termine' : progress > 0 ? 'en_cours' : 'a_faire' }
-            : task
-        ))
-      }
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour de la progression:', error)
-    }
-  }
-
-  // Filtrer les tâches
-  const filteredTasks = tasks.filter(task => {
-    const matchesSearch = task.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         task.dao_objet.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         task.dao_numero.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesStatus = statusFilter === 'all' || task.statut === statusFilter
-    const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter
-    
-    return matchesSearch && matchesStatus && matchesPriority
-  })
-
-  // Statistiques
-  const stats = {
-    total: tasks.length,
-    completed: tasks.filter(t => t.statut === 'termine').length,
-    inProgress: tasks.filter(t => t.statut === 'en_cours').length,
-    todo: tasks.filter(t => t.statut === 'a_faire').length,
-    overdue: tasks.filter(t => {
-      if (!t.due_date || t.statut === 'termine') return false
-      return new Date(t.due_date) < new Date()
-    }).length
-  }
-
   const getStatusColor = (status: string | null) => {
+    if (!status) return 'bg-gray-100 text-gray-800'
     switch (status) {
-      case 'termine': return 'text-green-600 bg-green-100'
-      case 'en_cours': return 'text-blue-600 bg-blue-100'
-      case 'a_faire': return 'text-gray-600 bg-gray-100'
-      default: return 'text-gray-600 bg-gray-100'
+      case 'a_faire': return 'bg-gray-100 text-gray-800'
+      case 'en_attente': return 'bg-yellow-100 text-yellow-800'
+      case 'en_cours': return 'bg-blue-100 text-blue-800'
+      case 'termine': return 'bg-green-100 text-green-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const updateTaskProgress = async (taskId: number, newProgress: number) => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`http://localhost:3001/api/task-progress/${taskId}/progress`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ progress: newProgress })
+      })
+
+      if (response.ok) {
+        // Mettre à jour l'état local
+        setDaoGroups(prevDaoGroups => 
+          prevDaoGroups.map(daoGroup => ({
+            ...daoGroup,
+            tasks: daoGroup.tasks.map(task => 
+              task.id === taskId ? { 
+                ...task, 
+                progress: newProgress,
+                statut: newProgress === 100 ? 'termine' : newProgress === 0 ? 'a_faire' : 'en_cours'
+              } : task
+            )
+          }))
+        )
+        
+        // Recalculer les statistiques du DAO
+        setDaoGroups(prevDaoGroups => 
+          prevDaoGroups.map(daoGroup => {
+            const updatedTasks = daoGroup.tasks.map(task => 
+              task.id === taskId ? { 
+                ...task, 
+                progress: newProgress,
+                statut: newProgress === 100 ? 'termine' : newProgress === 0 ? 'a_faire' : 'en_cours'
+              } : task
+            )
+            const totalProgress = updatedTasks.reduce((sum, task) => sum + (task.progress || 0), 0)
+            const averageProgress = Math.round(totalProgress / updatedTasks.length)
+            const completedTasks = updatedTasks.filter(t => t.statut === 'termine').length
+            
+            // Déterminer automatiquement le statut du DAO en fonction des tâches
+            const allTasksCompleted = completedTasks === updatedTasks.length && updatedTasks.length > 0
+            const hasTaskInProgress = updatedTasks.some(t => t.statut === 'en_cours')
+            const hasTaskNotStarted = updatedTasks.some(t => t.statut === 'a_faire')
+            
+            let newDaoStatut = daoGroup.dao_statut
+            if (allTasksCompleted) {
+              // Toutes les tâches sont terminées
+              newDaoStatut = 'TERMINEE'
+            } else if (hasTaskInProgress || hasTaskNotStarted) {
+              // Au moins une tâche est en cours ou à faire
+              newDaoStatut = 'EN_COURS'
+            }
+            
+            console.log(`DAO ${daoGroup.dao_id}: ${completedTasks}/${updatedTasks.length} terminées -> statut: ${newDaoStatut}`)
+            
+            return {
+              ...daoGroup,
+              tasks: updatedTasks,
+              averageProgress,
+              completedTasks,
+              dao_statut: newDaoStatut
+            }
+          })
+        )
+      } else {
+        console.error('Erreur lors de la mise à jour de la progression')
+      }
+    } catch (error) {
+      console.error('Erreur réseau:', error)
     }
   }
 
   const getPriorityColor = (priority: string | null) => {
     switch (priority) {
-      case 'high': return 'text-red-600 bg-red-100'
-      case 'medium': return 'text-yellow-600 bg-yellow-100'
-      case 'low': return 'text-green-600 bg-green-100'
-      default: return 'text-gray-600 bg-gray-100'
+      case 'high': return 'bg-red-100 text-red-800 border-red-200'
+      case 'medium': return 'bg-orange-100 text-orange-800 border-orange-200'
+      case 'low': return 'bg-green-100 text-green-800 border-green-200'
+      default: return 'bg-gray-100 text-gray-800 border-gray-200'
     }
   }
-  const getProgressColor = (progress: number = 0) => {
-    if (progress < 33) return 'bg-red-500'
-    if (progress < 66) return 'bg-amber-500'
-    return 'bg-green-500'
+
+  const getPriorityLabel = (priority: string | null) => {
+    switch (priority) {
+      case 'high': return 'Haute'
+      case 'medium': return 'Moyenne'
+      case 'low': return 'Basse'
+      default: return ''
+    }
   }
 
-  const getProgressTextColor = (progress: number = 0) => {
-    if (progress < 33) return 'text-red-600'
-    if (progress < 66) return 'text-amber-600'
-    return 'text-green-600'
+  const isOverdue = (dueDate: string | null, status: string | null) => {
+    if (!dueDate || status === 'termine') return false
+    return new Date(dueDate) < new Date()
   }
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-slate-500">Chargement de vos tâches...</div>
-      </div>
+
+  
+  
+  const toggleDAOExpansion = (daoId: number) => {
+    setExpandedDAOs(prev => 
+      prev.includes(daoId) 
+        ? prev.filter(id => id !== daoId)
+        : [...prev, daoId]
     )
   }
 
+  const toggleDiscussion = (daoId: number) => {
+    setOpenDiscussionDAO(prev => 
+      prev === daoId ? null : daoId
+    )
+  }
+
+  
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
-      {/* Header */}
+    <div className="min-h-screen bg-slate-50 p-6 animate-fadeInUp">
       <div className="max-w-7xl mx-auto">
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
             <Link
-              to="/membre/dashboard"
-              className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+              to="/membre-equipe"
+              className="p-3 text-slate-600 hover:bg-slate-100 rounded-lg transition-all duration-300 shadow-sm hover:shadow-md"
             >
               <ArrowLeft className="h-5 w-5" />
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-slate-800">Mes Tâches</h1>
+              <h1 className="text-2xl font-bold text-slate-800 mb-1">Mes Tâches</h1>
               <p className="text-slate-500 text-sm">
-                {user ? `Bienvenue ${user.username}` : 'Chargement...'}
+                {daoGroups.length} DAO{daoGroups.length > 1 ? 's' : ''} trouvé{daoGroups.length > 1 ? 's' : ''}
               </p>
             </div>
           </div>
-        </div>
-
-        {/* Statistiques */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500">Total</p>
-                <p className="text-2xl font-bold text-slate-800">{stats.total}</p>
+          <div className="flex items-center gap-4">
+            {user && (
+              <div className="flex items-center gap-2">
+                <div className="text-sm text-slate-600">
+                  Bienvenue, <span className="font-semibold">{user.username}</span>
+                </div>
+                <div className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                  Membre Équipe
+                </div>
               </div>
-              <BarChart3 className="h-8 w-8 text-slate-400" />
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500">À faire</p>
-                <p className="text-2xl font-bold text-gray-600">{stats.todo}</p>
-              </div>
-              <Clock className="h-8 w-8 text-gray-400" />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500">En cours</p>
-                <p className="text-2xl font-bold text-blue-600">{stats.inProgress}</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-blue-400" />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500">Terminées</p>
-                <p className="text-2xl font-bold text-green-600">{stats.completed}</p>
-              </div>
-              <CheckCircle className="h-8 w-8 text-green-400" />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500">En retard</p>
-                <p className="text-2xl font-bold text-red-600">{stats.overdue}</p>
-              </div>
-              <AlertTriangle className="h-8 w-8 text-red-400" />
-            </div>
+            )}
           </div>
         </div>
 
-        {/* Filtres */}
-        <div className="bg-white rounded-lg border border-slate-200 p-4 mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Rechercher une tâche..."
-                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+        {/* Loading */}
+        {loading && (
+          <div className="text-center py-16">
+            <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-slate-300 border-t-transparent"></div>
+            <p className="mt-4 text-slate-600 font-medium">Chargement des tâches...</p>
+          </div>
+        )}
+
+        {/* Liste des DAOs */}
+        {!loading && daoGroups.length > 0 && (
+          <div className="space-y-3">
+            {daoGroups.map((dao: DAOGroup) => (
+              <div
+                key={dao.dao_id}
+                className="bg-white rounded-lg border border-slate-200 shadow-sm p-3 task-card"
+                onClick={() => toggleDAOExpansion(dao.dao_id)}
+              >
+                {/* En-tête DAO */}
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <h3 className="font-bold text-lg text-slate-800 mb-1 task-title">
+                      {dao.dao_numero} - {dao.dao_objet}
+                    </h3>
+                    <div className="flex items-center gap-2 mb-1">
+                      {
+                        (() => {
+                          const statusInfo = computeStatusFromProgress(dao.averageProgress, dao.dao_statut);
+                          return (
+                            <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${statusInfo.className}`}>
+                              {statusInfo.label}
+                            </span>
+                          );
+                        })()
+                      }
+                      <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+                        {dao.totalTasks} tâche{dao.totalTasks > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2 ml-4">
+                    <span className="text-xs font-medium text-slate-600">
+                      {dao.completedTasks}/{dao.totalTasks} terminée{dao.completedTasks > 1 ? 's' : ''}
+                    </span>
+                    <span className="text-xs font-medium text-slate-600">
+                      {dao.averageProgress}% moyen
+                    </span>
+                  </div>
+                </div>
+
+                {/* Barre de progression globale du DAO */}
+                <div className="mb-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-slate-600 w-20">Progression:</span>
+                    <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-blue-500 transition-all duration-300"
+                        style={{ width: `${dao.averageProgress}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-bold text-slate-700 w-12 text-right">
+                      {dao.averageProgress}%
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => toggleDiscussion(dao.dao_id)}
+                        className="flex items-center gap-2 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                        <span>Commentaires</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Icône d'expansion */}
+                <div className="flex items-center justify-center">
+                  <svg 
+                    className={`w-4 h-4 text-slate-600 transition-transform duration-200 ${expandedDAOs.includes(dao.dao_id) ? 'rotate-180' : ''}`}
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+
+                {/* Section des tâches détaillées (expandable) */}
+                {expandedDAOs.includes(dao.dao_id) && (
+                  <div className="mt-4 pt-4 border-t border-slate-200" onClick={(e) => e.stopPropagation()}>
+                    <div className="space-y-2">
+                      {dao.tasks.map((task: Task) => (
+                        <div key={task.id} className="bg-slate-50 rounded-lg p-2 border border-slate-100">
+                          <div className="flex items-start justify-between mb-1">
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-sm text-slate-800 mb-1">
+                                {task.nom}
+                              </h4>
+                              <div className="flex items-center gap-1 mb-1">
+                                <span className={`px-1 py-0.5 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
+                                  {getPriorityLabel(task.priority)}
+                                </span>
+                                <span className={`px-1 py-0.5 rounded-full text-xs font-medium ${getStatusColor(task.statut)}`}>
+                                  {task.statut === 'a_faire' ? 'À faire' : task.statut === 'en_cours' ? 'En cours' : task.statut === 'termine' ? 'Terminé' : 'En attente'}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="text-xs font-medium text-slate-600">
+                              {(task.progress || 0)}%
+                            </span>
+                          </div>
+                          
+                          {/* Barre de progression de la tâche */}
+                          <div className="mb-2 no-navigate">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={task.progress || 0}
+                                onChange={(e) => updateTaskProgress(task.id, parseInt(e.target.value))}
+                                className="flex-1 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer slider align-middle"
+                                style={{
+                                  background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(task.progress || 0)}%, #e2e8f0 ${(task.progress || 0)}%, #e2e8f0 100%)`
+                                }}
+                              />
+                              <span className="text-xs font-medium text-slate-700 w-8 text-right">
+                                {task.progress || 0}%
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Informations supplémentaires */}
+                          <div className="flex items-center justify-between text-xs text-slate-500">
+                            <div className="flex items-center gap-2">
+                              {task.due_date && (
+                                <div className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  <span className={isOverdue(task.due_date, task.statut) ? 'text-red-600' : 'text-slate-700'}>
+                                    {new Date(task.due_date).toLocaleDateString('fr-FR')}
+                                  </span>
+                                </div>
+                              )}
+                              {task.assigned_username && (
+                                <div className="flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  <span>{task.assigned_username}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Bulle de discussion */}
+        {openDiscussionDAO && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setOpenDiscussionDAO(null)}>
+            <div 
+              className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Discussion - DAO {daoGroups.find(d => d.dao_id === openDiscussionDAO)?.dao_numero}
+                </h3>
+                <button 
+                  onClick={() => setOpenDiscussionDAO(null)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div className="mb-4">
+                <textarea
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  placeholder="Écrivez votre commentaire ici..."
+                  className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  rows={4}
                 />
               </div>
+              
+              <div className="flex justify-end gap-2">
+                <button 
+                  onClick={() => setOpenDiscussionDAO(null)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  Annuler
+                </button>
+                <button 
+                  onClick={() => {
+                    // Logique d'envoi du commentaire ici
+                    console.log('Commentaire envoyé:', commentText)
+                    setCommentText('')
+                    setOpenDiscussionDAO(null)
+                  }}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  Envoyer
+                </button>
+              </div>
             </div>
-            
-            <select
-              className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all">Tous les statuts</option>
-              <option value="a_faire">À faire</option>
-              <option value="en_cours">En cours</option>
-              <option value="termine">Terminé</option>
-            </select>
-
-            <select
-              className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-            >
-              <option value="all">Toutes les priorités</option>
-              <option value="high">Haute</option>
-              <option value="medium">Moyenne</option>
-              <option value="low">Basse</option>
-            </select>
           </div>
-        </div>
+        )}
 
-        {/* Liste des tâches */}
-        <div className="space-y-4">
-          {filteredTasks.length === 0 ? (
-            <div className="bg-white rounded-lg border border-slate-200 p-8 text-center">
-              <div className="text-slate-500">
-                {searchTerm || statusFilter !== 'all' || priorityFilter !== 'all' 
-                  ? 'Aucune tâche ne correspond à vos filtres.' 
-                  : 'Aucune tâche assignée pour le moment.'}
-              </div>
+        {/* Aucune tâche trouvée */}
+        {!loading && daoGroups.length === 0 && (
+          <div className="text-center py-12">
+            <div className="text-slate-400 mb-4">
+              <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
             </div>
-          ) : (
-            filteredTasks.map(task => (
-              <div key={task.id} className="bg-white rounded-lg border border-slate-200 p-6 hover:shadow-md transition-shadow">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-slate-800 mb-2">{task.nom}</h3>
-                    <div className="flex items-center gap-4 text-sm text-slate-500 mb-2">
-                      <span className="flex items-center gap-1">
-                        <FileText className="h-4 w-4" />
-                        DAO {task.dao_numero}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <User className="h-4 w-4" />
-                        {task.chef_projet_nom}
-                      </span>
-                    </div>
-                    <p className="text-slate-600 text-sm mb-3">{task.dao_objet}</p>
-                    
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(task.statut)}`}>
-                        {task.statut === 'termine' ? 'Terminé' : 
-                         task.statut === 'en_cours' ? 'En cours' : 
-                         task.statut === 'a_faire' ? 'À faire' : 'Non défini'}
-                      </span>
-                      {task.priority && (
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(task.priority)}`}>
-                          {task.priority === 'high' ? 'Haute' : 
-                           task.priority === 'medium' ? 'Moyenne' : 
-                           task.priority === 'low' ? 'Basse' : task.priority}
-                        </span>
-                      )}
-                      {task.due_date && (
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          new Date(task.due_date) < new Date() && task.statut !== 'termine'
-                            ? 'text-red-600 bg-red-100'
-                            : 'text-slate-600 bg-slate-100'
-                        }`}>
-                          <Calendar className="h-3 w-3 inline mr-1" />
-                          {new Date(task.due_date).toLocaleDateString('fr-FR')}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Barre de progression */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between text-sm mb-2">
-                    <span className="text-slate-600 font-medium">Progression</span>
-                    <span className={`font-bold ${getProgressTextColor(task.progress || 0)}`}>{task.progress || 0}%</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      step="5"
-                      value={task.progress || 0}
-                      onChange={(e) => updateTaskProgress(task.id, parseInt(e.target.value))}
-                      className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
-                    />
-                  </div>
-                  <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden mt-2">
-                    <div 
-                      className={`h-full rounded-full transition-all duration-300 ${getProgressColor(task.progress || 0)}`}
-                      style={{ width: `${task.progress || 0}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Actions — Statut */}
-                <div className="flex items-center gap-2">
-                  <label className="text-sm text-slate-600">Statut:</label>
-                  <select
-                    className="px-3 py-1 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={task.statut || 'a_faire'}
-                    onChange={(e) => updateTaskStatus(task.id, e.target.value)}
-                  >
-                    <option value="a_faire">À faire</option>
-                    <option value="en_cours">En cours</option>
-                    <option value="termine">Terminé</option>
-                  </select>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+            <h3 className="text-lg font-medium text-slate-900 mb-2">
+              Aucune tâche assignée.
+            </h3>
+            <p className="text-slate-500">
+              Vous n'avez pas de tâches assignées pour le moment.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )

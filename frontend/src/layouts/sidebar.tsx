@@ -1,74 +1,81 @@
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
-import { useState, useEffect, useRef } from 'react'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { 
-  LayoutDashboard, 
-  UserPlus, 
-  FolderPlus, 
-  Folder, 
-  Folders, 
-  ClipboardList, 
-  History, 
-  Menu,
-  MessageSquare,
-  Bell,
-  X,
-  LogOut,
-  User,
-  ChevronDown
-} from 'lucide-react'
 
-const menuItems = [
-  { path: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
-  { path: '/admin/create-user', icon: UserPlus, label: 'Créer un utilisateur' },
-  { path: '/admin/create-dao', icon: FolderPlus, label: 'Créer un DAO' },
-  { path: '/admin/my-daos', icon: Folder, label: 'Mes DAO' },
-  { path: '/admin/all-daos', icon: Folders, label: 'Tous les DAO' },
-  { path: '/admin/my-tasks', icon: ClipboardList, label: 'Mes tâches' },
-  { path: '/admin/history', icon: History, label: 'Historique' },
-]
+interface MenuItem {
+  path: string
+  label: string
+  icon: string
+}
+
+const menuItemsByRole: Record<number, MenuItem[]> = {
+  1: [
+    { path: '/directeur-general', label: 'Tableau de bord', icon: 'dashboard' },
+    { path: '/directeur-general/reports', label: 'Rapports', icon: 'analytics' },
+    { path: '/directeur-general/history', label: 'Historique', icon: 'history' },
+  ],
+  2: [
+    { path: '/admin', label: 'Tableau de bord', icon: 'dashboard' },
+    { path: '/admin/create-user', label: 'Créer utilisateur', icon: 'person_add' },
+    { path: '/admin/create-dao', label: 'Créer DAO', icon: 'add_circle' },
+    { path: '/admin/my-dao', label: 'Mes DAO', icon: 'folder_shared' },
+    { path: '/admin/all-daos', label: 'Tous les DAO', icon: 'list_alt' },
+    { path: '/admin/my-tasks', label: 'Mes taches', icon: 'assignment' },
+    { path: '/admin/history', label: 'Historique', icon: 'history' },
+  ],
+  3: [
+    { path: '/chef-projet/dashboard', label: 'Tableau de bord', icon: 'dashboard' },
+    { path: '/chef-projet/mes-daos', label: 'Mes DAO', icon: 'folder_shared' },
+    { path: '/chef-projet/mes-equipes', label: 'Mes équipes', icon: 'groups' },
+    { path: '/chef-projet/mes-taches', label: 'Mes tâches', icon: 'assignment' },
+    { path: '/chef-projet/history', label: 'Historique', icon: 'history' },
+  ],
+  4: [
+    { path: '/membre-equipe', label: 'Tableau de bord', icon: 'dashboard' },
+    { path: '/membre-equipe/tasks', label: 'Mes tâches', icon: 'assignment' },
+    { path: '/membre-equipe/history', label: 'Historique', icon: 'history' },
+  ],
+  5: [
+    { path: '/lecteur', label: 'Tableau de bord', icon: 'dashboard' },
+    { path: '/lecteur/all-daos', label: 'Tous les DAO', icon: 'list_alt' },
+    { path: '/lecteur/history', label: 'Historique', icon: 'history' },
+  ]
+}
 
 export default function AdminLayout() {
   const location = useLocation()
   const navigate = useNavigate()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const { user, logout, isAuthenticated, isLoading } = useAuth()
-  const userMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    // Ne rediriger que si le chargement est terminé et que l'utilisateur n'est pas authentifié
     if (!isLoading && !isAuthenticated) {
       navigate('/')
     }
   }, [isLoading, isAuthenticated, navigate])
 
-  // Fermer le menu utilisateur si clic à l'extérieur
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
-        setUserMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
+  const roleId = user?.role_id ?? 5
+  const menuItems = menuItemsByRole[roleId] ?? []
 
-  // Obtenir l'initiale du nom pour l'avatar
-  const getInitial = (name: string) => {
-    return name.charAt(0).toUpperCase()
+  const getRoleTitle = () => {
+    switch (roleId) {
+      case 1: return '2SND Direction'
+      case 2: return '2SND Admin'
+      case 3: return '2SND Projets'
+      case 4: return '2SND Équipe'
+      case 5: return '2SND Lecture'
+      default: return '2SND'
+    }
   }
 
-  // Obtenir le nom du rôle à partir de role_id
-  const getRoleName = (roleId: number) => {
-    const roles = {
-      1: 'directeur',
-      2: 'admin', 
-      3: 'chef_projet',
-      4: 'membre_equipe',
-      5: 'lecteur'
+  const getRoleSubtitle = () => {
+    switch (roleId) {
+      case 1: return 'Direction Générale'
+      case 2: return 'Système de Précision'
+      case 3: return 'Gestion de Projets'
+      case 4: return 'Espace Collaboratif'
+      case 5: return 'Centre de Documentation'
+      default: return 'Système'
     }
-    return roles[roleId as keyof typeof roles] || 'lecteur'
   }
 
   const handleLogout = () => {
@@ -76,174 +83,65 @@ export default function AdminLayout() {
     navigate('/')
   }
 
-  // Afficher un écran de chargement pendant la vérification de l'authentification
+  const handleNavigation = (path: string) => {
+    navigate(path)
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          <p className="mt-2 text-slate-500">Vérification de l'authentification...</p>
+          <p className="mt-2 text-slate-500">Chargement...</p>
         </div>
       </div>
     )
   }
 
-  // Si l'utilisateur n'est pas authentifié après le chargement, ne rien afficher (la redirection se fera)
   if (!isAuthenticated) {
     return null
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
-        <div className="flex items-center justify-between px-4 py-3">
-          {/* Left side - Logo */}
-          <div className="flex items-center gap-4">
-            <button 
-              className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+    <div className="bg-background text-on-surface flex min-h-screen">
+      {/* SideNavBar */}
+      <aside className="h-screen w-64 fixed left-0 top-0 bg-slate-100 flex flex-col py-6 pr-4 gap-2 z-50">
+        <div className="px-6 mb-8">
+          <h1 className="font-headline text-lg font-black tracking-tighter text-blue-900">{getRoleTitle()}</h1>
+          <p className="text-xs text-slate-500 font-medium">{getRoleSubtitle()}</p>
+        </div>
+        <nav className="flex-1 space-y-1">
+          {menuItems.map((item) => (
+            <button
+              key={item.path}
+              className={`flex items-center gap-3 px-6 py-3 transition-transform duration-200 ${
+                location.pathname === item.path
+                  ? 'text-blue-700 font-bold bg-white rounded-r-full shadow-sm hover:translate-x-1'
+                  : 'text-slate-600 hover:text-blue-800 hover:translate-x-1'
+              }`}
+              onClick={() => handleNavigation(item.path)}
             >
-              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              <span className="material-symbols-outlined">{item.icon}</span>
+              <span className="font-body text-sm">{item.label}</span>
             </button>
-            <Link to="/admin" className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl">2</span>
-              </div>
-              <span className="text-xl font-bold text-slate-800">SND</span>
-            </Link>
-          </div>
-
-          {/* Right side - Actions & User */}
-          <div className="flex items-center gap-4">
-            <button className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors relative">
-              <MessageSquare className="h-5 w-5" />
+          ))}
+        </nav>
+        <div className="mt-auto px-4 space-y-4">
+          <div className="pt-4 border-t border-slate-200 flex flex-col gap-1">
+            <button
+              className="flex items-center gap-3 px-6 py-2 text-slate-500 hover:text-red-600 text-sm"
+              onClick={handleLogout}
+            >
+              <span className="material-symbols-outlined">logout</span> Déconnexion
             </button>
-            <button className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
-            <div className="relative" ref={userMenuRef}>
-              <button
-                onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center gap-2 pl-4 border-l border-slate-200 hover:bg-slate-50 rounded-lg transition-colors group"
-              >
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center border-4 border-slate-100 ${
-                  user?.role_id === 2 ? 'bg-blue-100' :
-                  user?.role_id === 1 ? 'bg-purple-100' :
-                  user?.role_id === 3 ? 'bg-green-100' :
-                  user?.role_id === 4 ? 'bg-orange-100' :
-                  'bg-gray-100'
-                }`}>
-                  <span className={`font-semibold text-sm ${
-                    user?.role_id === 2 ? 'text-blue-600' :
-                    user?.role_id === 1 ? 'text-purple-600' :
-                    user?.role_id === 3 ? 'text-green-600' :
-                    user?.role_id === 4 ? 'text-orange-600' :
-                    'text-gray-600'
-                  }`}>
-                    {user ? getInitial(user.username) : 'U'}
-                  </span>
-                </div>
-                <div className="hidden sm:block">
-                  <div className="text-sm font-medium text-slate-700">{user?.username}</div>
-                  <div className="text-xs text-slate-500">{getRoleName(user?.role_id || 5)}</div>
-                </div>
-                <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${
-                  userMenuOpen ? 'rotate-180' : ''
-                }`} />
-              </button>
-
-              {/* Menu déroulant utilisateur */}
-              {userMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-slate-200 rounded-lg shadow-lg py-2 z-50">
-                  <Link
-                    to="/admin/profile"
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                    onClick={() => setUserMenuOpen(false)}
-                  >
-                    <User className="h-4 w-4" />
-                    Mon profil
-                  </Link>
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors text-left"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Déconnexion
-                  </button>
-                </div>
-              )}
-            </div>
           </div>
         </div>
-      </header>
+      </aside>
 
-      <div className="flex flex-1">
-        {/* Sidebar - Desktop */}
-        <aside className="hidden lg:flex w-64 bg-white border-r border-slate-200 flex-col">
-          <nav className="flex-1 p-4 space-y-1">
-            {menuItems.map((item) => {
-              const Icon = item.icon
-              const isActive = location.pathname === item.path
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                    isActive
-                      ? 'bg-indigo-50 text-indigo-600'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span className="font-medium">{item.label}</span>
-                </Link>
-              )
-            })}
-          </nav>
-        </aside>
-
-        {/* Mobile Menu Overlay */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMobileMenuOpen(false)}>
-            <div className="absolute left-0 top-0 h-full w-64 bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
-              <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-                <span className="font-semibold text-slate-800">Menu</span>
-                <button onClick={() => setMobileMenuOpen(false)}>
-                  <X className="h-5 w-5 text-slate-500" />
-                </button>
-              </div>
-              <nav className="p-4 space-y-1">
-                {menuItems.map((item) => {
-                  const Icon = item.icon
-                  const isActive = location.pathname === item.path
-                  return (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                        isActive
-                          ? 'bg-indigo-50 text-indigo-600'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                      }`}
-                    >
-                      <Icon className="h-5 w-5" />
-                      <span className="font-medium">{item.label}</span>
-                    </Link>
-                  )
-                })}
-              </nav>
-            </div>
-          </div>
-        )}
-
-        {/* Main content */}
-        <main className="flex-1 overflow-auto p-8">
-          <Outlet />
-        </main>
-      </div>
+      {/* Main Content Area */}
+      <main className="ml-64 flex-1 flex flex-col">
+        <Outlet />
+      </main>
     </div>
   )
 }

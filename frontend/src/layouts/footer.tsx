@@ -1,7 +1,13 @@
 export default function AppFooter() {
+  const currentYear = new Date().getFullYear();
+  
   return (
-    <footer className="border-t border-slate-200 bg-white px-4 py-4 sm:px-6 lg:px-8 text-center text-xs text-slate-500">
-      © 2026 2SND TECHNOLOGIES - Tous droits réservés.
+    <footer className="bg-surface-container border border-slate-100 px-8 py-7">
+      <div className="flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-xs text-slate-500">© {currentYear} Tous droits réservés</p>
+        </div>
+      </div>
     </footer>
   )
 }

@@ -1,395 +1,426 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { CheckCircle, Clock, AlertTriangle, Calendar, User, Filter } from 'lucide-react'
+import { Search, User, Clock, MessageSquare } from 'lucide-react'
+import { computeStatusFromProgress } from '../../utils/daoStatusUtils'
 
 interface Task {
   id: number
-  titre: string
-  statut: 'a_faire' | 'en_cours' | 'termine'
-  priorite: 'basse' | 'moyenne' | 'haute'
-  date_echeance?: string
-  progress?: number
+  id_task: number
+  nom: string
+  dao_id: number
   dao_numero: string
   dao_objet: string
-  chef_projet_nom: string
-  assigned_username?: string
-  assigned_email?: string
+  dao_statut: string | null
+  statut: string | null
+  progress: number | null
+  priority: 'low' | 'medium' | 'high' | null
+  due_date: string | null
+  assigned_to: number | null
+  assigned_username: string | null
+  assigned_email: string | null
+  chef_projet_nom: string | null
+  created_at: string
+  updated_at: string
 }
 
-interface Stats {
-  total: number
-  completed: number
-  in_progress: number
-  not_started: number
-  overdue: number
+interface User {
+  id: number
+  username: string
+  email: string
+  role_id: number
+}
+
+interface DAOGroup {
+  dao_id: number
+  dao_numero: string
+  dao_objet: string
+  dao_statut: string | null
+  tasks: Task[]
+  totalTasks: number
+  completedTasks: number
+  averageProgress: number
 }
 
 export default function MembreEquipe() {
-  const navigate = useNavigate()
   const [tasks, setTasks] = useState<Task[]>([])
-  const [stats, setStats] = useState<Stats>({
-    total: 0,
-    completed: 0,
-    in_progress: 0,
-    not_started: 0,
-    overdue: 0
-  })
-  const [filter, setFilter] = useState<'all' | 'today' | 'week' | 'overdue'>('all')
+  const [daoGroups, setDaoGroups] = useState<DAOGroup[]>([])
+  const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [expandedDAOs, setExpandedDAOs] = useState<number[]>([])
 
   useEffect(() => {
-    loadTasks()
-  }, [])
-
-  const loadTasks = async () => {
-    try {
-      const token = localStorage.getItem('token')
+    const storedUser = localStorage.getItem('user')
+    if (storedUser) {
+      const parsedUser = JSON.parse(storedUser)
+      setCurrentUser(parsedUser)
       
-      const response = await fetch('http://localhost:3001/api/my-tasks', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success) {
-          setTasks(data.data.tasks || [])
-          calculateStats(data.data.tasks || [])
+      const fetchTasks = async () => {
+        try {
+          const token = localStorage.getItem('token')
+          const response = await fetch('http://localhost:3001/api/my-tasks', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+          
+          if (response.ok) {
+            const result = await response.json()
+            if (result.success) {
+              const tasksData = result.data.tasks || []
+              setTasks(tasksData)
+              const groupedDAOs = groupTasksByDAO(tasksData)
+              setDaoGroups(groupedDAOs)
+            }
+          }
+        } catch (error) {
+          console.error('Erreur chargement tâches:', error)
+        } finally {
+          setLoading(false)
         }
       }
       
-    } catch (error) {
-      console.error('Erreur lors du chargement des tâches:', error)
-    } finally {
-      setLoading(false)
+      fetchTasks()
     }
-  }
+  }, [])
 
-  const calculateStats = (tasks: Task[]) => {
-    const today = new Date()
-    const weekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
+  
+  const groupTasksByDAO = (tasks: Task[]): DAOGroup[] => {
+    const daoMap = new Map<number, DAOGroup>()
     
-    const summary = {
-      total: tasks.length,
-      completed: tasks.filter(t => t.statut === 'termine').length,
-      in_progress: tasks.filter(t => t.statut === 'en_cours').length,
-      not_started: tasks.filter(t => t.statut === 'a_faire').length,
-      overdue: tasks.filter(t => {
-        if (!t.date_echeance || t.statut === 'termine') return false
-        return new Date(t.date_echeance) < today
-      }).length
-    }
+    tasks.forEach(task => {
+      if (!daoMap.has(task.dao_id)) {
+        daoMap.set(task.dao_id, {
+          dao_id: task.dao_id,
+          dao_numero: task.dao_numero,
+          dao_objet: task.dao_objet,
+          dao_statut: task.dao_statut,
+          tasks: [],
+          totalTasks: 0,
+          completedTasks: 0,
+          averageProgress: 0
+        })
+      }
+      
+      const daoGroup = daoMap.get(task.dao_id)!
+      daoGroup.tasks.push(task)
+    })
     
-    setStats(summary)
-  }
-
-  const getFilteredTasks = () => {
-    const today = new Date()
-    const weekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
+    // Calculer les statistiques pour chaque DAO
+    daoMap.forEach(daoGroup => {
+      daoGroup.totalTasks = daoGroup.tasks.length
+      daoGroup.completedTasks = daoGroup.tasks.filter(t => t.statut === 'termine').length
+      const totalProgress = daoGroup.tasks.reduce((sum, task) => sum + (task.progress || 0), 0)
+      daoGroup.averageProgress = Math.round(totalProgress / daoGroup.totalTasks)
+      
+      // Déterminer automatiquement le statut du DAO en fonction des tâches
+      const allTasksCompleted = daoGroup.completedTasks === daoGroup.totalTasks && daoGroup.totalTasks > 0
+      const hasTaskInProgress = daoGroup.tasks.some(t => t.statut === 'en_cours')
+      const hasTaskNotStarted = daoGroup.tasks.some(t => t.statut === 'a_faire')
+      
+      if (allTasksCompleted) {
+        // Toutes les tâches sont terminées
+        daoGroup.dao_statut = 'TERMINEE'
+      } else if (hasTaskInProgress || hasTaskNotStarted) {
+        // Au moins une tâche est en cours ou à faire
+        daoGroup.dao_statut = 'EN_COURS'
+      } else {
+        // Sinon, on garde le statut original
+        // Pas de changement par défaut pour éviter les conflits
+      }
+      
+      console.log(`🔍 DAO ${daoGroup.dao_id}: ${daoGroup.completedTasks}/${daoGroup.totalTasks} terminées -> statut: ${daoGroup.dao_statut}`)
+    })
     
-    switch (filter) {
-      case 'today':
-        return tasks.filter(t => {
-          const taskDate = new Date(t.date_echeance || today)
-          return taskDate.toDateString() === today.toDateString()
-        })
-      case 'week':
-        return tasks.filter(t => {
-          const taskDate = new Date(t.date_echeance || today)
-          return taskDate <= weekFromNow
-        })
-      case 'overdue':
-        return tasks.filter(t => {
-          if (!t.date_echeance || t.statut === 'termine') return false
-          return new Date(t.date_echeance) < today
-        })
-      default:
-        return tasks
-    }
+    return Array.from(daoMap.values())
   }
 
-  const getStatutColor = (statut: string) => {
-    switch (statut) {
-      case 'termine': return 'bg-green-100 text-green-700'
-      case 'en_cours': return 'bg-blue-100 text-blue-700'
-      case 'a_faire': return 'bg-gray-100 text-gray-600'
-      default: return 'bg-gray-100 text-gray-600'
-    }
-  }
+  // Calcul des statistiques globales
+  const totalTasks = tasks.length
+  const completedTasks = tasks.filter(task => task.progress !== null && task.progress === 100).length
+  const inProgressTasks = tasks.filter(task => task.progress !== null && task.progress > 0 && task.progress < 100).length
+  const pendingTasks = tasks.filter(task => task.progress !== null && task.progress === 0).length
 
-  const getStatutLabel = (statut: string) => {
-    switch (statut) {
-      case 'termine': return 'Terminé'
-      case 'en_cours': return 'En cours'
-      case 'a_faire': return 'À faire'
-      default: return statut
-    }
-  }
-
-  const getPrioriteColor = (priorite: string) => {
-    switch (priorite) {
-      case 'haute': return 'bg-red-100 text-red-600'
-      case 'moyenne': return 'bg-orange-100 text-orange-600'
-      case 'basse': return 'bg-green-100 text-green-600'
-      default: return 'bg-gray-100 text-gray-600'
-    }
-  }
-
-  const getPrioriteLabel = (priorite: string) => {
-    switch (priorite) {
-      case 'haute': return 'Haute'
-      case 'moyenne': return 'Moyenne'
-      case 'basse': return 'Basse'
-      default: return priorite
-    }
-  }
-
-  const isOverdue = (task: Task) => {
-    if (!task.date_echeance || task.statut === 'termine') return false
-    return new Date(task.date_echeance) < new Date()
-  }
-
-  const filteredTasks = getFilteredTasks()
-
-  if (loading) {
+  const filteredDAOs = daoGroups.filter(dao => {
+    const q = searchTerm.toLowerCase()
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-slate-400">Chargement...</div>
-      </div>
+      dao.dao_objet.toLowerCase().includes(q) ||
+      dao.dao_numero.toLowerCase().includes(q)
+    )
+  })
+
+  const getStatusColor = (status: string | null) => {
+    if (!status) return 'bg-gray-100 text-gray-800'
+    switch (status) {
+      case 'a_faire': return 'bg-gray-100 text-gray-800'
+      case 'en_attente': return 'bg-yellow-100 text-yellow-800'
+      case 'en_cours': return 'bg-blue-100 text-blue-800'
+      case 'termine': return 'bg-green-100 text-green-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const getPriorityColor = (priority: string | null) => {
+    switch (priority) {
+      case 'high': return 'bg-red-100 text-red-800 border-red-200'
+      case 'medium': return 'bg-orange-100 text-orange-800 border-orange-200'
+      case 'low': return 'bg-green-100 text-green-800 border-green-200'
+      default: return 'bg-gray-100 text-gray-800 border-gray-200'
+    }
+  }
+
+  const getPriorityLabel = (priority: string | null) => {
+    switch (priority) {
+      case 'high': return 'Haute'
+      case 'medium': return 'Moyenne'
+      case 'low': return 'Basse'
+      default: return ''
+    }
+  }
+
+  const isOverdue = (dueDate: string | null, status: string | null) => {
+    if (!dueDate || status === 'termine') return false
+    return new Date(dueDate) < new Date()
+  }
+
+  const toggleDAOExpansion = (daoId: number) => {
+    setExpandedDAOs(prev => 
+      prev.includes(daoId) 
+        ? prev.filter(id => id !== daoId)
+        : [...prev, daoId]
     )
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-teal-600 rounded-full flex items-center justify-center text-white font-bold">
-                ME
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-slate-800">Mes Tâches</h1>
-                <p className="text-sm text-slate-500">Vue d'ensemble de mes responsabilités</p>
-              </div>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        
+        {/* Cartes de statistiques */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Card 1 */}
+          <div className="bg-blue-500 p-6 rounded-xl border-b-4 border-blue-600 flex justify-between items-start shadow-lg">
+            <div>
+              <p className="text-xs font-bold text-blue-100 mb-1">Tâches totales</p>
+              <h3 className="text-3xl font-headline font-bold text-white">{totalTasks}</h3>
+              <p className="text-[10px] text-blue-200 mt-2 font-semibold">Workload total</p>
             </div>
-            <button
-              onClick={() => navigate('/admin/login')}
-              className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 transition-colors"
-            >
-              Déconnexion
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-lg font-semibold text-slate-800">Total</h3>
-              <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center">
-                <User className="h-6 w-6 text-blue-600" />
-              </div>
+            <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+              <span className="material-symbols-outlined">assignment</span>
             </div>
-            <p className="text-3xl font-bold text-blue-600">{stats.total}</p>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-lg font-semibold text-slate-800">À faire</h3>
-              <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center">
-                <Clock className="h-6 w-6 text-gray-600" />
-              </div>
+          {/* Card 2 */}
+          <div className="bg-green-500 p-6 rounded-xl border-b-4 border-green-600 flex justify-between items-start shadow-lg">
+            <div>
+              <p className="text-xs font-bold text-green-100 mb-1">Terminées</p>
+              <h3 className="text-3xl font-headline font-bold text-white">{completedTasks}</h3>
+              <p className="text-[10px] text-green-200 mt-2 font-semibold">All targets met</p>
             </div>
-            <p className="text-3xl font-bold text-gray-600">{stats.not_started}</p>
+            <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+              <span className="material-symbols-outlined">check_circle</span>
+            </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-lg font-semibold text-slate-800">En cours</h3>
-              <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center">
-                <AlertTriangle className="h-6 w-6 text-blue-600" />
-              </div>
+          {/* Card 3 */}
+          <div className="bg-orange-400 p-6 rounded-xl border-b-4 border-orange-500 flex justify-between items-start shadow-lg">
+            <div>
+              <p className="text-xs font-bold text-orange-100 mb-1">En cours</p>
+              <h3 className="text-3xl font-headline font-bold text-white">{inProgressTasks}</h3>
+              <p className="text-[10px] text-orange-200 mt-2 font-semibold">Active processes</p>
             </div>
-            <p className="text-3xl font-bold text-blue-600">{stats.in_progress}</p>
+            <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+              <span className="material-symbols-outlined">hourglass_empty</span>
+            </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-lg font-semibold text-slate-800">Terminées</h3>
-              <div className="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center">
-                <CheckCircle className="h-6 w-6 text-green-600" />
-              </div>
+          {/* Card 4 */}
+          <div className="bg-red-400 p-6 rounded-xl border-b-4 border-red-500 flex justify-between items-start shadow-lg">
+            <div>
+              <p className="text-xs font-bold text-red-100 mb-1">En attente</p>
+              <h3 className="text-3xl font-headline font-bold text-white">{pendingTasks}</h3>
+              <p className="text-[10px] text-red-200 mt-2 font-semibold">Pending tasks</p>
             </div>
-            <p className="text-3xl font-bold text-green-600">{stats.completed}</p>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-lg font-semibold text-slate-800">En retard</h3>
-              <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center">
-                <AlertTriangle className="h-6 w-6 text-red-600" />
-              </div>
+            <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
+              <span className="material-symbols-outlined">pending_actions</span>
             </div>
-            <p className="text-3xl font-bold text-red-600">{stats.overdue}</p>
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Search Bar */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-slate-800">Filtres</h2>
-            <div className="flex items-center gap-2">
-              <Filter className="h-5 w-5 text-slate-500" />
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setFilter('all')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    filter === 'all' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  Toutes
-                </button>
-                <button
-                  onClick={() => setFilter('today')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    filter === 'today' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  Aujourd'hui
-                </button>
-                <button
-                  onClick={() => setFilter('week')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    filter === 'week' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  Cette semaine
-                </button>
-                <button
-                  onClick={() => setFilter('overdue')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    filter === 'overdue' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  En retard
-                </button>
-              </div>
-            </div>
+          <div className="flex items-center gap-3">
+            <Search className="h-5 w-5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Rechercher un DAO..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
           </div>
         </div>
 
-        {/* Tasks List */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-slate-800">
-              {filter === 'all' && 'Toutes les tâches'}
-              {filter === 'today' && 'Tâches du jour'}
-              {filter === 'week' && 'Tâches de la semaine'}
-              {filter === 'overdue' && 'Tâches en retard'}
-            </h2>
-            <p className="text-sm text-slate-500">
-              {filteredTasks.length} tâche{filteredTasks.length > 1 ? 's' : ''}
-            </p>
+        {/* Loading */}
+        {loading && (
+          <div className="text-center py-16">
+            <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+            <p className="mt-4 text-gray-600">Chargement de vos tâches...</p>
           </div>
+        )}
 
-          {filteredTasks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-14 text-center">
-              <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-3">
-                <CheckCircle className="h-5 w-5 text-slate-300" />
-              </div>
-              <p className="text-sm text-slate-500 font-medium">Aucune tâche trouvée</p>
-              <p className="text-xs text-slate-400 mt-1">
-                {filter === 'all' 
-                  ? 'Vous n\'avez aucune tâche assignée pour le moment.' 
-                  : `Aucune tâche ${filter === 'today' ? 'pour aujourd\'hui' : filter === 'week' ? 'pour cette semaine' : 'en retard'}.`
-                }
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredTasks.map((task) => (
-                <div 
-                  key={task.id} 
-                  className={`border rounded-xl p-4 transition-all hover:shadow-md ${
-                    isOverdue(task) ? 'border-red-200 bg-red-50' : 'border-slate-200'
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatutColor(task.statut)}`}>
-                          {getStatutLabel(task.statut)}
-                        </span>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getPrioriteColor(task.priorite || 'moyenne')}`}>
-                          {getPrioriteLabel(task.priorite || 'moyenne')}
-                        </span>
-                        {isOverdue(task) && (
-                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-600">
-                            En retard
-                          </span>
-                        )}
-                      </div>
-                      
-                      <h3 className="text-lg font-semibold text-slate-800 mb-2">{task.titre}</h3>
-                      
-                      <div className="flex items-center gap-4 text-sm text-slate-600 mb-3">
-                        <div className="flex items-center gap-1">
-                          <span className="font-medium">DAO:</span>
-                          <span className="text-blue-600">{task.dao_numero}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="font-medium">Chef:</span>
-                          <span>{task.chef_projet_nom}</span>
-                        </div>
-                      </div>
-
-                      {/* Progress Bar */}
-                      <div className="mb-3">
-                        <div className="flex justify-between text-sm text-slate-600 mb-1">
-                          <span>Progression</span>
-                          <span>{task.progress || 0}%</span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full transition-all ${
-                              task.statut === 'termine' ? 'bg-green-500' :
-                              task.statut === 'en_cours' ? 'bg-blue-500' : 'bg-slate-300'
-                            }`}
-                            style={{ width: `${task.progress || 0}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Due Date */}
-                      {task.date_echeance && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Calendar className="h-4 w-4 text-slate-400" />
-                          <span className={`font-medium ${
-                            isOverdue(task) ? 'text-red-600' : 'text-slate-600'
-                          }`}>
-                            Échéance: {new Date(task.date_echeance).toLocaleDateString('fr-FR')}
-                          </span>
-                        </div>
-                      )}
+        {/* Liste des DAOs - Style Mes Tâches */}
+        {!loading && filteredDAOs.length > 0 && (
+          <div className="space-y-3">
+            {filteredDAOs.map((dao: DAOGroup) => (
+              <div
+                key={dao.dao_id}
+                className="bg-white rounded-lg border border-slate-200 shadow-sm p-3 task-card cursor-pointer hover:bg-slate-50 transition-colors"
+                onClick={() => toggleDAOExpansion(dao.dao_id)}
+              >
+                {/* En-tête DAO */}
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <h3 className="font-bold text-lg text-slate-800 mb-1 task-title">
+                      {dao.dao_numero} - {dao.dao_objet}
+                    </h3>
+                    <div className="flex items-center gap-2 mb-1">
+                      {
+                        (() => {
+                          const statusInfo = computeStatusFromProgress(dao.averageProgress, dao.dao_statut);
+                          return (
+                            <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${statusInfo.className}`}>
+                              {statusInfo.label}
+                            </span>
+                          );
+                        })()
+                      }
+                      <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+                        {dao.totalTasks} tâche{dao.totalTasks > 1 ? 's' : ''}
+                      </span>
                     </div>
                   </div>
+                  <div className="flex flex-col gap-2 ml-4">
+                    <span className="text-xs font-medium text-slate-600">
+                      {dao.completedTasks}/{dao.totalTasks} terminée{dao.completedTasks > 1 ? 's' : ''}
+                    </span>
+                    <span className="text-xs font-medium text-slate-600">
+                      {dao.averageProgress}% moyen
+                    </span>
+                  </div>
                 </div>
-              ))}
+
+                {/* Barre de progression globale du DAO */}
+                <div className="mb-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-slate-600 w-20">Progression:</span>
+                    <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-blue-500 transition-all duration-300"
+                        style={{ width: `${dao.averageProgress}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-bold text-slate-700 w-12 text-right">
+                      {dao.averageProgress}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* Icône d'expansion */}
+                <div className="flex items-center justify-center">
+                  <svg 
+                    className={`w-4 h-4 text-slate-600 transition-transform duration-200 ${expandedDAOs.includes(dao.dao_id) ? 'rotate-180' : ''}`}
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+
+                {/* Section des tâches détaillées (expandable) */}
+                {expandedDAOs.includes(dao.dao_id) && (
+                  <div className="mt-4 pt-4 border-t border-slate-200" onClick={(e) => e.stopPropagation()}>
+                    <div className="space-y-2">
+                      {dao.tasks.map((task: Task) => (
+                        <div key={task.id} className="bg-slate-50 rounded-lg p-2 border border-slate-100">
+                          <div className="flex items-start justify-between mb-1">
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-sm text-slate-800 mb-1">
+                                {task.nom}
+                              </h4>
+                              <div className="flex items-center gap-1 mb-1">
+                                <span className={`px-1 py-0.5 rounded-full text-xs font-medium border ${getPriorityColor(task.priority)}`}>
+                                  {getPriorityLabel(task.priority)}
+                                </span>
+                                <span className={`px-1 py-0.5 rounded-full text-xs font-medium ${getStatusColor(task.statut)}`}>
+                                  {task.statut === 'a_faire' ? 'À faire' : task.statut === 'en_cours' ? 'En cours' : task.statut === 'termine' ? 'Terminé' : 'En attente'}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="text-xs font-medium text-slate-600">
+                              {(task.progress || 0)}%
+                            </span>
+                          </div>
+                          
+                          {/* Barre de progression de la tâche */}
+                          <div className="mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-1 bg-slate-200 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-1 rounded-full transition-all duration-300 ${(task.progress || 0) === 0 ? 'bg-gray-400' : (task.progress || 0) === 100 ? 'bg-green-500' : 'bg-blue-500'}`}
+                                  style={{ width: `${task.progress || 0}%` }}
+                                />
+                              </div>
+                              <span className="text-xs font-medium text-slate-700 w-8 text-right">
+                                {task.progress || 0}%
+                              </span>
+                            </div>
+                            
+                                                      </div>
+
+                          {/* Informations supplémentaires */}
+                          <div className="flex items-center justify-between text-xs text-slate-500">
+                            <div className="flex items-center gap-2">
+                              {task.due_date && (
+                                <div className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  <span className={isOverdue(task.due_date, task.statut) ? 'text-red-600' : 'text-slate-700'}>
+                                    {new Date(task.due_date).toLocaleDateString('fr-FR')}
+                                  </span>
+                                </div>
+                              )}
+                              {task.assigned_username && (
+                                <div className="flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  <span>{task.assigned_username}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* État vide */}
+        {!loading && filteredDAOs.length === 0 && (
+          <div className="text-center py-16">
+            <div className="text-gray-400 mb-4">
+              <MessageSquare className="mx-auto h-12 w-12" />
             </div>
-          )}
-        </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              {searchTerm ? 'Aucun DAO trouvé' : 'Aucune tâche assignée'}
+            </h3>
+            <p className="text-gray-600">
+              {searchTerm 
+                ? `Aucun DAO ne correspond à "${searchTerm}"`
+                : "Vous n'avez aucune tâche assignée pour le moment."
+              }
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )

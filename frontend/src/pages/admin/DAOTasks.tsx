@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, ChevronDown, Check, X, Trash2 } from 'lucide-react'
+import { ArrowLeft, ChevronDown } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { API_ENDPOINTS, apiGet, apiPost, apiPut, apiDelete } from '../../config/api'
+import { useAuth } from '../../contexts/AuthContext'
+import { computeStatusFromProgress, calculateAverageProgress } from '../../utils/daoStatusUtils'
 
 interface User {
   id: number
@@ -9,6 +11,7 @@ interface User {
   email?: string
   url_photo?: string
   role_id?: number
+  is_chef?: boolean
 }
 
 interface TaskRow {
@@ -17,14 +20,21 @@ interface TaskRow {
   nom: string
   assigned_to: number | null
   assigned_username?: string
+  assigned_email?: string
   progress?: number
   statut?: string
   membres?: User[]
+  dao_id?: number
+  created_at?: string
+  updated_at?: string
+  is_unlocked?: boolean
+  is_blocked?: boolean
 }
 
 export default function DAOTasks() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
 
   const [tasks, setTasks]       = useState<TaskRow[]>([])
   const [users, setUsers]       = useState<User[]>([])
@@ -35,17 +45,51 @@ export default function DAOTasks() {
   const [daoProgress, setDaoProgress] = useState(0)
   const [daoStats, setDaoStats] = useState({ total_tasks: 0, assigned_tasks: 0, completed_tasks: 0 })
   const [daoInfo, setDaoInfo] = useState<any>(null)
+    const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('tous')
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Permission checks
+  const isDaoChef = user && daoInfo && user.id === daoInfo.chef_id
+  const isAdmin = user && user.role_id === 2
+  const isChefProjetRole = user && user.role_id === 3
+  const canAssignTasks = isDaoChef || isAdmin || isChefProjetRole
+  const canUpdateTask = (task: TaskRow) => user && task.assigned_to === user.id
 
   const isTaskCompleted = (task: TaskRow) =>
     task.statut === 'termine' || Number(task.progress || 0) >= 100
 
+  const canUpdateTaskProgress = (task: TaskRow) => {
+    // Check if user is assigned to this task
+    if (!canUpdateTask(task)) return false
+    
+    // Find the first task of the DAO
+    const firstTask = tasks.reduce((first, current) => 
+      first.id < current.id ? first : current
+    );
+    
+    // If this is the first task, always allow
+    if (task.id === firstTask.id) return true;
+    
+    // For other tasks, only allow if first task is completed
+    return isTaskCompleted(firstTask);
+  }
+
+  const getStatusColor = (status: string | null) => {
+    if (!status) return 'bg-gray-100 text-gray-800'
+    switch (status) {
+      case 'a_faire': return 'bg-gray-100 text-gray-800'
+      case 'en_attente': return 'bg-yellow-100 text-yellow-800'
+      case 'en_cours': return 'bg-blue-100 text-blue-800'
+      case 'termine': return 'bg-green-100 text-green-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
   const recalculateDaoMetrics = (taskList: TaskRow[]) => {
     const assignedTasks = taskList.filter(t => t.assigned_to !== null)
     const completedTasks = assignedTasks.filter(isTaskCompleted)
-    const averageProgress = assignedTasks.length > 0
-      ? Math.round(assignedTasks.reduce((sum, t) => sum + Number(t.progress || 0), 0) / assignedTasks.length)
-      : 0
+    const averageProgress = calculateAverageProgress(taskList as any[])
 
     setDaoProgress(averageProgress)
     setDaoStats({
@@ -69,13 +113,14 @@ export default function DAOTasks() {
 
   const loadAll = async () => {
     try {
-      console.log('Chargement des tâches et membres du DAO...')
+      console.log('Chargement des tâches et membres d\'équipe du DAO...')
 
-      // Charger les tâches, les membres du DAO et les infos du DAO
-      const [tasksRes, membersRes, daoRes] = await Promise.all([
+      // Charger les tâches, les membres d'équipe du DAO, les assignations et les infos du DAO
+      const [tasksRes, teamRes, assignmentsRes, daoRes] = await Promise.all([
         apiGet(API_ENDPOINTS.DAO_TASKS(id!)),
-        apiGet(API_ENDPOINTS.DAO_MEMBERS(id!)),
-        apiGet(`http://localhost:3001/api/dao/${id}`),
+        apiGet(`/team/dao/${id}/team-members`),
+        apiGet(`/task-assignment/dao/${id}`),
+        apiGet(API_ENDPOINTS.DAO_BY_ID(id!)),
       ])
 
       if (tasksRes.success) {
@@ -91,11 +136,30 @@ export default function DAOTasks() {
         console.error('Erreur chargement tâches:', tasksRes.error)
       }
       
-      if (membersRes.success) {
-        console.log('Membres du DAO reçus:', membersRes.data?.members)
-        setUsers(membersRes.data?.members || [])
+      if (teamRes.success) {
+        console.log('Membres d\'équipe reçus:', teamRes.data?.members)
+        setUsers(teamRes.data?.members || [])
       } else {
-        console.error('Erreur chargement membres:', membersRes.error)
+        console.error('Erreur chargement membres d\'équipe:', teamRes.error)
+        console.log('Réponse erreur API team:', teamRes)
+      }
+
+      if (assignmentsRes.success) {
+        console.log('Assignations reçues:', assignmentsRes.data?.assignments)
+        const assignmentsData = assignmentsRes.data?.assignments || []
+        const updatedTasks = tasks.map((task: any) => {
+          const assignment = assignmentsData.find((a: any) => a.task_id === task.id)
+          return {
+            ...task,
+            assigned_to: assignment?.assigned_to || null,
+            assigned_username: assignment?.assigned_username || null,
+            assigned_email: assignment?.assigned_email || null,
+            assigned_role_id: assignment?.assigned_role_id || null
+          }
+        })
+        setTasks(updatedTasks)
+      } else {
+        console.error('Erreur chargement assignations:', assignmentsRes.error)
       }
 
       if (daoRes.success) {
@@ -111,18 +175,19 @@ export default function DAOTasks() {
     }
   }
 
+  
   const handleSaveTask = async () => {
     if (!newTaskName.trim()) return
     setSaving(true)
     try {
-      console.log('🔄 Création de la tâche:', newTaskName.trim())
+      console.log('Création de la tâche:', newTaskName.trim())
       
       const responseData = await apiPost(
         API_ENDPOINTS.TASK_CREATE_DAO(id!),
         { nom: newTaskName.trim() }
       )
       
-      console.log('📡 Réponse de l\'API:', responseData)
+      console.log('Réponse de l\'API:', responseData)
       
       if (responseData.success) {
         console.log('Tâche créée avec succès dans la base:', responseData.data)
@@ -165,43 +230,88 @@ export default function DAOTasks() {
   }
 
   const handleAssign = async (taskId: number, userId: number | null) => {
-    try {
-      await apiPut(
-        API_ENDPOINTS.TASK_ASSIGN(taskId),
-        { assigned_to: userId }
-      )
-      const updatedTasks = tasks.map(t =>
-        t.id === taskId
-          ? { ...t, assigned_to: userId, assigned_username: users.find(u => u.id === userId)?.username }
-          : t
-      )
-      setTasks(updatedTasks)
+    // Check if user can assign tasks before allowing assignment
+    if (!canAssignTasks) {
+      alert('Seul un administrateur ou le chef de projet peut assigner des membres aux tâches')
+      return
+    }
 
-      recalculateDaoMetrics(updatedTasks)
-    } catch { /* silent */ }
+    try {
+      // Utiliser la nouvelle API d'assignation
+      const response = await apiPut(`/task-assignment/${taskId}`, { userId })
+      
+      if (response.success) {
+        const updatedTasks = tasks.map(t =>
+          t.id === taskId
+            ? { 
+                ...t, 
+                assigned_to: userId, 
+                assigned_username: users.find(u => u.id === userId)?.username,
+                assigned_email: users.find(u => u.id === userId)?.email
+              }
+            : t
+        )
+        setTasks(updatedTasks)
+        recalculateDaoMetrics(updatedTasks)
+        console.log('Tâche assignée avec succès:', response.data)
+      } else {
+        throw new Error(response.message || 'Erreur lors de l\'assignation')
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'assignation:', error)
+      alert('Erreur lors de l\'assignation: ' + (error instanceof Error ? error.message : 'Erreur inconnue'))
+    }
     setOpenDropdown(null)
   }
 
   const handleUpdateProgress = async (taskId: number, progress: number) => {
+    // Find the task to check permissions
+    const task = tasks.find(t => t.id === taskId)
+    if (!task) {
+      return
+    }
+
+    // Check if user can update this task progress (sequential logic)
+    if (!canUpdateTaskProgress(task)) {
+      return
+    }
+
     try {
-      const statut = progress >= 100 ? 'termine' : progress > 0 ? 'en_cours' : 'a_faire'
+      // Déterminer le statut automatique
+      const statut = progress === 0 ? 'a_faire' : progress === 100 ? 'termine' : 'en_cours'
+      
+      // Mise à jour locale immédiate
+      const updatedTasks = tasks.map(task => 
+        task.id === taskId 
+          ? { ...task, progress, statut }
+          : task
+      )
+      
+      setTasks(updatedTasks)
+      
       const res = await apiPut(
         API_ENDPOINTS.TASK_PROGRESS(taskId),
         { progress, statut }
       )
       if (res.success) {
-        const updatedTasks = tasks.map(t =>
-          t.id === taskId
-            ? { ...t, progress, statut }
-            : t
-        )
-        setTasks(updatedTasks)
         recalculateDaoMetrics(updatedTasks)
+        
+        // Rafraîchir les données du DAO pour avoir le statut à jour
+        try {
+          const daoRes = await apiGet(API_ENDPOINTS.DAO_BY_ID(id!))
+          if (daoRes.success) {
+            setDaoInfo(daoRes.data?.dao || null)
+            console.log('✅ Statut DAO rafraîchi:', daoRes.data?.dao?.statut)
+          }
+        } catch (error) {
+          console.error('Erreur rafraîchissement DAO:', error)
+        }
       } else {
         alert(res.error || 'Mise à jour bloquée par la règle de progression du DAO')
       }
     } catch (error) {
       console.error('Erreur lors de la mise à jour:', error)
+      alert('Erreur lors de la mise à jour: ' + (error instanceof Error ? error.message : 'Erreur inconnue'))
     }
   }
 
@@ -223,42 +333,57 @@ export default function DAOTasks() {
   const COLORS = ['bg-blue-500','bg-green-500','bg-purple-500','bg-amber-500','bg-rose-500','bg-teal-500']
   const colorFor = (i: number) => COLORS[i % COLORS.length]
 
+  // Filtrer les tâches selon la recherche et le statut
+  const filteredTasks = tasks.filter(task => {
+    const matchesSearch = searchTerm === '' || 
+      task.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (task.assigned_username && task.assigned_username.toLowerCase().includes(searchTerm.toLowerCase()))
+    
+    const matchesStatus = statusFilter === 'tous' || task.statut === statusFilter
+    
+    return matchesSearch && matchesStatus
+  })
+
+  
+  
+  
   return (
     <div className="min-h-screen bg-slate-100 font-sans">
-      <div className="max-w-4xl mx-auto px-4 pt-6 space-y-5">
+      <div className="w-full px-4 pt-6 space-y-5">
 
-        {/* ── HEADER ── */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-6 py-4 flex items-center gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <h1 className="text-lg font-bold text-slate-800">DAO N°{id}</h1>
-          {daoInfo && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-500">Groupement:</span>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                daoInfo.groupement === "oui" 
-                  ? "bg-green-100 text-green-700" 
-                  : "bg-gray-100 text-gray-600"
-              }`}>
-                {daoInfo.groupement === "oui" ? (
-                  daoInfo.nom_partenaire || "Aucun nom"
-                ) : (
-                  "Non"
-                )}
-              </span>
+        {/* HEADER */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/admin/my-daos')}
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div>
+              <h1 className="text-xl font-bold text-slate-800">Tâches du DAO</h1>
+              <p className="text-sm text-slate-500">{daoInfo?.objet || 'Chargement...'}</p>
             </div>
-          )}
-        </div>
+          </div>
+          
+                  </div>
 
-        {/* ── PROGRESSION DU DAO ── */}
+        
+        {/* PROGRESSION DU DAO */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-semibold text-slate-700">Progression globale du DAO</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-sm font-semibold text-slate-700">Progression globale du DAO</h2>
+                {(() => {
+                  const statusInfo = computeStatusFromProgress(daoProgress, daoInfo?.statut);
+                  return (
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${statusInfo.className}`}>
+                      {statusInfo.label}
+                    </span>
+                  );
+                })()}
+              </div>
               <span className={`text-2xl font-bold ${getProgressTextColor(daoProgress)}`}>{daoProgress}%</span>
             </div>
             <div className="h-3 bg-slate-200 rounded-full overflow-hidden">
@@ -280,6 +405,34 @@ export default function DAOTasks() {
             <div>
               <p className="text-slate-500">Terminées</p>
               <p className="text-xl font-bold text-green-600">{daoStats.completed_tasks}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* RECHERCHE ET FILTRES */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <input
+                type="text"
+                placeholder="Rechercher une tâche ou un assigné..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-slate-600">Statut:</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+              >
+                <option value="tous">Tous</option>
+                <option value="a_faire">À faire</option>
+                <option value="en_cours">En cours</option>
+                <option value="termine">Terminé</option>
+              </select>
             </div>
           </div>
         </div>
@@ -310,127 +463,172 @@ export default function DAOTasks() {
 
         {/* ── TASKS TABLE ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6" ref={dropdownRef}>
-          <h2 className="text-sm font-semibold text-slate-700 mb-4">Taches du DAO</h2>
+          <h2 className="text-sm font-semibold text-slate-700 mb-4">Tâches du DAO</h2>
 
           {loading ? (
             <div className="text-center py-12 text-sm text-slate-400">Chargement...</div>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-slate-100">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto rounded-xl border border-slate-100">
+              <table className="w-full min-w-[1200px] text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100">
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 w-12">N°</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">Tache</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 w-40">Progression</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 w-48">Assigner à</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 w-48">Membres assignés</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 w-16">Actions</th>
+                    <th className="text-left px-4 py-4 text-xs font-semibold text-slate-500 w-16">N°</th>
+                    <th className="text-left px-4 py-4 text-xs font-semibold text-slate-500 min-w-[400px]">Tâche</th>
+                    <th className="text-left px-4 py-4 text-xs font-semibold text-slate-500 w-64">Progression</th>
+                    <th className="text-left px-4 py-4 text-xs font-semibold text-slate-500 w-64">Statut</th>
+                    <th className="text-left px-4 py-4 text-xs font-semibold text-slate-500 w-64">Membre assigné</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {tasks.map((task, index) => (
+                  {filteredTasks.map((task, index) => (
                     <tr
                       key={task.id}
                       className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors"
                     >
                       {/* N° */}
-                      <td className="px-4 py-3 text-slate-400 text-xs">{index + 1}</td>
+                      <td className="px-4 py-4 text-slate-400 text-xs font-medium">{index + 1}</td>
 
                       {/* Tâche */}
-                      <td className="px-4 py-3 text-slate-700 leading-snug">{task.nom}</td>
-
-                      {/* Progression */}
-                      <td className="px-4 py-3">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            
-                            <span className={`text-xs font-bold w-10 text-right ${getProgressTextColor(task.progress || 0)}`}>
-                              {task.progress || 0}%
-                            </span>
-                          </div>
-                          <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all duration-300 ${getProgressColor(task.progress || 0)}`}
-                              style={{ width: `${task.progress || 0}%` }}
-                            />
-                          </div>
+                      <td className="px-4 py-4 text-slate-700 leading-relaxed font-medium">
+                        <div className="flex items-center gap-2">
+                          <span>{task.nom}</span>
+                          {task.is_blocked && (
+                            <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full">Bloquée</span>
+                          )}
+                          {task.is_unlocked && (
+                            <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">Disponible</span>
+                          )}
+                          {(canAssignTasks) && (
+                            <button
+                              onClick={() => handleDeleteTask(task.id)}
+                              className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded hover:bg-red-200 transition-colors"
+                              title="Supprimer la tâche"
+                            >
+                              Supprimer
+                            </button>
+                          )}
                         </div>
                       </td>
 
-                      {/* Assigner à — dropdown */}
-                      <td className="px-4 py-3 relative">
-                        <button
-                          onClick={() => setOpenDropdown(openDropdown === task.id ? null : task.id)}
-                          className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 transition-colors"
-                        >
-                          <span className={task.assigned_to ? 'text-slate-700 font-medium' : 'text-slate-400'}>
-                            {task.assigned_username || 'Non assignée'}
+                      {/* Progression */}
+                      <td className="px-4 py-4 align-top">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs text-slate-500">
+                            {task.progress || 0}%
                           </span>
-                          <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-                        </button>
-
-                        {/* Dropdown */}
-                        {openDropdown === task.id && (
-                          <div className="absolute left-0 top-full mt-1 w-52 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-30">
-                            {/* Unassign option */}
-                            <button
-                              onClick={() => handleAssign(task.id, null)}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-500 hover:bg-slate-50 transition-colors"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                              Non assignée
-                            </button>
-                            <div className="border-t border-slate-50 my-1" />
-                            {users.map((user, i) => (
-                              <button
-                                key={user.id}
-                                onClick={() => handleAssign(task.id, user.id)}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                              >
-                                <div className={`w-6 h-6 rounded-full ${colorFor(i)} flex items-center justify-center text-white text-xs font-medium flex-shrink-0`}>
-                                  {getInitials(user.username)}
+                          {task.assigned_to && canUpdateTaskProgress(task) ? (
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={task.progress || 0}
+                              onChange={(e) => handleUpdateProgress(task.id, parseInt(e.target.value))}
+                              className="flex-1 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer slider align-middle"
+                              style={{
+                                background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(task.progress || 0)}%, #e2e8f0 ${(task.progress || 0)}%, #e2e8f0 100%)`
+                              }}
+                            />
+                          ) : (
+                            <div className="relative">
+                              <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-300 ${
+                                    task.assigned_to && !canUpdateTaskProgress(task) 
+                                      ? 'bg-gray-300' 
+                                      : getProgressColor(task.progress || 0)
+                                  }`}
+                                  style={{ width: `${task.progress || 0}%` }}
+                                />
+                              </div>
+                              {task.assigned_to && !canUpdateTaskProgress(task) && (
+                                <div className="absolute inset-0 bg-gray-100 bg-opacity-60 rounded-full flex items-center justify-center">
+                                  <span className="text-xs text-gray-500 font-medium">Veuillez terminer la première tâche</span>
                                 </div>
-                                <span className="truncate">{user.username}</span>
-                                {task.assigned_to === user.id && (
-                                  <Check className="h-3.5 w-3.5 text-blue-500 ml-auto flex-shrink-0" />
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        )}
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </td>
 
-                      {/* Membres assignés — avatar */}
-                      <td className="px-4 py-3">
-                        {task.assigned_to && task.assigned_username ? (
-                          <div className="flex items-center gap-2">
-                            <div className={`w-7 h-7 rounded-full ${colorFor(users.findIndex(u => u.id === task.assigned_to))} flex items-center justify-center text-white text-xs font-medium`}>
-                              {getInitials(task.assigned_username)}
-                            </div>
-                            <span className="text-sm text-slate-600 truncate">{task.assigned_username}</span>
+                      {/* Statut */}
+                      <td className="px-4 py-4 relative">
+                        {task.assigned_to ? (
+                          <div className="flex flex-col gap-1">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(task.statut || null)}`}>
+                              {task.statut === 'a_faire' ? 'À faire' : task.statut === 'en_cours' ? 'En cours' : task.statut === 'termine' ? 'Terminé' : task.statut === 'en_attente' ? 'En attente' : 'Non défini'}
+                            </span>
+                            <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
+                              Assignée
+                            </span>
                           </div>
                         ) : (
-                          <span className="text-xs text-slate-300">—</span>
+                          <div className="relative">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setOpenDropdown(openDropdown === task.id ? null : task.id)
+                              }}
+                              className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                            >
+                              <span>Assigner</span>
+                              <ChevronDown className={`h-3 w-3 transition-transform ${openDropdown === task.id ? 'rotate-180' : ''}`} />
+                            </button>
+                            
+                            {/* Dropdown pour l'assignation */}
+                            {openDropdown === task.id && (
+                              <div className="absolute left-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-10 min-w-[150px]">
+                                {(() => {
+                                  console.log('Dropdown ouvert, membres disponibles:', users.length, users)
+                                  return null
+                                })()}
+                                {users.length === 0 ? (
+                                  <div className="px-3 py-2 text-sm text-slate-500">
+                                    Aucun membre disponible
+                                  </div>
+                                ) : (
+                                  users.map((user) => (
+                                    <button
+                                      key={user.id}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        console.log('Assignation de la tâche', task.id, 'au membre', user.id, user.username)
+                                        handleAssign(task.id, user.id)
+                                      }}
+                                      className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                                    >
+                                      <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-medium">
+                                        {user.username.charAt(0).toUpperCase()}
+                                      </div>
+                                      <span>{user.username}</span>
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            )}
+                          </div>
                         )}
                       </td>
 
-                      {/* Actions — bouton suppression */}
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => handleDeleteTask(task.id)}
-                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Supprimer cette tâche"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                      {/* Membre assigné */}
+                      <td className="px-4 py-4">
+                        {task.assigned_to && task.assigned_username ? (
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-full ${colorFor(users.findIndex(u => u.id === task.assigned_to))} flex items-center justify-center text-white text-xs font-medium flex-shrink-0`}>
+                              {getInitials(task.assigned_username)}
+                            </div>
+                            <span className="text-sm text-slate-600 font-medium">{task.assigned_username}</span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-slate-300">-</span>
+                        )}
                       </td>
                     </tr>
                   ))}
 
-                  {tasks.length === 0 && (
+                  {filteredTasks.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="text-center py-12 text-sm text-slate-400">
-                        Aucune tâche trouvée pour ce DAO.
+                      <td colSpan={4} className="text-center py-12 text-sm text-slate-400">
+                        {searchTerm || statusFilter !== 'tous' ? 'Aucune tâche ne correspond à votre recherche.' : 'Aucune tâche trouvée pour ce DAO.'}
                       </td>
                     </tr>
                   )}

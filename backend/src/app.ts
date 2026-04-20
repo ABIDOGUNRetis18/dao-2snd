@@ -4,6 +4,7 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { initializeDatabase } from './utils/database';
 
 // Importer les routes
@@ -15,17 +16,45 @@ import myTasksRoutes from './routes/myTasks';
 import taskProgressRoutes from './routes/taskProgress';
 import notificationsRoutes from './routes/notifications';
 import messagesRoutes from './routes/messages';
+import teamRoutes from './routes/team';
+import taskAssignmentRoutes from './routes/taskAssignment';
+import taskModelRoutes from './routes/taskModels';
+import chefTeamsRoutes from './routes/chef-teams';
+import memberTasksRoutes from './routes/memberTasks';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middlewares
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174'], // URLs du frontend
-  credentials: true
+// Sécurité avec Helmet
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// CORS configuré pour la production
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.FRONTEND_URL_PROD?.split(',') || []
+    : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -36,6 +65,19 @@ app.use('/api/my-tasks', myTasksRoutes);
 app.use('/api/task-progress', taskProgressRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/messages', messagesRoutes);
+app.use('/api/team', teamRoutes);
+app.use('/api/task-assignment', taskAssignmentRoutes);
+app.use('/api/task', taskModelRoutes);
+app.use('/api/chef-teams', chefTeamsRoutes);
+app.use('/api/member-tasks', memberTasksRoutes);
+
+// Routes de test pour la synchronisation du statut
+import statusTestRoutes from './routes/statusTest';
+app.use('/api/status-test', statusTestRoutes);
+
+// Routes de mise à jour massive des statuts
+import batchStatusRoutes from './routes/batchStatus';
+app.use('/api/batch-status', batchStatusRoutes);
 
 // Route de test
 app.get('/api/test', (req, res) => {

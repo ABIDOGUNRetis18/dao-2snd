@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, ArrowLeft, Calendar, FileText, Users } from 'lucide-react'
+import { Search, ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 interface FinishedDAO {
@@ -8,10 +8,12 @@ interface FinishedDAO {
   objet: string
   date_depot: string
   date_fin: string
-  equipe: string
-  chef_projet: string
-  statut: 'termine' | 'annule'
-  montant_total?: number
+  reference: string
+  autorite: string
+  chef_projet_nom: string
+  groupement: string
+  nom_partenaire?: string
+  statut: string
 }
 
 export default function FinishedDAOHistory() {
@@ -19,48 +21,34 @@ export default function FinishedDAOHistory() {
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
 
-  // Mock data pour le développement
-  const mockDaos: FinishedDAO[] = [
-    {
-      id: 1,
-      numero: 'DAO-2024-015',
-      objet: 'Refonte du site web institutionnel',
-      date_depot: '2024-03-15',
-      date_fin: '2024-12-20',
-      equipe: 'Équipe Web',
-      chef_projet: 'Jean Dupont',
-      statut: 'termine',
-      montant_total: 45000
-    },
-    {
-      id: 2,
-      numero: 'DAO-2024-012',
-      objet: 'Migration vers le cloud Azure',
-      date_depot: '2024-02-10',
-      date_fin: '2024-11-30',
-      equipe: 'Équipe Infrastructure',
-      chef_projet: 'Marie Martin',
-      statut: 'termine',
-      montant_total: 120000
-    },
-    {
-      id: 3,
-      numero: 'DAO-2024-008',
-      objet: 'Développement application mobile',
-      date_depot: '2024-01-20',
-      date_fin: '2024-08-15',
-      equipe: 'Équipe Mobile',
-      chef_projet: 'Pierre Durand',
-      statut: 'annule'
+  const loadFinishedDaos = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch('http://localhost:3001/api/dao/finished', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        console.error('Erreur lors du chargement des DAO terminés')
+        return
+      }
+
+      const data = await response.json()
+      if (data.success) {
+        console.log('Données DAO terminés reçues:', data.data.daos)
+        setDaos(data.data.daos || [])
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des DAO terminés:', error)
+    } finally {
+      setLoading(false)
     }
-  ]
+  }
 
   useEffect(() => {
-    // Simulation de chargement des données
-    setTimeout(() => {
-      setDaos(mockDaos)
-      setLoading(false)
-    }, 500)
+    loadFinishedDaos()
   }, [])
 
   // Filtrage des DAO
@@ -68,8 +56,10 @@ export default function FinishedDAOHistory() {
     const matchesSearch = searchTerm === '' || 
       dao.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
       dao.objet.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dao.equipe.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dao.chef_projet.toLowerCase().includes(searchTerm.toLowerCase())
+      dao.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dao.autorite.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dao.chef_projet_nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dao.groupement.toLowerCase().includes(searchTerm.toLowerCase())
     
     return matchesSearch
   })
@@ -90,21 +80,8 @@ export default function FinishedDAOHistory() {
     }
   }
 
-  const calculateDuration = (dateDepot: string, dateFin: string) => {
-    const start = new Date(dateDepot)
-    const end = new Date(dateFin)
-    const diffTime = Math.abs(end.getTime() - start.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays
-  }
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(amount)
-  }
-
+  
+  
   return (
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="max-w-6xl mx-auto">
@@ -130,7 +107,7 @@ export default function FinishedDAOHistory() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
             <input
               type="text"
-              placeholder="Rechercher par numéro, objet, équipe ou chef de projet..."
+              placeholder="Rechercher par numéro, objet, référence, type, autorité, chef ou groupement..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -151,35 +128,16 @@ export default function FinishedDAOHistory() {
           <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200">
+                <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Numéro
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Objet
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Équipe
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Chef de projet
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Date de dépôt
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Date de fin
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Durée
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Statut
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                      Montant total
-                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Numéro</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Objet</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date Dépôt</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Référence</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Autorité</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Chef de projet</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Groupement</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Statut</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-200">
@@ -192,50 +150,33 @@ export default function FinishedDAOHistory() {
                         console.log('Ouvrir le détail du DAO:', dao.id)
                       }}
                     >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <FileText className="h-4 w-4 text-slate-400 mr-2" />
-                          <span className="text-sm font-medium text-slate-900">
-                            {dao.numero}
-                          </span>
-                        </div>
+                      <td className="px-4 py-3 text-sm font-medium text-slate-900">{dao.numero}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700">{dao.objet}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700">
+                        {new Date(dao.date_depot).toLocaleDateString('fr-FR')}
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-slate-900 max-w-xs truncate">
-                          {dao.objet}
-                        </div>
+                      <td className="px-4 py-3 text-sm text-slate-700">{dao.reference}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700">{dao.autorite}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700">
+                        {dao.chef_projet_nom || 'Non assigné'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center text-sm text-slate-600">
-                          <Users className="h-4 w-4 text-slate-400 mr-2" />
-                          {dao.equipe}
-                        </div>
+                      <td className="px-4 py-3 text-sm text-slate-700">
+                        {dao.groupement === "oui" ? (
+                          dao.nom_partenaire ? (
+                            <span style={{ whiteSpace: "pre-wrap" }}>
+                              {dao.nom_partenaire.replace(/,/g, ",\n")}
+                            </span>
+                          ) : (
+                            "-"
+                          )
+                        ) : (
+                          "-"
+                        )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                        {dao.chef_projet}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center text-sm text-slate-600">
-                          <Calendar className="h-4 w-4 text-slate-400 mr-2" />
-                          {new Date(dao.date_depot).toLocaleDateString('fr-FR')}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center text-sm text-slate-600">
-                          <Calendar className="h-4 w-4 text-slate-400 mr-2" />
-                          {new Date(dao.date_fin).toLocaleDateString('fr-FR')}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                        {calculateDuration(dao.date_depot, dao.date_fin)} jours
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 py-3">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(dao.statut)}`}>
                           {getStatusLabel(dao.statut)}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
-                        {dao.montant_total ? formatCurrency(dao.montant_total) : '-'}
                       </td>
                     </tr>
                   ))}

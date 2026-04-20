@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { query } from '../utils/database';
 import { AuthenticatedRequest } from '../middleware/auth';
+import { isDaoChef, getDaoIdFromTask, isTaskAssigned, canAssignTasks } from '../utils/taskPermissions';
 
 // 🎯 LOGIQUE DES 15 TÂCHES - SYSTÈME UNIVERSEL
 
@@ -133,7 +134,7 @@ export async function createTask(req: AuthenticatedRequest, res: Response) {
     `, [nom, daoId]);
 
     // 🎯 MISE À JOUR: Mettre à jour le statut du DAO si nécessaire
-    await updateDaoStatus(daoId);
+    await updateDaoStatus(Number(daoId));
 
     res.status(201).json({
       success: true,
@@ -157,14 +158,31 @@ export async function updateTaskProgress(req: AuthenticatedRequest, res: Respons
   try {
     const { id } = req.params;
     const { progress, override = false } = req.body;
+    const userId = req.user?.userId;
     
     const taskId = parseInt(id as string);
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Utilisateur non authentifié'
+      });
+    }
     
     // Validation de la progression
     if (progress < 0 || progress > 100) {
       return res.status(400).json({
         success: false,
         message: 'La progression doit être entre 0 et 100'
+      });
+    }
+
+    // Vérifier si l'utilisateur est assigné à la tâche
+    const isAssigned = await isTaskAssigned(taskId, userId);
+    if (!isAssigned) {
+      return res.status(403).json({
+        success: false,
+        message: 'Seul le membre assigné à cette tâche peut la modifier'
       });
     }
 
@@ -201,7 +219,7 @@ export async function updateTaskProgress(req: AuthenticatedRequest, res: Respons
             details: "La première tâche du DAO doit être terminée (100%) avant de pouvoir modifier les autres tâches.",
             firstTaskId: taskInfo.first_task_id,
             firstTaskProgress: firstTaskProgress,
-            currentTaskId: parseInt(id),
+            currentTaskId: Number(id),
             can_override: true
           });
         }
@@ -245,6 +263,32 @@ export async function assignTask(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
     const { assigned_to } = req.body;
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Utilisateur non authentifié'
+      });
+    }
+
+    // Récupérer le DAO ID de la tâche
+    const daoId = await getDaoIdFromTask(Number(id));
+    if (!daoId) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tâche non trouvée'
+      });
+    }
+
+    // Vérifier si l'utilisateur peut assigner des tâches (admin ou chef de projet)
+    const canAssign = await canAssignTasks(daoId, userId);
+    if (!canAssign) {
+      return res.status(403).json({
+        success: false,
+        message: 'Seul un administrateur ou le chef de projet peut assigner des membres aux tâches'
+      });
+    }
 
     // 🎯 CONTRÔLE: Vérifier si la tâche peut être assignée (débloquée)
     const taskUnlockResult = await query(`
@@ -342,7 +386,7 @@ export async function deleteTask(req: AuthenticatedRequest, res: Response) {
       success: true,
       message: 'Tâche supprimée avec succès',
       data: {
-        deleted_task_id: parseInt(id),
+        deleted_task_id: Number(id),
         remaining_tasks: taskInfo.total_tasks - 1,
         can_create_more: taskInfo.total_tasks - 1 < 15
       }
@@ -375,9 +419,9 @@ async function updateDaoStatus(daoId: number) {
     }
 
     // Calculer les statistiques
-    const totalProgress = allTasks.reduce((sum, task) => sum + (task.progress || 0), 0);
+    const totalProgress = allTasks.reduce((sum: number, task: any) => sum + (task.progress || 0), 0);
     const averageProgress = Math.round(totalProgress / allTasks.length);
-    const completedTasks = allTasks.filter(task => (task.progress || 0) === 100);
+    const completedTasks = allTasks.filter((task: any) => (task.progress || 0) === 100);
 
     // Déterminer le nouveau statut
     let newStatut;

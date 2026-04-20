@@ -9,38 +9,76 @@ exports.getMyTasks = getMyTasks;
 exports.updateTaskStatus = updateTaskStatus;
 exports.updateTaskProgress = updateTaskProgress;
 const database_1 = require("../utils/database");
+const daoController_1 = require("./daoController");
+const taskPermissions_1 = require("../utils/taskPermissions");
 async function getTasksByDao(req, res) {
     try {
-        const { id } = req.params;
-        // Récupérer les tâches pour un DAO spécifique depuis la table task avec le nom des utilisateurs assignés
-        const result = await (0, database_1.query)(`
-      SELECT 
-        t.id,
-        t.nom,
-        t.progress,
-        t.statut,
-        t.assigned_to,
-        u.username as assigned_username,
-        u.email as assigned_email,
-        CURRENT_TIMESTAMP as created_at,
-        CURRENT_TIMESTAMP as updated_at
-      FROM task t
-      LEFT JOIN users u ON t.assigned_to = u.id
-      WHERE t.dao_id = $1
-      ORDER BY t.id ASC
-    `, [id]);
+        // Supporter les deux formats : /dao/:id et ?daoId=:id
+        const daoId = req.params.id || req.query.daoId;
+        console.log(`[PostgreSQL] Récupération des tâches${daoId ? ` pour DAO ${daoId}` : ' modèles'}`);
+        let queryStr;
+        let params = [];
+        if (daoId) {
+            // Utiliser la table tasks (instances assignées) - c'est la table principale
+            queryStr = `
+        SELECT 
+          t.id,
+          t.dao_id,
+          t.id_task,
+          t.titre,
+          t.description,
+          t.statut,
+          t.progress,
+          t.assigned_to,
+          u.username as assigned_username,
+          u.email as assigned_email,
+          t.created_at,
+          t.updated_at,
+          t.date_echeance,
+          t.priorite
+        FROM tasks t
+        LEFT JOIN users u ON t.assigned_to = u.id
+        WHERE t.dao_id = $1
+        ORDER BY t.id ASC
+      `;
+            params = [daoId];
+        }
+        else {
+            // Récupérer les modèles de tâches depuis la table task (modèles)
+            queryStr = `
+        SELECT 
+          id,
+          nom,
+          NULL as progress,
+          NULL as statut,
+          NULL as assigned_to,
+          NULL as assigned_username,
+          NULL as assigned_email,
+          CURRENT_TIMESTAMP as created_at,
+          CURRENT_TIMESTAMP as updated_at
+        FROM task
+        ORDER BY id ASC
+      `;
+        }
+        const result = await (0, database_1.query)(queryStr, params);
         // Formatter les données pour correspondre à l'interface attendue
-        const tasks = result.rows.map((task, index) => ({
+        const tasks = result.rows.map((task) => ({
             id: task.id,
-            id_task: task.id,
-            nom: task.nom,
+            id_task: task.id_task,
+            name: task.titre || `Tâche ${task.id}`,
+            nom: task.titre || `Tâche ${task.id}`,
+            titre: task.titre || `Tâche ${task.id}`,
+            description: task.description,
             progress: task.progress || 0,
             statut: task.statut,
+            priorite: task.priorite,
+            date_echeance: task.date_echeance,
             assigned_to: task.assigned_to,
-            assigned_username: task.assigned_username,
+            assigned_username: task.assigned_username || "Non assigné",
             assigned_email: task.assigned_email,
             created_at: task.created_at,
-            updated_at: task.updated_at
+            updated_at: task.updated_at,
+            dao_id: task.dao_id
         }));
         res.status(200).json({
             success: true,
@@ -95,6 +133,29 @@ async function assignTask(req, res) {
     try {
         const { taskId } = req.params;
         const { assigned_to } = req.body;
+        const userId = req.user?.userId;
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Utilisateur non authentifié'
+            });
+        }
+        // Récupérer le DAO ID de la tâche
+        const daoId = await (0, taskPermissions_1.getDaoIdFromTask)(Number(taskId));
+        if (!daoId) {
+            return res.status(404).json({
+                success: false,
+                message: 'Tâche non trouvée'
+            });
+        }
+        // Vérifier si l'utilisateur peut assigner des tâches (admin ou chef de projet)
+        const canAssign = await (0, taskPermissions_1.canAssignTasks)(daoId, userId);
+        if (!canAssign) {
+            return res.status(403).json({
+                success: false,
+                message: 'Seul un administrateur ou le chef de projet peut assigner des membres aux tâches'
+            });
+        }
         // Mettre à jour l'assignation dans la table task
         const result = await (0, database_1.query)(`
       UPDATE task 
@@ -147,6 +208,11 @@ async function updateTask(req, res) {
                 message: 'Tâche non trouvée'
             });
         }
+        const updatedTask = result.rows[0];
+        // Vérifier automatiquement si le DAO doit être marqué comme terminé
+        if (updatedTask.dao_id) {
+            await (0, daoController_1.checkAndUpdateDaoStatus)(updatedTask.dao_id);
+        }
         res.status(200).json({
             success: true,
             message: 'Tâche mise à jour avec succès',
@@ -166,12 +232,17 @@ async function updateTask(req, res) {
 async function deleteTask(req, res) {
     try {
         const { id } = req.params;
-        const result = await (0, database_1.query)('DELETE FROM task WHERE id = $1 RETURNING id, nom', [id]);
+        const result = await (0, database_1.query)('DELETE FROM task WHERE id = $1 RETURNING id, nom, dao_id', [id]);
         if (result.rowCount === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'Tâche non trouvée'
             });
+        }
+        const deletedTask = result.rows[0];
+        // Vérifier automatiquement si le DAO doit être marqué comme terminé
+        if (deletedTask.dao_id) {
+            await (0, daoController_1.checkAndUpdateDaoStatus)(deletedTask.dao_id);
         }
         res.status(200).json({
             success: true,
@@ -235,6 +306,13 @@ async function updateTaskStatus(req, res) {
     try {
         const { taskId } = req.params;
         const { statut } = req.body;
+        const userId = req.user?.userId;
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Utilisateur non authentifié'
+            });
+        }
         // Récupérer la tâche cible
         const currentTaskResult = await (0, database_1.query)('SELECT id, dao_id, assigned_to FROM task WHERE id = $1', [taskId]);
         if (currentTaskResult.rowCount === 0) {
@@ -244,6 +322,17 @@ async function updateTaskStatus(req, res) {
             });
         }
         const currentTask = currentTaskResult.rows[0];
+        // Vérifier si l'utilisateur est assigné à la tâche ou si c'est un admin
+        const isAssigned = await (0, taskPermissions_1.isTaskAssigned)(Number(taskId), userId);
+        const userResult = await (0, database_1.query)('SELECT role_id FROM users WHERE id = $1', [userId]);
+        const userRole = userResult.rows[0]?.role_id;
+        // Les admins (role_id = 2) peuvent modifier toutes les tâches
+        if (!isAssigned && userRole !== 2) {
+            return res.status(403).json({
+                success: false,
+                message: 'Seul le membre assigné à cette tâche ou un administrateur peut la modifier'
+            });
+        }
         // Récupérer la première tâche du DAO (ordre de création)
         const firstTaskResult = await (0, database_1.query)('SELECT id, progress FROM task WHERE dao_id = $1 ORDER BY id ASC LIMIT 1', [currentTask.dao_id]);
         const firstTask = firstTaskResult.rows[0];
@@ -274,11 +363,16 @@ async function updateTaskStatus(req, res) {
                 message: 'Tâche non trouvée'
             });
         }
+        const updatedTask = result.rows[0];
+        // Vérifier automatiquement si le DAO doit être marqué comme terminé
+        if (updatedTask.dao_id) {
+            await (0, daoController_1.checkAndUpdateDaoStatus)(updatedTask.dao_id);
+        }
         res.status(200).json({
             success: true,
             message: 'Statut de la tâche mis à jour avec succès',
             data: {
-                task: result.rows[0]
+                task: updatedTask
             }
         });
     }
@@ -294,6 +388,13 @@ async function updateTaskProgress(req, res) {
     try {
         const { taskId } = req.params;
         const { progress } = req.body;
+        const userId = req.user?.userId;
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Utilisateur non authentifié'
+            });
+        }
         if (progress === undefined || progress < 0 || progress > 100) {
             return res.status(400).json({
                 success: false,
@@ -309,6 +410,17 @@ async function updateTaskProgress(req, res) {
             });
         }
         const currentTask = currentTaskResult.rows[0];
+        // Vérifier si l'utilisateur est assigné à la tâche ou si c'est un admin
+        const isAssigned = await (0, taskPermissions_1.isTaskAssigned)(Number(taskId), userId);
+        const userResult = await (0, database_1.query)('SELECT role_id FROM users WHERE id = $1', [userId]);
+        const userRole = userResult.rows[0]?.role_id;
+        // Les admins (role_id = 2) peuvent modifier toutes les tâches
+        if (!isAssigned && userRole !== 2) {
+            return res.status(403).json({
+                success: false,
+                message: 'Seul le membre assigné à cette tâche ou un administrateur peut la modifier'
+            });
+        }
         // Récupérer la première tâche du DAO (ordre de création)
         const firstTaskResult = await (0, database_1.query)('SELECT id, progress FROM task WHERE dao_id = $1 ORDER BY id ASC LIMIT 1', [currentTask.dao_id]);
         const firstTask = firstTaskResult.rows[0];
@@ -336,11 +448,16 @@ async function updateTaskProgress(req, res) {
                 message: 'Tâche non trouvée'
             });
         }
+        const updatedTask = result.rows[0];
+        // Vérifier automatiquement si le DAO doit être marqué comme terminé
+        if (updatedTask.dao_id) {
+            await (0, daoController_1.checkAndUpdateDaoStatus)(updatedTask.dao_id);
+        }
         res.status(200).json({
             success: true,
             message: 'Progression de la tâche mise à jour avec succès',
             data: {
-                task: result.rows[0]
+                task: updatedTask
             }
         });
     }

@@ -368,7 +368,7 @@ export default function EditDAO() {
         <div className="flex items-center gap-4 mb-6">
           <Link
             to="/admin/all-daos"
-            className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+            className="p-2 text-slate-500 hover:bg-slate-200/50 rounded-full transition-colors"
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>

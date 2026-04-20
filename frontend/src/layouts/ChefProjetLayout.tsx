@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   FileText,
   CheckSquare,
+  Users,
   Menu,
   MessageSquare,
   Bell,
@@ -17,6 +18,7 @@ import {
 const menuItems = [
   { path: '/chef-projet/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/chef-projet/mes-daos', icon: FileText, label: 'Mes DAO' },
+  { path: '/chef-projet/mes-equipes', icon: Users, label: 'Mes équipes' },
   { path: '/chef-projet/mes-taches', icon: CheckSquare, label: 'Mes tâches' },
 ]
 

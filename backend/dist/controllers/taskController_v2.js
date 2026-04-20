@@ -7,6 +7,7 @@ exports.assignTask = assignTask;
 exports.deleteTask = deleteTask;
 exports.getDaoTasksStats = getDaoTasksStats;
 const database_1 = require("../utils/database");
+const taskPermissions_1 = require("../utils/taskPermissions");
 // 🎯 LOGIQUE DES 15 TÂCHES - SYSTÈME UNIVERSEL
 async function getTasksByDao(req, res) {
     try {
@@ -126,7 +127,7 @@ async function createTask(req, res) {
       RETURNING id, nom, dao_id, statut, progress, created_at
     `, [nom, daoId]);
         // 🎯 MISE À JOUR: Mettre à jour le statut du DAO si nécessaire
-        await updateDaoStatus(daoId);
+        await updateDaoStatus(Number(daoId));
         res.status(201).json({
             success: true,
             message: 'Tâche créée avec succès',
@@ -149,12 +150,27 @@ async function updateTaskProgress(req, res) {
     try {
         const { id } = req.params;
         const { progress, override = false } = req.body;
+        const userId = req.user?.userId;
         const taskId = parseInt(id);
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Utilisateur non authentifié'
+            });
+        }
         // Validation de la progression
         if (progress < 0 || progress > 100) {
             return res.status(400).json({
                 success: false,
                 message: 'La progression doit être entre 0 et 100'
+            });
+        }
+        // Vérifier si l'utilisateur est assigné à la tâche
+        const isAssigned = await (0, taskPermissions_1.isTaskAssigned)(taskId, userId);
+        if (!isAssigned) {
+            return res.status(403).json({
+                success: false,
+                message: 'Seul le membre assigné à cette tâche peut la modifier'
             });
         }
         // 🎯 CONTRÔLE: Récupérer les informations de la tâche et du DAO
@@ -186,7 +202,7 @@ async function updateTaskProgress(req, res) {
                         details: "La première tâche du DAO doit être terminée (100%) avant de pouvoir modifier les autres tâches.",
                         firstTaskId: taskInfo.first_task_id,
                         firstTaskProgress: firstTaskProgress,
-                        currentTaskId: parseInt(id),
+                        currentTaskId: Number(id),
                         can_override: true
                     });
                 }
@@ -226,6 +242,29 @@ async function assignTask(req, res) {
     try {
         const { id } = req.params;
         const { assigned_to } = req.body;
+        const userId = req.user?.userId;
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Utilisateur non authentifié'
+            });
+        }
+        // Récupérer le DAO ID de la tâche
+        const daoId = await (0, taskPermissions_1.getDaoIdFromTask)(Number(id));
+        if (!daoId) {
+            return res.status(404).json({
+                success: false,
+                message: 'Tâche non trouvée'
+            });
+        }
+        // Vérifier si l'utilisateur peut assigner des tâches (admin ou chef de projet)
+        const canAssign = await (0, taskPermissions_1.canAssignTasks)(daoId, userId);
+        if (!canAssign) {
+            return res.status(403).json({
+                success: false,
+                message: 'Seul un administrateur ou le chef de projet peut assigner des membres aux tâches'
+            });
+        }
         // 🎯 CONTRÔLE: Vérifier si la tâche peut être assignée (débloquée)
         const taskUnlockResult = await (0, database_1.query)(`
       SELECT t.id, t.nom, t.dao_id,
@@ -310,7 +349,7 @@ async function deleteTask(req, res) {
             success: true,
             message: 'Tâche supprimée avec succès',
             data: {
-                deleted_task_id: parseInt(id),
+                deleted_task_id: Number(id),
                 remaining_tasks: taskInfo.total_tasks - 1,
                 can_create_more: taskInfo.total_tasks - 1 < 15
             }
@@ -342,7 +381,7 @@ async function updateDaoStatus(daoId) {
         // Calculer les statistiques
         const totalProgress = allTasks.reduce((sum, task) => sum + (task.progress || 0), 0);
         const averageProgress = Math.round(totalProgress / allTasks.length);
-        const completedTasks = allTasks.filter(task => (task.progress || 0) === 100);
+        const completedTasks = allTasks.filter((task) => (task.progress || 0) === 100);
         // Déterminer le nouveau statut
         let newStatut;
         if (completedTasks.length === allTasks.length && averageProgress === 100) {

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.requireManagementRole = exports.requireAdminOrDirector = exports.requireAdmin = void 0;
+exports.requireManagementRole = exports.requireAdminOrChef = exports.requireAdminOrDirector = exports.requireAdmin = void 0;
 exports.authenticateToken = authenticateToken;
 exports.requireRole = requireRole;
 const jwt_1 = require("../utils/jwt");
@@ -46,6 +46,8 @@ function requireRole(allowedRoles) {
 exports.requireAdmin = requireRole([2]);
 // Middleware pour vérifier si l'utilisateur est admin (2) ou directeur (1)
 exports.requireAdminOrDirector = requireRole([1, 2]);
+// Middleware pour vérifier si l'utilisateur est admin (2) ou chef de projet (3)
+exports.requireAdminOrChef = requireRole([2, 3]);
 // Middleware pour vérifier si l'utilisateur a un rôle de gestion (1, 2, 3)
 exports.requireManagementRole = requireRole([1, 2, 3]);
 //# sourceMappingURL=auth.js.map

@@ -40,7 +40,7 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
             // Ne pas rediriger si l'utilisateur est déjà sur la bonne page
             const isOnCorrectPage = 
               (user.role_id === 1 && location.pathname === '/directeur-general') ||
-              (user.role_id === 2 && (location.pathname === '/admin' || location.pathname.startsWith('/admin/'))) ||
+              (user.role_id === 2 && (location.pathname === '/admin' || location.pathname.startsWith('/admin/') || location.pathname.startsWith('/chef-projet/dao/'))) ||
               (user.role_id === 3 && (location.pathname === '/chef-projet' || location.pathname.startsWith('/chef-projet/'))) ||
               (user.role_id === 4 && (location.pathname === '/membre-equipe' || location.pathname.startsWith('/membre-equipe/'))) ||
               (user.role_id === 5 && (location.pathname === '/lecteur' || location.pathname.startsWith('/lecteur/')))
