@@ -65,20 +65,20 @@ export default function LayoutWrapper() {
 
     if (roleId === 2) { // Admin
       if (path === '/admin') return { title: '', subtitle: '' }
-      if (path === '/admin/create-user') return { title: 'Créer Utilisateur', subtitle: 'Gestion des comptes' }
-      if (path === '/admin/create-dao') return { title: 'Créer DAO', subtitle: 'Nouveau projet' }
-      if (path === '/admin/my-daos') return { title: 'Mes DAO', subtitle: 'Projets assignés' }
-      if (path === '/admin/all-daos') return { title: 'Tous les DAO', subtitle: 'Liste complète' }
-      if (path === '/admin/my-tasks') return { title: 'Mes Tâches', subtitle: 'Activités en cours' }
-      if (path === '/admin/history') return { title: 'Historique', subtitle: 'Journal des activités' }
+      if (path === '/admin/create-user') return { title: '', subtitle: '' }
+      if (path === '/admin/create-dao') return { title: '', subtitle: '' }
+      if (path === '/admin/my-daos') return { title: '', subtitle: '' }
+      if (path === '/admin/all-daos') return { title: '', subtitle: '' }
+      if (path === '/admin/my-tasks') return { title: '', subtitle: '' }
+      if (path === '/admin/history') return { title: '', subtitle: '' }
     }
 
     if (roleId === 3) { // Chef de Projet
-      if (path === '/chef-projet/dashboard') return { title: 'Tableau de bord Chef de Projet', subtitle: 'Gestion des projets' }
-      if (path === '/chef-projet/mes-daos') return { title: 'Mes DAO', subtitle: 'Projets supervisés' }
-      if (path === '/chef-projet/mes-equipes') return { title: 'Mes Équipes', subtitle: 'Collaborateurs' }
-      if (path === '/chef-projet/mes-taches') return { title: 'Mes Tâches', subtitle: 'Activités' }
-      if (path === '/chef-projet/history') return { title: 'Historique', subtitle: 'Journal' }
+      if (path === '/chef-projet/dashboard') return { title: '', subtitle: '' }
+      if (path === '/chef-projet/mes-daos') return { title: '', subtitle: '' }
+      if (path === '/chef-projet/mes-equipes') return { title: '', subtitle: '' }
+      if (path === '/chef-projet/mes-taches') return { title: '', subtitle: '' }
+      if (path === '/chef-projet/history') return { title: '', subtitle: '' }
     }
 
     if (roleId === 4) { // Membre d'Équipe
@@ -152,7 +152,7 @@ export default function LayoutWrapper() {
         <div className="mt-auto px-4 space-y-2">
           <div className="pt-2 border-t border-slate-200 flex flex-col gap-1">
             <button
-              className="flex items-center gap-3 px-6 py-2 text-slate-500 hover:text-red-600 text-sm"
+              className="flex items-center gap-3 px-6 py-2 text-red-600 hover:text-red-700 text-sm"
               onClick={handleLogout}
             >
               <span className="material-symbols-outlined">logout</span> Déconnexion
