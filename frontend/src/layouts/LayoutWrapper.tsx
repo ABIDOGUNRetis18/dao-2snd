@@ -64,7 +64,7 @@ export default function LayoutWrapper() {
     }
 
     if (roleId === 2) { // Admin
-      if (path === '/admin') return { title: 'Tableau de bord Administrateur', subtitle: 'Vue d\'ensemble de tous les DAOs et leur état d\'avancement' }
+      if (path === '/admin') return { title: '', subtitle: '' }
       if (path === '/admin/create-user') return { title: 'Créer Utilisateur', subtitle: 'Gestion des comptes' }
       if (path === '/admin/create-dao') return { title: 'Créer DAO', subtitle: 'Nouveau projet' }
       if (path === '/admin/my-daos') return { title: 'Mes DAO', subtitle: 'Projets assignés' }
@@ -162,7 +162,7 @@ export default function LayoutWrapper() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="ml-64 flex-1 flex flex-col min-h-screen pt-20">
+      <main className="ml-64 flex-1 flex flex-col min-h-screen">
         {/* TopAppBar */}
         <AppHeader 
           title={title}

@@ -230,6 +230,12 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-6 border border-slate-100 rounded-lg bg-gray-50">
+      {/* Titre du Dashboard */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-blue-900 mb-2">Tableau de bord Administrateur</h1>
+        <p className="text-sm text-slate-500">Vue d'ensemble de tous les DAOs et leur état d'avancement</p>
+      </div>
+      
       {/* Stats Section - Style chef projet avec couleurs pleines */}
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 border border-slate-100 rounded-lg p-4 bg-white">
         {/* Total DAO - Bleu */}
