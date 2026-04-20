@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, User, MessageCircle, Clock, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeft, User, MessageCircle, Clock } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 
 interface Task {
@@ -36,8 +36,7 @@ export default function DAODetails() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [expandedTask, setExpandedTask] = useState<number | null>(null)
-
+  
   useEffect(() => {
     if (id) {
       loadDao()
@@ -120,7 +119,7 @@ export default function DAODetails() {
       case 'EN_ATTENTE': return { label: 'En attente', bg: 'bg-yellow-100 text-yellow-700', dot: 'bg-yellow-400' }
       case 'EN_COURS':   return { label: 'En cours',   bg: 'bg-blue-100 text-blue-700',   dot: 'bg-blue-500' }
       case 'TERMINEE':   return { label: 'Terminée',   bg: 'bg-green-100 text-green-700', dot: 'bg-green-500' }
-      case 'A_RISQUE':   return { label: 'À risque',   bg: 'bg-red-100 text-red-700',     dot: 'bg-red-500' }
+      case 'A_RISQUE':   return { label: 'À risque',   bg: 'bg-red-600 text-white',     dot: 'bg-red-500' }
       case 'ARCHIVE':    return { label: 'Archivé',    bg: 'bg-gray-100 text-gray-600',   dot: 'bg-gray-400' }
       default:           return { label: statut,       bg: 'bg-gray-100 text-gray-600',   dot: 'bg-gray-400' }
     }
@@ -134,13 +133,6 @@ export default function DAODetails() {
     }
   }
 
-  const getPrioriteBadge = (priorite: string) => {
-    switch (priorite) {
-      case 'haute':  return { label: 'Haute',  cls: 'bg-red-50 text-red-600' }
-      case 'moyenne':return { label: 'Moyenne',cls: 'bg-orange-50 text-orange-600' }
-      default:       return { label: 'Basse',  cls: 'bg-green-50 text-green-600' }
-    }
-  }
 
   const completedTasks = tasks.filter(t => t.statut === 'termine').length
   const totalTasks = tasks.length
@@ -293,7 +285,7 @@ export default function DAODetails() {
                       <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                       <span>Détail des tâches</span>
                     </div>
-                    {member.tasks.map((task: any, taskIndex) => {
+                    {member.tasks.map((task: any, taskIndex: number) => {
                       const tBadge = getTaskStatutBadge(task.statut)
                       const taskProgress = task.statut === 'termine' ? 100 : task.statut === 'en_cours' ? (task.progress || 50) : 0
 

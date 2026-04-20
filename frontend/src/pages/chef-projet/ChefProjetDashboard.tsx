@@ -28,7 +28,7 @@ const getStatutBadge = (statut: string) => {
   switch (statut) {
     case 'EN_ATTENTE': return { label: 'En attente', cls: 'bg-yellow-100 text-yellow-700' }
     case 'EN_COURS':   return { label: 'En cours',   cls: 'bg-blue-100 text-blue-700' }
-    case 'A_RISQUE':   return { label: 'À risque',   cls: 'bg-red-100 text-red-600' }
+    case 'A_RISQUE':   return { label: 'À risque',   cls: 'bg-red-600 text-white' }
     case 'TERMINEE':   return { label: 'Terminée',   cls: 'bg-green-100 text-green-700' }
     case 'ARCHIVE':    return { label: 'Archivé',    cls: 'bg-gray-100 text-gray-500' }
     default:           return { label: statut,       cls: 'bg-gray-100 text-gray-500' }
@@ -241,7 +241,7 @@ export default function ChefProjetDashboard() {
           </div>
         </div>
         {/* Card 4 */}
-        <div className="bg-red-400 p-6 rounded-xl border-b-4 border-red-500 flex justify-between items-start shadow-lg">
+        <div className="bg-red-600 p-6 rounded-xl border-b-4 border-red-800 flex justify-between items-start shadow-lg">
           <div>
             <p className="text-xs font-bold text-red-100 mb-1">À risque</p>
             <h3 className="text-3xl font-headline font-bold text-white">{stats.atRiskDaos}</h3>

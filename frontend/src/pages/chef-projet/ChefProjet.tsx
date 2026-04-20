@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, FileText, Users, CheckSquare, MessageSquare, SlidersHorizontal, RefreshCw, Calendar, Hourglass, AlertTriangle } from 'lucide-react'
+import { LayoutDashboard, FileText, CheckSquare, MessageSquare, SlidersHorizontal, RefreshCw, Calendar, Hourglass, AlertTriangle } from 'lucide-react'
 
 interface DAO {
   id: number
@@ -26,7 +26,7 @@ const getStatutBadge = (statut: string) => {
   switch (statut) {
     case 'EN_ATTENTE': return { label: 'En attente', cls: 'bg-yellow-100 text-yellow-700' }
     case 'EN_COURS':   return { label: 'En cours',   cls: 'bg-blue-100 text-blue-700' }
-    case 'A_RISQUE':   return { label: 'À risque',   cls: 'bg-red-100 text-red-600' }
+    case 'A_RISQUE':   return { label: 'À risque',   cls: 'bg-red-600 text-white' }
     case 'TERMINEE':   return { label: 'Terminée',   cls: 'bg-green-100 text-green-700' }
     case 'ARCHIVE':    return { label: 'Archivé',    cls: 'bg-gray-100 text-gray-500' }
     default:           return { label: statut,       cls: 'bg-gray-100 text-gray-500' }
@@ -189,11 +189,11 @@ export default function ChefProjet() {
             </div>
           </div>
 
-          <div className="bg-red-50 px-8 py-5 flex items-center gap-4">
-            <AlertTriangle className="h-9 w-9 text-red-400 flex-shrink-0" />
+          <div className="bg-red-100 px-8 py-5 flex items-center gap-4">
+            <AlertTriangle className="h-9 w-9 text-red-600 flex-shrink-0" />
             <div>
-              <p className="text-xs text-red-500 mb-0.5">À risque</p>
-              <p className="text-3xl font-bold text-red-500">{aRisque}</p>
+              <p className="text-xs text-red-600 mb-0.5">À risque</p>
+              <p className="text-3xl font-bold text-red-600">{aRisque}</p>
             </div>
           </div>
         </div>

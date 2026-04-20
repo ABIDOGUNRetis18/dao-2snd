@@ -180,7 +180,7 @@ export default function MyDAO() {
     }
 
     if (diffDays <= 3) {
-      return { label: "À risque", className: "px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800" };
+      return { label: "À risque", className: "px-2 py-1 text-xs font-medium rounded-full bg-red-600 text-white" };
     }
 
     return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };

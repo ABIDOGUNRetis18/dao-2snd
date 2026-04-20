@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Search, ArrowLeft, Users } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
-import { computeStatusFromProgress } from '../../utils/daoStatusUtils'
+
 
 interface DAO {
   id: number
@@ -170,15 +170,6 @@ export default function MesDAOs() {
   }
 
   // Statut basé sur la logique centralisée
-  const getDAOStatus = (dao: DAO) => {
-    const progression = getProgression(dao)
-    const status = computeStatusFromProgress(progression, dao.statut)
-    
-    // Convertir les classes CSS pour correspondre au style de la page
-    const className = status.className.replace(/bg-(\w+)-(\d+)/g, 'px-2 py-1 text-xs font-medium rounded-full bg-$1-$2 text-$1-$800')
-    
-    return { label: status.label, className }
-  }
 
   const getProgression = (dao: DAO) => {
     const tasks = daoTasks[dao.id] || []
@@ -191,13 +182,6 @@ export default function MesDAOs() {
     return avgProgress
   }
 
-  const getProgressionColor = (dao: DAO) => {
-    const progress = getProgression(dao)
-    // Couleurs selon la documentation
-    if (progress === 100) return 'bg-green-600'
-    if (progress > 0) return 'bg-blue-600'
-    return 'bg-gray-400'
-  }
 
   
   
@@ -231,7 +215,7 @@ export default function MesDAOs() {
     }
 
     if (diffDays <= 3) {
-      return { label: "À risque", className: "px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800" };
+      return { label: "À risque", className: "px-2 py-1 text-xs font-medium rounded-full bg-red-600 text-white" };
     }
 
     return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };

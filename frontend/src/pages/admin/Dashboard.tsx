@@ -56,7 +56,7 @@ export default function AdminDashboard() {
     }
 
     if (diffDays <= 3) {
-      return { label: "À risque", className: "px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800" };
+      return { label: "À risque", className: "px-2 py-1 text-xs font-medium rounded-full bg-red-600 text-white" };
     }
 
     return { label: "En cours", className: "px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800" };
@@ -262,8 +262,8 @@ export default function AdminDashboard() {
           </div>
         </div>
         
-        {/* À risque - Rouge */}
-        <div className="bg-red-400 p-6 rounded-xl border-b-4 border-red-500 flex justify-between items-start shadow-lg">
+        {/* À risque - Rouge danger */}
+        <div className="bg-red-600 p-6 rounded-xl border-b-4 border-red-800 flex justify-between items-start shadow-lg">
           <div>
             <p className="text-xs font-bold text-red-100 mb-1">À risque</p>
             <h3 className="text-3xl font-bold text-white">{stats.aRisque}</h3>
