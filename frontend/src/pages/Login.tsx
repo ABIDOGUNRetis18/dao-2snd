@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
+
 export default function Login() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -9,6 +10,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [, setError] = useState('')
   const [] = useState(false)
+  const [, setShowForgotPassword] = useState(false)
   const navigate = useNavigate()
   const { login, isAuthenticated, isLoading } = useAuth()
 
@@ -96,7 +98,7 @@ export default function Login() {
           alt="Modern corporate office lobby" 
           className="absolute inset-0 w-full h-full object-cover" 
           data-alt="Professional engineering documents and architectural blueprints on a modern office desk with a laptop and a pen, clean background without any text overlays or watermarks, high-quality photography, corporate office setting, focus on paperwork and tender documents, blue and professional tones." 
-          src="/image1.jpg"
+          src="/screen.png"
         />
         {/* Adjusted gradient to be more subtle (dark at bottom for text legibility) */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
@@ -110,16 +112,16 @@ export default function Login() {
       </section>
 
       {/* Right Section: Login Interface */}
-      <section className="w-full md:w-1/2 flex items-center justify-center px-8 py-12 md:px-24" style={{backgroundColor: '#0867B5'}}>
+      <section className="w-full md:w-1/2 flex items-center justify-center px-8 py-12 md:px-24" style={{backgroundColor: '#89C7FA'}}>
         <div className="w-full max-w-md">
           {/* Login Card */}
           <div className="p-5" style={{ 
             maxWidth: "400px", 
             margin: "0 auto",
-            backgroundColor: "rgba(245, 247, 250, 0.15)",
+            backgroundColor: "rgba(227, 247, 250, 0.15)",
             borderRadius: "12px",
             border: "1px solid rgba(230, 235, 240, 0.3)",
-            boxShadow: "0 8px 32px rgba(220, 225, 235, 0.08)",
+            boxShadow: "0 8px 32px rgba(230, 225, 235, 0.08)",
             backdropFilter: "blur(15px)"
           }}>
             {/* Brand Anchor */}
@@ -153,7 +155,13 @@ export default function Login() {
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <label className="block text-sm font-semibold text-on-surface tracking-wide uppercase opacity-80" htmlFor="password">Mot de passe</label>
-                <a className="text-sm font-bold text-primary hover:text-secondary transition-colors" href="#">Mot de passe oublié?</a>
+                <button 
+                  type="button"
+                  className="text-sm font-bold text-primary hover:text-secondary transition-colors"
+                  onClick={() => setShowForgotPassword(true)}
+                >
+                  Mot de passe oublié?
+                </button>
               </div>
               <div className="relative">
                 <input 
@@ -198,7 +206,7 @@ export default function Login() {
           </form>
         </div>
       </div>
-    </section>
-  </div>
+      </section>
+    </div>
   )
 }
