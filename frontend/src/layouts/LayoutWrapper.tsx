@@ -36,7 +36,6 @@ const menuItemsByRole: Record<number, MenuItem[]> = {
   5: [
     { path: '/lecteur', label: 'Tableau de bord', icon: 'dashboard' },
     { path: '/lecteur/all-daos', label: 'Tous les DAO', icon: 'list_alt' },
-    { path: '/lecteur/history', label: 'Historique', icon: 'history' },
   ]
 }
 
@@ -60,7 +59,7 @@ export default function LayoutWrapper() {
     const path = location.pathname
 
     if (roleId === 1) { // Directeur Général
-      if (path === '/directeur-general') return { title: 'Tableau de bord Directeur', subtitle: 'Vue d\'ensemble stratégique' }
+      if (path === '/directeur-general') return { title: '', subtitle: '' }
     }
 
     if (roleId === 2) { // Admin
@@ -82,15 +81,14 @@ export default function LayoutWrapper() {
     }
 
     if (roleId === 4) { // Membre d'Équipe
-      if (path === '/membre-equipe') return { title: 'Tableau de bord Membre', subtitle: 'Espace de travail' }
-      if (path === '/membre-equipe/tasks') return { title: 'Mes Tâches', subtitle: 'Activités assignées' }
-      if (path === '/membre-equipe/history') return { title: 'Historique', subtitle: 'Journal' }
+      if (path === '/membre-equipe') return { title: '', subtitle: '' }
+      if (path === '/membre-equipe/tasks') return { title: '', subtitle: '' }
+      if (path === '/membre-equipe/history') return { title: '', subtitle: '' }
     }
 
     if (roleId === 5) { // Lecteur
-      if (path === '/lecteur') return { title: 'Centre de Documentation', subtitle: 'Accès aux documents' }
-      if (path === '/lecteur/all-daos') return { title: 'Tous les DAO', subtitle: 'Consultation' }
-      if (path === '/lecteur/history') return { title: 'Historique', subtitle: 'Consultations' }
+      if (path === '/lecteur') return { title: '', subtitle: '' }
+      if (path === '/lecteur/all-daos') return { title: '', subtitle: '' }
     }
 
     return { title: 'Tableau de bord', subtitle: 'Vue d\'ensemble' }

@@ -3,6 +3,7 @@ import { Search, ArrowLeft, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 interface DAO {
+  [x: string]: string | number | undefined
   id: number
   numero: string
   objet: string
@@ -164,40 +165,6 @@ export default function AllDAOsLecteur() {
   }
 
   // Calculer le statut basé sur la logique métier simplifiée
-  const calculateStatus = (dao: DAO) => {
-    const tasks = daoTasks[dao.id] || []
-    
-    // Si aucune tâche, statut par défaut
-    if (tasks.length === 0) {
-      return 'EN_COURS'
-    }
-    
-    // Calculer la progression moyenne sur TOUTES les tâches
-    const totalProgress = tasks.reduce((sum, task) => 
-      sum + Number(task.progress || 0), 0)
-    const avgProgress = tasks.length > 0 ? totalProgress / tasks.length : 0
-    
-    // Compter les tâches complétées (progress = 100 OU statut = 'termine')
-    const allCompletedTasks = tasks.filter(task => 
-      task.statut === 'termine' || Number(task.progress || 0) >= 100
-    )
-    
-    // TERMINEE : Toutes les tâches sont complétées ET progression moyenne = 100%
-    if (allCompletedTasks.length === tasks.length && Math.round(avgProgress) === 100) {
-      return 'TERMINEE'
-    }
-    
-    // Logique temporelle pour A_RISQUE (>=3 jours depuis la date de dépôt ET aucune progression)
-    const threeDaysAgo = new Date()
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
-    
-    if (avgProgress === 0 && dao.date_depot && new Date(dao.date_depot) < threeDaysAgo) {
-      return 'A_RISQUE'
-    }
-    
-    // Par défaut : EN_COURS
-    return 'EN_COURS'
-  }
 
   const getProgression = (dao: DAO) => {
     const tasks = daoTasks[dao.id] || []
@@ -262,7 +229,7 @@ export default function AllDAOsLecteur() {
       </div>
 
       {/* DAO Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading ? (
           <div className="col-span-full text-center py-12">
             <div className="text-slate-500">Chargement...</div>
@@ -275,65 +242,73 @@ export default function AllDAOsLecteur() {
           filteredDaos.map((dao) => (
             <div 
               key={dao.id} 
-              className="bg-white rounded border border-slate-200 shadow-sm transition-all duration-200 overflow-hidden"
+              className="bg-white rounded-lg border border-slate-200/60 shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer hover:border-blue-400 hover:scale-102 overflow-hidden group"
             >
-              {/* Header minimal */}
-              <div className="p-2 border-b border-slate-100">
-                <div className="flex items-center justify-between mb-0.5">
+              {/* En-tête compact */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-2 border-b border-slate-100">
+                <div className="flex items-center justify-between mb-1">
                   <span className="text-sm font-bold text-slate-900">{dao.numero}</span>
-                  <span className={`px-1.5 py-0.5 text-xs font-medium rounded-full ${getDAOStatus(dao).className}`}>
+                  <span className={`px-1.5 py-0.5 text-xs font-semibold rounded-full ${getDAOStatus(dao).className}`}>
                     {getDAOStatus(dao).label}
                   </span>
                 </div>
-                <h3 className="text-sm font-semibold text-slate-800 mb-0.5 truncate leading-tight">{dao.objet}</h3>
-                <p className="text-xs text-slate-500 truncate leading-tight">{dao.reference}</p>
+                <h3 className="text-xs font-semibold text-slate-800 mb-1 truncate">{dao.reference}</h3>
+                <p className="text-xs text-slate-600 truncate">{dao.autorite}</p>
               </div>
               
-              {/* Progression minimale */}
-              <div className="px-2 py-1.5 bg-slate-50">
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="text-xs font-medium text-slate-600">Progression</span>
-                  <span className="text-xs font-bold text-blue-600">{getProgression(dao)}%</span>
-                </div>
-                <div className="w-full bg-slate-200 rounded-full h-1">
-                  <div 
-                    className={`h-1 rounded-full transition-all duration-300 ${getProgressionColor(dao)}`}
-                    style={{ width: `${getProgression(dao)}%` }}
-                  />
-                </div>
-              </div>
-              
-              {/* Informations minimales */}
-              <div className="p-2 space-y-0.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">Date:</span>
-                  <span className="font-medium text-slate-700 text-xs">
-                    {new Date(dao.date_depot).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}
-                  </span>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">Autorité:</span>
-                  <span className="font-medium text-slate-700 text-xs truncate max-w-[70px]">{dao.autorite}</span>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">Chef:</span>
-                  <span className="font-medium text-slate-700 text-xs truncate max-w-[70px]">{dao.chef_projet_nom || 'N/A'}</span>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">Équipe:</span>
-                  <div className="flex items-center gap-0.5">
-                    <Users className="h-2.5 w-2.5 text-slate-400" />
-                    <span className="font-medium text-slate-700 text-xs">
-                      {daoMembers[dao.id]?.length || 0}
+              {/* Informations compactes */}
+              <div className="p-2 space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex items-center justify-between py-1 px-1.5 bg-slate-50 rounded text-xs">
+                    <span className="font-medium text-slate-500">Date:</span>
+                    <span className="font-semibold text-slate-700">
+                      {dao.date_depot ? new Date(dao.date_depot).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'}) : 'N/D'}
                     </span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between py-1 px-1.5 bg-slate-50 rounded text-xs">
+                    <span className="font-medium text-slate-500">Chef:</span>
+                    <span className="font-semibold text-slate-700 truncate">
+                      {dao.chef_projet_nom || dao.chef_projet || dao.chef || 'N/A'}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between py-1 px-1.5 bg-slate-50 rounded text-xs">
+                    <span className="font-medium text-slate-500">Équipe:</span>
+                    <div className="flex items-center gap-1">
+                      <Users className="h-3 w-3 text-slate-400" />
+                      <span className="font-semibold text-slate-700">{daoMembers[dao.id]?.length || 0}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between py-1 px-1.5 bg-slate-50 rounded text-xs">
+                    <span className="font-medium text-slate-500">Progression:</span>
+                    <div className="flex items-center gap-1">
+                      <div className="w-12 bg-slate-200 rounded-full h-1">
+                        <div 
+                          className={`h-1 rounded-full transition-all duration-300 ${getProgressionColor(dao)}`}
+                          style={{ width: `${getProgression(dao)}%` }}
+                        />
+                      </div>
+                      <span className="font-semibold text-slate-700">{getProgression(dao)}%</span>
+                    </div>
                   </div>
                 </div>
               </div>
               
-                          </div>
+              {/* Action compacte */}
+              <div className="p-2 border-t border-slate-100 bg-gradient-to-b from-slate-50 to-white">
+                <button 
+                  className="w-full bg-gradient-to-r from-slate-100 to-slate-200 hover:from-slate-200 hover:to-slate-300 text-slate-700 text-xs font-medium py-1.5 px-2 rounded transition-all duration-200 flex items-center justify-center gap-1 hover:shadow-md group-hover:from-blue-50 group-hover:to-blue-100 group-hover:text-blue-700"
+                  title="Voir les détails"
+                >
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Détails
+                </button>
+              </div>
+            </div>
           ))
         )}
       </div>

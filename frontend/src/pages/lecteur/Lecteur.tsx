@@ -519,6 +519,18 @@ export default function Lecteur() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
       
+      {/* Header Principal */}
+      <div className="bg-white border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Centre de Documentation</h1>
+              <p className="text-slate-600 mt-1">Accès aux documents</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-6" onClick={handleBackgroundClick}>
         {/* Search Bar */}

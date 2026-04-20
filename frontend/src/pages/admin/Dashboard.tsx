@@ -243,7 +243,6 @@ export default function AdminDashboard() {
           <div>
             <p className="text-xs font-bold text-blue-100 mb-1">Total DAO</p>
             <h3 className="text-3xl font-bold text-white">{stats.total}</h3>
-            <p className="text-[10px] text-blue-200 mt-2 font-semibold">Projets actifs</p>
           </div>
           <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
             <span className="material-symbols-outlined">calendar_today</span>
@@ -255,7 +254,6 @@ export default function AdminDashboard() {
           <div>
             <p className="text-xs font-bold text-orange-100 mb-1">En cours</p>
             <h3 className="text-3xl font-bold text-white">{stats.enCours}</h3>
-            <p className="text-[10px] text-orange-200 mt-2 font-semibold">Processus actifs</p>
           </div>
           <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
             <span className="material-symbols-outlined">hourglass_empty</span>
@@ -267,7 +265,6 @@ export default function AdminDashboard() {
           <div>
             <p className="text-xs font-bold text-red-100 mb-1">À risque</p>
             <h3 className="text-3xl font-bold text-white">{stats.aRisque}</h3>
-            <p className="text-[10px] text-red-200 mt-2 font-semibold">Alertes critiques</p>
           </div>
           <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
             <span className="material-symbols-outlined">error</span>
@@ -279,7 +276,6 @@ export default function AdminDashboard() {
           <div>
             <p className="text-xs font-bold text-green-100 mb-1">Terminés</p>
             <h3 className="text-3xl font-bold text-white">{stats.terminees}</h3>
-            <p className="text-[10px] text-green-200 mt-2 font-semibold">Objectifs atteints</p>
           </div>
           <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
             <span className="material-symbols-outlined">check_circle</span>

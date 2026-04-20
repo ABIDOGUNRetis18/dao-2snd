@@ -45,7 +45,7 @@ export default function MembreEquipe() {
   const [daoGroups, setDaoGroups] = useState<DAOGroup[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
-  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [, setCurrentUser] = useState<any>(null)
   const [expandedDAOs, setExpandedDAOs] = useState<number[]>([])
 
   useEffect(() => {
@@ -199,7 +199,6 @@ export default function MembreEquipe() {
             <div>
               <p className="text-xs font-bold text-blue-100 mb-1">Tâches totales</p>
               <h3 className="text-3xl font-headline font-bold text-white">{totalTasks}</h3>
-              <p className="text-[10px] text-blue-200 mt-2 font-semibold">Workload total</p>
             </div>
             <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
               <span className="material-symbols-outlined">assignment</span>
@@ -211,7 +210,6 @@ export default function MembreEquipe() {
             <div>
               <p className="text-xs font-bold text-green-100 mb-1">Terminées</p>
               <h3 className="text-3xl font-headline font-bold text-white">{completedTasks}</h3>
-              <p className="text-[10px] text-green-200 mt-2 font-semibold">All targets met</p>
             </div>
             <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
               <span className="material-symbols-outlined">check_circle</span>
@@ -223,7 +221,6 @@ export default function MembreEquipe() {
             <div>
               <p className="text-xs font-bold text-orange-100 mb-1">En cours</p>
               <h3 className="text-3xl font-headline font-bold text-white">{inProgressTasks}</h3>
-              <p className="text-[10px] text-orange-200 mt-2 font-semibold">Active processes</p>
             </div>
             <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
               <span className="material-symbols-outlined">hourglass_empty</span>
@@ -235,7 +232,6 @@ export default function MembreEquipe() {
             <div>
               <p className="text-xs font-bold text-red-100 mb-1">En attente</p>
               <h3 className="text-3xl font-headline font-bold text-white">{pendingTasks}</h3>
-              <p className="text-[10px] text-red-200 mt-2 font-semibold">Pending tasks</p>
             </div>
             <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
               <span className="material-symbols-outlined">pending_actions</span>

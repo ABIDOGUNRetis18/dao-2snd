@@ -147,7 +147,6 @@ export default function MesEquipes() {
           <div>
             <p className="text-xs font-bold text-blue-100 mb-1">Équipes Totales</p>
             <h3 className="text-3xl font-headline font-bold text-white">{stats.totalTeams}</h3>
-            <p className="text-[10px] text-blue-200 mt-2 font-semibold">Team units</p>
           </div>
           <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
             <span className="material-symbols-outlined">groups</span>
@@ -158,7 +157,6 @@ export default function MesEquipes() {
           <div>
             <p className="text-xs font-bold text-green-100 mb-1">Membres Totaux</p>
             <h3 className="text-3xl font-headline font-bold text-white">{stats.totalMembers}</h3>
-            <p className="text-[10px] text-green-200 mt-2 font-semibold">Team members</p>
           </div>
           <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
             <span className="material-symbols-outlined">person</span>
@@ -169,7 +167,6 @@ export default function MesEquipes() {
           <div>
             <p className="text-xs font-bold text-purple-100 mb-1">DAOs Assignés</p>
             <h3 className="text-3xl font-headline font-bold text-white">{stats.totalDaos}</h3>
-            <p className="text-[10px] text-purple-200 mt-2 font-semibold">Active projects</p>
           </div>
           <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
             <span className="material-symbols-outlined">trending_up</span>

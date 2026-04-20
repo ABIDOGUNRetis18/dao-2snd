@@ -1,47 +1,43 @@
 import { useState, useEffect, useMemo} from 'react'
 import { Search, Download } from 'lucide-react'
 
-// Importer Chart.js
-import Chart from 'chart.js/auto'
-
-// Importer html2canvas et jsPDF
-import html2canvas from 'html2canvas'
-import jsPDF from 'jspdf'
-
-interface ReportStats {
-  totalDaos: number
-  completedDaos: number
-  inProgressDaos: number
-  atRiskDaos: number
-  averageProgression: number
-}
+// Importer la fonction de génération PDF
+import { downloadDGComprehensivePDF } from '../../utils/dg-pdf-generator'
+import { Chart } from 'chart.js'
 
 interface DAO {
   id: number
-  reference?: string
+  reference: string
   numero: string
   objet: string
   statut: string
   chef_projet_nom: string
   created_at: string
-  date_depot?: string
+  date_depot: string
   description?: string
+  autorite: string
+  progression: number
+  taches_total: number
+  taches_completees: number
+  risque: string
 }
 
 interface Task {
   id: number
   id_task: number
-  dao_id: number
+  titre: string
   title: string
-  description: string
-  progress: number
   statut: string
+  dao_id: number
+  progression: number
+  progress: number
+  description: string
   assigned_to?: number
   assigned_username?: string
   created_at: string
 }
 
-
+// ... rest of the code remains the same ...
 
 
 export default function DirecteurGeneral() {
@@ -54,244 +50,6 @@ export default function DirecteurGeneral() {
   useEffect(() => {
     loadData()
   }, [])
-
-  // Fonction pour télécharger le rapport PDF complet du Directeur Général
-  const handleDownloadPDF = async () => {
-    try {
-      // Afficher l'indicateur de chargement
-      const loadingIndicator = document.createElement('div')
-      loadingIndicator.id = 'pdf-loading-indicator'
-      loadingIndicator.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'
-      loadingIndicator.innerHTML = `
-        <div class="bg-white rounded-lg p-6 shadow-xl">
-          <div class="flex items-center gap-3">
-            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
-            <span class="text-lg font-medium text-gray-800">Génération du rapport DG complet...</span>
-          </div>
-        </div>
-      `
-      document.body.appendChild(loadingIndicator)
-
-      // Attendre un peu pour que l'UI se mette à jour
-      await new Promise(resolve => setTimeout(resolve, 100))
-
-      // Créer le conteneur pour le rapport
-      const pdfContainer = document.createElement('div')
-      pdfContainer.id = 'pdf-report-container'
-      pdfContainer.style.position = 'absolute'
-      pdfContainer.style.left = '-9999px'
-      pdfContainer.style.top = '0'
-      pdfContainer.style.width = '210mm'
-      pdfContainer.style.backgroundColor = 'white'
-      pdfContainer.style.fontFamily = 'Arial, sans-serif'
-      pdfContainer.style.padding = '20mm'
-      pdfContainer.style.boxSizing = 'border-box'
-
-      // Calculer les statistiques globales
-      const reportStats: ReportStats = {
-        totalDaos: filteredDaos.length,
-        completedDaos: stats.completedDaos,
-        inProgressDaos: stats.inProgressDaos,
-        atRiskDaos: stats.atRiskDaos,
-        averageProgression: Math.round(
-          filteredDaos.reduce((sum, dao) => {
-            const daoTasks = tasks.filter(task => task.dao_id === dao.id)
-            if (daoTasks.length === 0) return sum
-            const avgProgress = daoTasks.reduce((sum, task) => sum + (task.progress || 0), 0) / daoTasks.length
-            return sum + avgProgress
-          }, 0) / filteredDaos.length
-        )
-      }
-
-      // Générer le HTML du rapport
-      const reportHTML = generateReportHTML(filteredDaos, reportStats)
-
-      // Insérer le HTML dans le conteneur
-      pdfContainer.innerHTML = reportHTML
-      document.body.appendChild(pdfContainer)
-
-      // Attendre que les graphiques soient rendus
-      await new Promise(resolve => setTimeout(resolve, 2000))
-
-      // Utiliser les imports statiques
-
-      // Capturer le conteneur en image
-      const canvas = await html2canvas(pdfContainer, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: false,
-        backgroundColor: '#ffffff',
-        width: pdfContainer.scrollWidth,
-        height: pdfContainer.scrollHeight
-      })
-
-      // Créer le PDF
-      const imgData = canvas.toDataURL('image/jpeg', 0.8)
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-        compress: true
-      })
-
-      // Calculer les dimensions pour l'image
-      const imgWidth = 190 // mm (A4 width - margins)
-      const imgHeight = (canvas.height * imgWidth) / canvas.width
-
-      // Ajouter l'image au PDF
-      pdf.addImage(imgData, 'JPEG', 10, 10, imgWidth, imgHeight)
-
-      // Sauvegarder le PDF
-      const fileName = `rapport-dg-complet-${new Date().toISOString().split('T')[0]}.pdf`
-      pdf.save(fileName)
-
-      // Nettoyer le DOM
-      document.body.removeChild(pdfContainer)
-      document.body.removeChild(loadingIndicator)
-
-      console.log('Rapport PDF DG généré avec succès:', fileName)
-
-    } catch (error) {
-      console.error('Erreur lors de la génération du rapport PDF:', error)
-      
-      // Nettoyer en cas d'erreur
-      const loadingIndicator = document.getElementById('pdf-loading-indicator')
-      const pdfContainer = document.getElementById('pdf-report-container')
-      if (loadingIndicator) document.body.removeChild(loadingIndicator)
-      if (pdfContainer) document.body.removeChild(pdfContainer)
-
-      alert('Erreur lors de la génération du rapport PDF. Veuillez réessayer.')
-    }
-  }
-
-  // Fonction pour générer le HTML du rapport
-  const generateReportHTML = (daosData: DAO[], reportStats: ReportStats): string => {
-    const currentDate = new Date().toLocaleDateString('fr-FR', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
-
-    return `
-      <div style="background: linear-gradient(135deg, #6493FF, #3155A7); color: white; padding: 30px; font-family: Arial, sans-serif;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
-          <div style="display: flex; align-items: center; gap: 15px;">
-            <div style="width: 50px; height: 50px; background: white; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #6493FF; font-size: 18px;">DG</div>
-            <div>
-              <div style="font-size: 24px; font-weight: bold;">2SND Technologies</div>
-              <div style="font-size: 14px; opacity: 0.9;">Plateforme DAO</div>
-            </div>
-          </div>
-          <div style="text-align: right; font-size: 14px;">
-            <div style="opacity: 0.9;">Rapport de Synthèse des DAO</div>
-            <div style="font-size: 12px; margin-top: 5px;">${currentDate}</div>
-          </div>
-        </div>
-
-        <!-- Section Synthèse Globale -->
-        <div style="background: white; color: #333; padding: 25px; border-radius: 10px; margin-bottom: 20px;">
-          <h2 style="color: #6493FF; margin-bottom: 20px; font-size: 20px; border-bottom: 2px solid #6493FF; padding-bottom: 10px;">📊 Vue d'Ensemble Stratégique</h2>
-          
-          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 20px;">
-            <div style="text-align: center; padding: 15px; background: #f8f9ff; border-radius: 8px; border-left: 4px solid #6493FF;">
-              <div style="font-size: 24px; font-weight: bold; color: #6493FF;">${reportStats.totalDaos}</div>
-              <div style="font-size: 12px; color: #666;">Total DAO</div>
-            </div>
-            <div style="text-align: center; padding: 15px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #10b981;">
-              <div style="font-size: 24px; font-weight: bold; color: #10b981;">${reportStats.completedDaos}</div>
-              <div style="font-size: 12px; color: #666;">Terminés</div>
-            </div>
-            <div style="text-align: center; padding: 15px; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
-              <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">${reportStats.inProgressDaos}</div>
-              <div style="font-size: 12px; color: #666;">En cours</div>
-            </div>
-            <div style="text-align: center; padding: 15px; background: #fef2f2; border-radius: 8px; border-left: 4px solid #ef4444;">
-              <div style="font-size: 24px; font-weight: bold; color: #ef4444;">${reportStats.atRiskDaos}</div>
-              <div style="font-size: 12px; color: #666;">À risque</div>
-            </div>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-            <div style="background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0;">
-              <div style="font-size: 14px; color: #666; margin-bottom: 10px;">⚡ Taux de complétion global</div>
-              <div style="font-size: 28px; font-weight: bold; color: #6493FF;">${reportStats.averageProgression}%</div>
-            </div>
-            <div style="background: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0;">
-              <div style="font-size: 14px; color: #666; margin-bottom: 10px;">📈 Performance globale</div>
-              <div style="font-size: 16px; font-weight: bold; color: ${reportStats.averageProgression >= 75 ? '#10b981' : reportStats.averageProgression >= 50 ? '#f59e0b' : '#ef4444'};">
-                ${reportStats.averageProgression >= 75 ? 'EXCELLENTE' : reportStats.averageProgression >= 50 ? 'BONNE' : 'À AMÉLIORER'}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Section DAOs Détaillés -->
-        <div style="background: white; color: #333; padding: 25px; border-radius: 10px;">
-          <h2 style="color: #6493FF; margin-bottom: 20px; font-size: 20px; border-bottom: 2px solid #6493FF; padding-bottom: 10px;">📋 Détail des DAO</h2>
-          
-          <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
-            <thead>
-              <tr style="background: #f8f9ff; color: #6493FF;">
-                <th style="padding: 12px; text-align: left; border: 1px solid #ddd; font-weight: bold;">N°</th>
-                <th style="padding: 12px; text-align: left; border: 1px solid #ddd; font-weight: bold;">Référence</th>
-                <th style="padding: 12px; text-align: left; border: 1px solid #ddd; font-weight: bold;">Objet</th>
-                <th style="padding: 12px; text-align: left; border: 1px solid #ddd; font-weight: bold;">Statut</th>
-                <th style="padding: 12px; text-align: left; border: 1px solid #ddd; font-weight: bold;">Progression</th>
-                <th style="padding: 12px; text-align: left; border: 1px solid #ddd; font-weight: bold;">Chef</th>
-                <th style="padding: 12px; text-align: left; border: 1px solid #ddd; font-weight: bold;">Création</th>
-                <th style="padding: 12px; text-align: left; border: 1px solid #ddd; font-weight: bold;">Dépôt</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${daosData.map(dao => {
-                const daoTasks = tasks.filter(task => task.dao_id === dao.id)
-                const daoProgression = daoTasks.length > 0 
-                  ? Math.round(daoTasks.reduce((sum, task) => sum + (task.progress || 0), 0) / daoTasks.length)
-                  : 0
-                
-                const statusColor = dao.statut === 'TERMINEE' ? '#10b981' : 
-                                 dao.statut === 'EN_COURS' ? '#f59e0b' : 
-                                 dao.statut === 'A_RISQUE' ? '#ef4444' : '#6b7280'
-
-                return `
-                  <tr style="border-bottom: 1px solid #ddd; ${dao.id % 2 === 0 ? 'background: #f9fafb;' : ''}">
-                    <td style="padding: 12px; font-weight: bold;">${dao.numero}</td>
-                    <td style="padding: 12px;">${dao.reference || `DAO-${dao.id}`}</td>
-                    <td style="padding: 12px;">${dao.objet}</td>
-                    <td style="padding: 12px; text-align: center;">
-                      <span style="background: ${statusColor}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">
-                        ${dao.statut === 'TERMINEE' ? 'TERMINÉ' : 
-                          dao.statut === 'EN_COURS' ? 'EN COURS' : 
-                          dao.statut === 'A_RISQUE' ? 'À RISQUE' : dao.statut}
-                      </span>
-                    </td>
-                    <td style="padding: 12px; text-align: center;">
-                      <div style="display: flex; align-items: center; gap: 8px;">
-                        <div style="flex: 1; background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden;">
-                          <div style="width: ${daoProgression}%; background: ${daoProgression >= 80 ? '#10b981' : daoProgression >= 50 ? '#f59e0b' : '#ef4444'}; height: 100%; transition: width 0.3s;"></div>
-                        </div>
-                        <span style="font-size: 12px; font-weight: bold; color: #374151;">${daoProgression}%</span>
-                      </div>
-                    </td>
-                    <td style="padding: 12px;">${dao.chef_projet_nom}</td>
-                    <td style="padding: 12px;">${new Date(dao.created_at).toLocaleDateString('fr-FR')}</td>
-                    <td style="padding: 12px;">${dao.date_depot ? new Date(dao.date_depot).toLocaleDateString('fr-FR') : 'Non définie'}</td>
-                  </tr>
-                `
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Footer -->
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid rgba(255,255,255,0.3); text-align: center; font-size: 12px; color: rgba(255,255,255,0.8);">
-          <div>Rapport généré automatiquement par la plateforme 2SND Technologies</div>
-          <div style="margin-top: 5px;">Directeur Général - ${currentDate}</div>
-        </div>
-      </div>
-    `
-  }
 
   const loadData = async () => {
     setLoading(true)
@@ -346,8 +104,13 @@ export default function DirecteurGeneral() {
         statut: dao.statut || dao.status || 'EN_COURS',
         chef_projet_nom: dao.chef_projet_nom || dao.chef_projet || 'Non assigné',
         created_at: dao.created_at || dao.createdAt || new Date().toISOString(),
-        date_depot: dao.date_depot || dao.date_depot || null,
-        description: dao.description || dao.desc || null
+        date_depot: dao.date_depot || new Date().toISOString().split('T')[0],
+        description: dao.description || dao.desc || null,
+        autorite: dao.autorite || 'Non spécifiée',
+        progression: dao.progression || 0,
+        taches_total: dao.taches_total || 0,
+        taches_completees: dao.taches_completees || 0,
+        risque: dao.risque || 'Moyen'
       }))
       
       // 5. Stockage dans le state
@@ -409,9 +172,11 @@ export default function DirecteurGeneral() {
           id: task.id,
           id_task: task.id_task || task.id,
           dao_id: task.dao_id,
+          titre: task.titre || task.title || 'Sans titre',
           title: task.title || task.titre || 'Sans titre',
           description: task.description || task.desc || '',
-          progress: task.progress || 0,
+          progression: task.progression || task.progress || 0,
+          progress: task.progress || task.progression || 0,
           statut: task.statut || task.status || 'en_cours',
           assigned_to: task.assigned_to,
           assigned_username: task.assigned_username,
@@ -768,6 +533,18 @@ export default function DirecteurGeneral() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
       
+      {/* Header Principal */}
+      <div className="bg-white border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Tableau de bord Directeur</h1>
+              <p className="text-slate-600 mt-1">Vue d'ensemble stratégique</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-6" onClick={handleBackgroundClick}>
         {/* Search Bar */}
@@ -781,13 +558,13 @@ export default function DirecteurGeneral() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="flex-1 px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
-            <button
-              onClick={handleDownloadPDF}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors"
-              title="Télécharger le rapport CSV"
+                        <button
+              onClick={() => downloadDGComprehensivePDF(daos, selectedDaoTasks, stats)}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
+              title="Générer le rapport PDF complet"
             >
               <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Rapport CSV</span>
+              <span className="hidden sm:inline">Rapport PDF</span>
             </button>
           </div>
         </div>
@@ -799,7 +576,6 @@ export default function DirecteurGeneral() {
             <div>
               <p className="text-xs font-bold text-blue-100 mb-1">Total DAOs</p>
               <h3 className="text-3xl font-headline font-bold text-white">{stats.totalDaos}</h3>
-              <p className="text-[10px] text-blue-200 mt-2 font-semibold">Active projects</p>
             </div>
             <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
               <span className="material-symbols-outlined">calendar_today</span>
@@ -811,7 +587,6 @@ export default function DirecteurGeneral() {
             <div>
               <p className="text-xs font-bold text-green-100 mb-1">Terminées</p>
               <h3 className="text-3xl font-headline font-bold text-white">{stats.completedDaos}</h3>
-              <p className="text-[10px] text-green-200 mt-2 font-semibold">All targets met</p>
             </div>
             <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
               <span className="material-symbols-outlined">check_circle</span>
@@ -823,7 +598,6 @@ export default function DirecteurGeneral() {
             <div>
               <p className="text-xs font-bold text-orange-100 mb-1">En cours</p>
               <h3 className="text-3xl font-headline font-bold text-white">{stats.inProgressDaos}</h3>
-              <p className="text-[10px] text-orange-200 mt-2 font-semibold">Active processes</p>
             </div>
             <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
               <span className="material-symbols-outlined">hourglass_empty</span>
@@ -835,7 +609,6 @@ export default function DirecteurGeneral() {
             <div>
               <p className="text-xs font-bold text-red-100 mb-1">À risque</p>
               <h3 className="text-3xl font-headline font-bold text-white">{stats.atRiskDaos}</h3>
-              <p className="text-[10px] text-red-200 mt-2 font-semibold">Critical alerts</p>
             </div>
             <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
               <span className="material-symbols-outlined">warning</span>

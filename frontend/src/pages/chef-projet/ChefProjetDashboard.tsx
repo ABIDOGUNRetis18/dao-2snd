@@ -212,7 +212,6 @@ export default function ChefProjetDashboard() {
           <div>
             <p className="text-xs font-bold text-blue-100 mb-1">Total DAOs</p>
             <h3 className="text-3xl font-headline font-bold text-white">{stats.totalDaos}</h3>
-            <p className="text-[10px] text-blue-200 mt-2 font-semibold">Active projects</p>
           </div>
           <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
             <span className="material-symbols-outlined">calendar_today</span>
@@ -223,7 +222,6 @@ export default function ChefProjetDashboard() {
           <div>
             <p className="text-xs font-bold text-green-100 mb-1">Terminés</p>
             <h3 className="text-3xl font-headline font-bold text-white">{stats.completedDaos}</h3>
-            <p className="text-[10px] text-green-200 mt-2 font-semibold">All targets met</p>
           </div>
           <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
             <span className="material-symbols-outlined">check_circle</span>
@@ -234,7 +232,6 @@ export default function ChefProjetDashboard() {
           <div>
             <p className="text-xs font-bold text-orange-100 mb-1">En cours</p>
             <h3 className="text-3xl font-headline font-bold text-white">{stats.inProgressDaos}</h3>
-            <p className="text-[10px] text-orange-200 mt-2 font-semibold">Active processes</p>
           </div>
           <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
             <span className="material-symbols-outlined">hourglass_empty</span>
@@ -245,7 +242,6 @@ export default function ChefProjetDashboard() {
           <div>
             <p className="text-xs font-bold text-red-100 mb-1">À risque</p>
             <h3 className="text-3xl font-headline font-bold text-white">{stats.atRiskDaos}</h3>
-            <p className="text-[10px] text-red-200 mt-2 font-semibold">Critical alerts</p>
           </div>
           <div className="p-3 bg-white/20 text-white rounded-lg backdrop-blur-sm">
             <span className="material-symbols-outlined">error</span>
