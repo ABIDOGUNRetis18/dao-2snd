@@ -16,6 +16,7 @@ import AllTasks from './pages/admin/AllTasks'
 import FinishedDAOHistory from './pages/admin/FinishedDAOHistory'
 import Profile from './pages/admin/Profile'
 import DirecteurGeneral from './pages/directeur-general/DirecteurGeneral'
+import DGDashboard from './pages/directeur-general/DirecteurGeneral'
 import ChefProjetDashboard from './pages/chef-projet/ChefProjetDashboard'
 import MesDAO from './pages/chef-projet/MesDAO'
 import MesEquipes from './pages/chef-projet/MesEquipes'
@@ -40,7 +41,10 @@ function App() {
               <LayoutWrapper />
             </AuthenticatedLayout>
           }>
-            <Route path="directeur-general" element={<DirecteurGeneral />} />
+            <Route path="directeur-general">
+              <Route index element={<DirecteurGeneral />} />
+              <Route path="dashboard" element={<DGDashboard />} />
+            </Route>
 
             <Route path="chef-projet">
               <Route index element={<ChefProjetDashboard />} />

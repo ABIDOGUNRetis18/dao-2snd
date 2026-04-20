@@ -13,8 +13,6 @@ interface MenuItem {
 const menuItemsByRole: Record<number, MenuItem[]> = {
   1: [
     { path: '/directeur-general', label: 'Tableau de bord', icon: 'dashboard' },
-    { path: '/directeur-general/reports', label: 'Rapports', icon: 'analytics' },
-    { path: '/directeur-general/history', label: 'Historique', icon: 'history' },
   ],
   2: [
     { path: '/admin', label: 'Tableau de bord', icon: 'dashboard' },
@@ -56,35 +54,13 @@ export default function LayoutWrapper() {
   const roleId = user?.role_id ?? 5
   const menuItems = menuItemsByRole[roleId] ?? []
 
-  const getRoleTitle = () => {
-    switch (roleId) {
-      case 1: return '2SND Direction'
-      case 2: return '2SND Admin'
-      case 3: return '2SND Projets'
-      case 4: return '2SND Équipe'
-      case 5: return '2SND Lecture'
-      default: return '2SND'
-    }
-  }
-
-  const getRoleSubtitle = () => {
-    switch (roleId) {
-      case 1: return 'Direction Générale'
-      case 2: return 'Système de Précision'
-      case 3: return 'Gestion de Projets'
-      case 4: return 'Espace Collaboratif'
-      case 5: return 'Centre de Documentation'
-      default: return 'Système'
-    }
-  }
-
+  
+  
   const getPageTitle = () => {
     const path = location.pathname
 
     if (roleId === 1) { // Directeur Général
       if (path === '/directeur-general') return { title: 'Tableau de bord Directeur', subtitle: 'Vue d\'ensemble stratégique' }
-      if (path === '/directeur-general/reports') return { title: 'Rapports', subtitle: 'Analyse et performance' }
-      if (path === '/directeur-general/history') return { title: 'Historique', subtitle: 'Activités passées' }
     }
 
     if (roleId === 2) { // Admin

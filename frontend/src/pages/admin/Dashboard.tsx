@@ -23,8 +23,6 @@ interface User {
 
 export default function AdminDashboard() {
   const [daos, setDaos] = useState<Dao[]>([]);
-  const [daoTasks, setDaoTasks] = useState<{[key: number]: any[]}>({});
-  const [allTasks, setAllTasks] = useState<any[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

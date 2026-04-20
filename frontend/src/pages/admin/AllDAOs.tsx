@@ -53,8 +53,8 @@ export default function AllDAOs() {
       })
     })
 
-    progressManager.subscribe('dao-progress', (data) => {
-      // console.log('[AllDAOs] Progression DAO mise à jour:', data)
+    progressManager.subscribe('dao-progress', () => {
+      // console.log('[AllDAOs] Progression DAO mise à jour')
     })
 
     // S'abonner aux mises à jour depuis DAODetails
@@ -280,17 +280,7 @@ export default function AllDAOs() {
     return computeStatus(dao, progress);
   }
 
-  const getProgressionColor = (progress: number) => {
-    // Couleurs progressives selon le pourcentage
-    if (progress === 100) return 'bg-green-500'
-    if (progress >= 80) return 'bg-emerald-500'
-    if (progress >= 60) return 'bg-blue-500'
-    if (progress >= 40) return 'bg-yellow-500'
-    if (progress >= 20) return 'bg-orange-500'
-    if (progress > 0) return 'bg-red-500'
-    return 'bg-gray-300'
-  }
-
+  
   
   const handleDelete = async (daoId: number) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce DAO ?')) return

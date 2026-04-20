@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, ChevronDown, User } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ArrowLeft, User } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { API_ENDPOINTS, apiGet, apiPost, apiPut, apiDelete } from '../../config/api'
+import { apiGet, apiPost } from '../../config/api'
 import { useAuth } from '../../contexts/AuthContext'
 
 interface User {
@@ -32,13 +32,9 @@ export default function ChefProjetDAOTasks() {
   const [users, setUsers]       = useState<User[]>([])
   const [assignments, setAssignments] = useState<Record<number, number | null>>({})
   const [loading, setLoading]   = useState(true)
-  const [openDropdown, setOpenDropdown] = useState<number | null>(null)
-  const [daoProgress, setDaoProgress] = useState(0)
-  const [daoStats, setDaoStats] = useState({ total_tasks: 0, assigned_tasks: 0, completed_tasks: 0 })
-  const [daoInfo, setDaoInfo] = useState<any>(null)
+    const [daoInfo, setDaoInfo] = useState<any>(null)
   const [newTaskName, setNewTaskName] = useState('')
   const [saving, setSaving] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Permission checks
   const isDaoChef = user && daoInfo && user.id === daoInfo.chef_id
@@ -58,26 +54,9 @@ export default function ChefProjetDAOTasks() {
     daoChefId: daoInfo?.chef_id,
     userRoleId: user?.role_id
   })
-  const canUpdateTask = (task: TaskRow) => user && task.assigned_to === user.id
 
-  const isTaskCompleted = (task: TaskRow) =>
-    task.statut === 'termine' || Number(task.progress || 0) >= 100
 
-  const recalculateDaoMetrics = (taskList: TaskRow[]) => {
-    const assignedTasks = taskList.filter(t => t.assigned_to !== null)
-    const completedTasks = assignedTasks.filter(isTaskCompleted)
-    const averageProgress = assignedTasks.length > 0
-      ? Math.round(assignedTasks.reduce((sum, t) => sum + Number(t.progress || 0), 0) / assignedTasks.length)
-      : 0
-
-    setDaoProgress(averageProgress)
-    setDaoStats({
-      total_tasks: taskList.length,
-      assigned_tasks: assignedTasks.length,
-      completed_tasks: completedTasks.length
-    })
-  }
-
+  
   useEffect(() => {
     let isMounted = true
     
@@ -93,15 +72,6 @@ export default function ChefProjetDAOTasks() {
     }
   }, [id])
 
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setOpenDropdown(null)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
 
   const loadAll = async () => {
     let isMounted = true
@@ -243,86 +213,12 @@ export default function ChefProjetDAOTasks() {
     }
   }
 
-  const handleDeleteAssignment = async (taskId: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cette assignation ?')) return
-    
-    try {
-      const response = await apiPost('/task-assignment', {
-        dao_id: Number(id),
-        id_task: taskId,
-        assigned_to: null
-      })
-      
-      if (response.success) {
-        // Mettre à jour les assignations
-        const newAssignments = { ...assignments }
-        delete newAssignments[taskId]
-        setAssignments(newAssignments)
-        console.log('Assignation supprimée avec succès')
-      } else {
-        throw new Error(response.message || 'Erreur lors de la suppression')
-      }
-    } catch (error) {
-      console.error('Erreur lors de la suppression:', error)
-      alert('Erreur lors de la suppression: ' + (error instanceof Error ? error.message : 'Erreur inconnue'))
-    }
-  }
 
-  const handleUpdateProgress = async (taskId: number, progress: number) => {
-    // Find task to check permissions
-    const task = tasks.find(t => t.id === taskId)
-    if (!task) {
-      alert('Tâche non trouvée')
-      return
-    }
-
-    // Check if user is assigned to this task
-    if (!canUpdateTask(task)) {
-      alert('Seul le membre assigné à cette tâche peut la modifier')
-      return
-    }
-
-    try {
-      const statut = progress >= 100 ? 'termine' : progress > 0 ? 'en_cours' : 'a_faire'
-      const res = await apiPut(
-        API_ENDPOINTS.TASK_PROGRESS(taskId),
-        { progress, statut }
-      )
-      if (res.success) {
-        const updatedTasks = tasks.map(t =>
-          t.id === taskId
-            ? { ...t, progress, statut }
-            : t
-        )
-        setTasks(updatedTasks)
-        recalculateDaoMetrics(updatedTasks)
-      } else {
-        alert(res.error || 'Mise à jour bloquée par la règle de progression du DAO')
-      }
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour:', error)
-      alert('Erreur lors de la mise à jour: ' + (error instanceof Error ? error.message : 'Erreur inconnue'))
-    }
-  }
 
   const getInitials = (name: string) =>
     name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 
-  const getProgressColor = (progress: number = 0) => {
-    if (progress < 33) return 'bg-red-500'
-    if (progress < 66) return 'bg-amber-500'
-    return 'bg-green-500'
-  }
-
-  const getProgressTextColor = (progress: number = 0) => {
-    if (progress < 33) return 'text-red-600'
-    if (progress < 66) return 'text-amber-600'
-    return 'text-green-600'
-  }
-
-  const COLORS = ['bg-blue-500','bg-green-500','bg-purple-500','bg-amber-500','bg-rose-500','bg-teal-500']
-  const colorFor = (i: number) => COLORS[i % COLORS.length]
-
+  
   return (
     <div className="min-h-screen bg-slate-100 font-sans">
       <div className="max-w-4xl mx-auto px-4 pt-6 space-y-5">
@@ -426,8 +322,10 @@ export default function ChefProjetDAOTasks() {
                       </td>
                       <td className="px-4 py-3">
                         {assignments[task.id] ? (
-                          <div className="flex items-center gap-2 bg-blue-50 px-3 py-2 rounded-lg">
-                            <User size={16} className="text-blue-600" />
+                          <div className="flex items-center gap-2 bg-blue-50 px-3 py-2 rounded-lg flex-1">
+                            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                              {getInitials(users.find(m => m.id === assignments[task.id])?.username || 'U')}
+                            </div>
                             <span className="font-medium text-slate-800">
                               {users.find(m => m.id === assignments[task.id])?.username || 'Utilisateur inconnu'}
                             </span>
