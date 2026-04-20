@@ -1,6 +1,6 @@
 export default function AppFooter() {
   return (
-    <footer className="bg-surface-container border-t border-slate-200 px-8 py-6 mt-auto">
+    <footer className="bg-surface-container border border-slate-100 px-8 py-6">
       <div className="flex items-center justify-between">
         <div className="flex flex-col">
           <p className="text-xs font-bold text-slate-500">2SND TECHNOLOGIES</p>

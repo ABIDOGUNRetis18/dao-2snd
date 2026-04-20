@@ -11,21 +11,10 @@ export default function AppHeader({
 }: AppHeaderProps) {
   const { user } = useAuth()
 
-  const getInitial = (name: string) => name.charAt(0).toUpperCase()
 
-  const getRoleName = (roleId: number) => {
-    const roles = {
-      1: 'Directeur Général',
-      2: 'Administrateur',
-      3: 'Chef de Projet',
-      4: 'Membre d\'Équipe',
-      5: 'Lecteur'
-    }
-    return roles[roleId as keyof typeof roles] || 'Utilisateur'
-  }
 
   return (
-    <header className="w-full sticky top-0 z-40 bg-slate-50/80 backdrop-blur-xl flex items-center justify-between px-8 py-4">
+    <header className="w-full fixed top-0 left-64 right-0 z-40 bg-slate-50/80 backdrop-blur-xl flex items-center justify-between px-8 py-4 border border-slate-100">
       <div className="flex flex-col">
         <h2 className="font-headline font-bold tracking-tight text-blue-900 text-xl">{title}</h2>
         <p className="text-xs text-slate-500">{subtitle}</p>

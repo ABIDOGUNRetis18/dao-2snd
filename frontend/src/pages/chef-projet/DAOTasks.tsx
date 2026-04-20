@@ -220,7 +220,7 @@ export default function ChefProjetDAOTasks() {
 
   
   return (
-    <div className="min-h-screen bg-slate-100 font-sans">
+    <div className="min-h-screen bg-slate-100 font-sans border border-slate-100 rounded-lg m-2">
       <div className="max-w-4xl mx-auto px-4 pt-6 space-y-5">
 
         {/* HEADER */}

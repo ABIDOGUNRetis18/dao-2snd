@@ -229,9 +229,9 @@ export default function AdminDashboard() {
 
 
   return (
-    <div className="p-6">
+    <div className="p-6 border border-slate-100 rounded-lg bg-gray-50">
       {/* Stats Section - Style chef projet avec couleurs pleines */}
-      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 border border-slate-100 rounded-lg p-4 bg-white">
         {/* Total DAO - Bleu */}
         <div className="bg-blue-500 p-6 rounded-xl border-b-4 border-blue-600 flex justify-between items-start shadow-lg">
           <div>
@@ -295,8 +295,8 @@ export default function AdminDashboard() {
       )}
 
       {/* Table Section */}
-      <section className="mt-16 space-y-6">
-        <div className="bg-surface-container-lowest rounded-xl overflow-hidden">
+      <section className="mt-16 space-y-6 border border-slate-100 rounded-lg p-4 bg-white">
+        <div className="bg-surface-container-lowest rounded-xl overflow-hidden border border-slate-100">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50 text-slate-500 text-[11px] font-bold tracking-widest uppercase">

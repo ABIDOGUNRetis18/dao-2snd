@@ -125,7 +125,7 @@ export default function LayoutWrapper() {
   return (
     <div className="bg-background text-on-surface flex min-h-screen">
       {/* SideNavBar */}
-      <aside className="h-screen w-64 fixed left-0 top-0 bg-slate-100 flex flex-col py-6 pr-4 gap-2 z-50">
+      <aside className="h-screen w-64 fixed left-0 top-0 bg-slate-100 flex flex-col py-6 pr-4 gap-2 z-50 border-r-2 border-slate-300 shadow-md">
         <div className="px-6 mb-6 flex justify-center">
           <img 
             src="/image.png" 
@@ -162,7 +162,7 @@ export default function LayoutWrapper() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="ml-64 flex-1 flex flex-col min-h-screen">
+      <main className="ml-64 flex-1 flex flex-col min-h-screen pt-20">
         {/* TopAppBar */}
         <AppHeader 
           title={title}
@@ -170,7 +170,7 @@ export default function LayoutWrapper() {
         />
 
         {/* Canvas */}
-        <div className="flex-1 p-8">
+        <div className="flex-1 p-6 border border-slate-100 rounded-lg m-4 bg-white">
           <Outlet />
         </div>
 
