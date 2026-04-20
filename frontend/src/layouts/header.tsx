@@ -14,7 +14,7 @@ export default function AppHeader({
 
 
   return (
-    <header className="w-full bg-slate-50/80 backdrop-blur-xl flex items-center justify-between px-8 py-4 border border-slate-100">
+    <header className="w-full bg-slate-50/80 backdrop-blur-xl flex items-center justify-between px-8 py-2 border border-gray-300 shadow-sm relative z-40">
       <div className="flex flex-col">
         <h2 className="font-headline font-bold tracking-tight text-blue-900 text-xl">{title}</h2>
         <p className="text-xs text-slate-500">{subtitle}</p>

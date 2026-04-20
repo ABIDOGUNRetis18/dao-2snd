@@ -123,10 +123,10 @@ export default function LayoutWrapper() {
   const { title, subtitle } = getPageTitle()
 
   return (
-    <div className="bg-background text-on-surface flex min-h-screen">
+    <div className="bg-background text-on-surface flex min-h-screen overflow-hidden">
       {/* SideNavBar */}
-      <aside className="h-screen w-64 fixed left-0 top-0 bg-slate-100 flex flex-col py-6 pr-4 gap-2 z-50 border-r-2 border-slate-300 shadow-md">
-        <div className="px-6 mb-6 flex justify-center">
+      <aside className="h-screen w-56 fixed left-0 top-0 bg-slate-100 flex flex-col py-0 pr-4 gap-2 z-50 border-r-2 border-slate-300 shadow-md">
+        <div className="px-6 mb-1 flex justify-center" style={{marginTop: '-30px'}}>
           <img 
             src="/image.png" 
             alt="2SND Logo" 
@@ -149,8 +149,8 @@ export default function LayoutWrapper() {
             </button>
           ))}
         </nav>
-        <div className="mt-auto px-4 space-y-4">
-          <div className="pt-4 border-t border-slate-200 flex flex-col gap-1">
+        <div className="mt-auto px-4 space-y-2">
+          <div className="pt-2 border-t border-slate-200 flex flex-col gap-1">
             <button
               className="flex items-center gap-3 px-6 py-2 text-slate-500 hover:text-red-600 text-sm"
               onClick={handleLogout}
@@ -162,7 +162,7 @@ export default function LayoutWrapper() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="ml-64 flex-1 flex flex-col min-h-screen">
+      <main className="ml-56 flex-1 flex flex-col relative z-40">
         {/* TopAppBar */}
         <AppHeader 
           title={title}
