@@ -8,7 +8,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [, setError] = useState('')
-  const [rememberMe, setRememberMe] = useState(false)
+  const [] = useState(false)
   const navigate = useNavigate()
   const { login, isAuthenticated, isLoading } = useAuth()
 
@@ -110,10 +110,10 @@ export default function Login() {
       </section>
 
       {/* Right Section: Login Interface */}
-      <section className="w-full md:w-1/2 flex items-center justify-center bg-white px-8 py-12 md:px-24">
+      <section className="w-full md:w-1/2 flex items-center justify-center bg-blue-950 px-8 py-12 md:px-24" style={{backgroundColor: '#1e3a8a'}}>
         <div className="w-full max-w-md">
           {/* Login Card */}
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">
+          <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/40 p-8 ring-4 ring-white/20">
             {/* Brand Anchor */}
             <div className="mb-8 text-center">
               <img 
