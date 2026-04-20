@@ -110,21 +110,30 @@ export default function Login() {
       </section>
 
       {/* Right Section: Login Interface */}
-      <section className="w-full md:w-1/2 flex items-center justify-center bg-blue-950 px-8 py-12 md:px-24" style={{backgroundColor: '#1e3a8a'}}>
+      <section className="w-full md:w-1/2 flex items-center justify-center px-8 py-12 md:px-24" style={{backgroundColor: '#0867B5'}}>
         <div className="w-full max-w-md">
           {/* Login Card */}
-          <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/40 p-8 ring-4 ring-white/20">
+          <div className="p-5" style={{ 
+            maxWidth: "400px", 
+            margin: "0 auto",
+            backgroundColor: "rgba(245, 247, 250, 0.15)",
+            borderRadius: "12px",
+            border: "1px solid rgba(230, 235, 240, 0.3)",
+            boxShadow: "0 8px 32px rgba(220, 225, 235, 0.08)",
+            backdropFilter: "blur(15px)"
+          }}>
             {/* Brand Anchor */}
-            <div className="mb-8 text-center">
+            <div className="text-center mb-4">
               <img 
                 alt="2SND Logo" 
-                className="h-12 mx-auto mb-6" 
-                src="/image.png"
+                className="mx-auto mb-4" 
+                src="/logoblanc.png"
+                style={{ maxWidth: "150px" }}
               />
             </div>
 
             {/* Login Form */}
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
             {/* Email Input */}
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-on-surface tracking-wide uppercase opacity-80" htmlFor="email">Adresse Email</label>
