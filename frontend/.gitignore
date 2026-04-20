@@ -150,6 +150,10 @@ docker-compose.override.yml
 .dockerignore
 .docker/
 
+# Fichiers Docker suivis pour ce projet
+!Dockerfile
+!.dockerignore
+
 # ☁️ Cloud and Deployment
 .vercel/
 .netlify/

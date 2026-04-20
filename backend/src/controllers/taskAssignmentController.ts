@@ -33,7 +33,7 @@ export async function getTaskAssignments(req: Request, res: Response) {
     // Si aucune assignation n'existe, retourner un tableau vide
     const assignmentsQuery = `
       SELECT 
-        ts.id_task as id_task,
+        COALESCE(ts.id_task, ts.id) as id_task,
         ts.titre as task_name,
         ts.dao_id,
         ts.assigned_to,
@@ -46,7 +46,7 @@ export async function getTaskAssignments(req: Request, res: Response) {
       FROM tasks ts
       LEFT JOIN users u ON ts.assigned_to = u.id
       WHERE ts.dao_id = $1
-      ORDER BY ts.id_task ASC
+      ORDER BY COALESCE(ts.id_task, ts.id) ASC
     `;
 
     const result = await query(assignmentsQuery, [daoId]);
@@ -164,7 +164,7 @@ export async function updateTaskAssignment(req: AuthenticatedRequest, res: Respo
     // Si userId est null, désassigner la tâche
     if (userId === null || userId === '') {
       const result = await query(
-        'UPDATE task SET assigned_to = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *',
+        'UPDATE tasks SET assigned_to = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *',
         [taskId]
       );
 
@@ -194,7 +194,7 @@ export async function deleteTaskAssignment(req: Request, res: Response) {
 
     // Désassigner la tâche
     const result = await query(
-      'UPDATE task SET assigned_to = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *',
+      'UPDATE tasks SET assigned_to = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *',
       [taskId]
     );
 
@@ -227,7 +227,7 @@ export async function getTaskAssignmentsByDao(req: Request, res: Response) {
 
     const assignmentsQuery = `
       SELECT 
-        ts.id_task as task_id,
+        COALESCE(ts.id_task, ts.id) as task_id,
         ts.titre as task_name,
         ts.statut,
         ts.progress,
@@ -245,7 +245,7 @@ export async function getTaskAssignmentsByDao(req: Request, res: Response) {
       FROM tasks ts
       LEFT JOIN users u ON ts.assigned_to = u.id
       WHERE ts.dao_id = $1
-      ORDER BY ts.id_task ASC
+      ORDER BY COALESCE(ts.id_task, ts.id) ASC
     `;
 
     const result = await query(assignmentsQuery, [daoId]);

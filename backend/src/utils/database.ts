@@ -61,6 +61,10 @@ export async function initializeDatabase() {
     await createTables();
     console.log('Tables initialisées avec succès');
 
+    // Migrations de compatibilité (idempotentes)
+    await ensureSchemaCompatibility();
+    console.log('Compatibilité du schéma vérifiée');
+
     // Création des tables de tâches (nouveau système à deux niveaux)
     await createTaskModelsTable();
     await createTasksTable();
@@ -73,6 +77,105 @@ export async function initializeDatabase() {
     console.error('Erreur lors de l\'initialisation de la base de données:', error);
     throw error;
   }
+}
+
+async function ensureSchemaCompatibility() {
+  // Cette migration évite l'erreur: column "assigned_by" of relation "team_members" does not exist
+  await query(`
+    ALTER TABLE IF EXISTS team_members
+    ADD COLUMN IF NOT EXISTS assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+  `);
+
+  // Compatibilité table task (modèles + tâches liées DAO)
+  await query(`
+    ALTER TABLE IF EXISTS task
+    ADD COLUMN IF NOT EXISTS dao_id INTEGER REFERENCES daos(id) ON DELETE CASCADE
+  `);
+
+  await query(`
+    ALTER TABLE IF EXISTS task
+    ADD COLUMN IF NOT EXISTS statut VARCHAR(30) DEFAULT 'a_faire'
+  `);
+
+  await query(`
+    ALTER TABLE IF EXISTS task
+    ADD COLUMN IF NOT EXISTS progress INTEGER DEFAULT 0
+  `);
+
+  await query(`
+    ALTER TABLE IF EXISTS task
+    ADD COLUMN IF NOT EXISTS assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL
+  `);
+
+  await query(`
+    ALTER TABLE IF EXISTS task
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `);
+
+  // Certains anciens schémas imposent dao_id NOT NULL, ce qui casse la création de modèles
+  await query(`
+    ALTER TABLE IF EXISTS task
+    ALTER COLUMN dao_id DROP NOT NULL
+  `);
+
+  // Compatibilité table tasks (instances)
+  await query(`
+    ALTER TABLE IF EXISTS tasks
+    ADD COLUMN IF NOT EXISTS id_task INTEGER REFERENCES task(id)
+  `);
+
+  await query(`
+    ALTER TABLE IF EXISTS tasks
+    ADD COLUMN IF NOT EXISTS date_creation DATE DEFAULT CURRENT_DATE
+  `);
+
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_tasks_dao_id ON tasks(dao_id)
+  `);
+
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_tasks_dao_id_assigned_to ON tasks(dao_id, assigned_to)
+  `);
+
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_tasks_id_task ON tasks(id_task)
+  `);
+
+  // Backfill id_task pour les anciennes lignes tasks quand possible
+  await query(`
+    UPDATE tasks ts
+    SET id_task = t.id
+    FROM task t
+    WHERE ts.id_task IS NULL
+      AND ts.titre = t.nom
+  `);
+
+  // S'assurer que les 15 modèles par défaut existent avec dao_id NULL
+  await query(`
+    INSERT INTO task (nom, dao_id, statut, progress)
+    SELECT x.nom, NULL, 'a_faire', 0
+    FROM (
+      VALUES
+        ('Résumé sommaire DAO et Création du drive'),
+        ('Demande de caution et garanties'),
+        ('Identification et renseignement des profils dans le drive'),
+        ('Identification et renseignement des ABE dans le drive'),
+        ('Légalisation des ABE, diplômes, certificats, attestations et pièces administratives requis'),
+        ('Indication directive d''élaboration de l''offre financier'),
+        ('Elaboration de la méthodologie'),
+        ('Planification prévisionnelle'),
+        ('Identification des références précises des équipements et matériels'),
+        ('Demande de cotation'),
+        ('Elaboration du squelette des offres'),
+        ('Rédaction du contenu des OF et OT'),
+        ('Contrôle et validation des offres'),
+        ('Impression et présentation des offres'),
+        ('Dépôt des offres et clôture')
+    ) AS x(nom)
+    WHERE NOT EXISTS (
+      SELECT 1 FROM task t WHERE t.dao_id IS NULL AND t.nom = x.nom
+    )
+  `);
 }
 
 async function createTables() {

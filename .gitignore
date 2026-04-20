@@ -142,6 +142,14 @@ docker-compose.override.yml
 .dockerignore
 .docker/
 
+# Fichiers Docker suivis pour ce projet
+!docker-compose.yml
+!backend/Dockerfile
+!backend/.dockerignore
+!backend/docker/init.sql
+!frontend/Dockerfile
+!frontend/.dockerignore
+
 # ☁️ Cloud and Deployment
 .vercel/
 .netlify/

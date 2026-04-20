@@ -1,0 +1,60 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: dao-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dao
+      POSTGRES_USER: erwann
+      POSTGRES_PASSWORD: erwann
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/docker/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erwann -d dao"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dao-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      JWT_SECRET: change-me-in-production-very-long-secret-key
+      JWT_EXPIRES_IN: 7d
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: dao
+      DB_USER: erwann
+      DB_PASSWORD: erwann
+      FRONTEND_URL_PROD: http://localhost:5173
+    ports:
+      - "3001:3001"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:3001/api
+    container_name: dao-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+
+volumes:
+  postgres_data:

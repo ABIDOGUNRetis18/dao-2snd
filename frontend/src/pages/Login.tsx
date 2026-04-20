@@ -96,7 +96,7 @@ export default function Login() {
           alt="Modern corporate office lobby" 
           className="absolute inset-0 w-full h-full object-cover" 
           data-alt="Professional engineering documents and architectural blueprints on a modern office desk with a laptop and a pen, clean background without any text overlays or watermarks, high-quality photography, corporate office setting, focus on paperwork and tender documents, blue and professional tones." 
-          src="/image1.jpg"
+          src="/auth-illustration.svg"
         />
         {/* Adjusted gradient to be more subtle (dark at bottom for text legibility) */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
@@ -127,7 +127,7 @@ export default function Login() {
               <img 
                 alt="2SND Logo" 
                 className="mx-auto mb-4" 
-                src="/logoblanc.png"
+                src="/logo-2snd-white.svg"
                 style={{ maxWidth: "150px" }}
               />
             </div>

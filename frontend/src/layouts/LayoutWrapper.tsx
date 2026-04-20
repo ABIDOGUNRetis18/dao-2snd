@@ -128,7 +128,7 @@ export default function LayoutWrapper() {
       <aside className="h-screen w-56 fixed left-0 top-0 bg-slate-100 flex flex-col py-0 pr-4 gap-2 z-50 border-r-2 border-slate-300 shadow-md">
         <div className="px-6 mb-1 flex justify-center" style={{marginTop: '-30px'}}>
           <img 
-            src="/image.png" 
+            src="/logo-2snd.svg" 
             alt="2SND Logo" 
             className="w-32 h-32 rounded-lg object-contain"
           />

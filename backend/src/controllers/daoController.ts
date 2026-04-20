@@ -1080,7 +1080,13 @@ export async function createDao(req: Request, res: Response) {
       );
     }
     
-    // 3.2. Ajouter les membres à l'équipe (table team_members)
+    // 3.2. Migration de compatibilité (anciens schémas sans assigned_by)
+    await query(`
+      ALTER TABLE IF EXISTS team_members
+      ADD COLUMN IF NOT EXISTS assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+    `);
+
+    // 3.3. Ajouter les membres à l'équipe (table team_members)
     for (const memberId of membres) {
       // Vérifier si le membre n'existe pas déjà dans team_members
       const existingMember = await query(
