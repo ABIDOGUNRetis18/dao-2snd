@@ -30,6 +30,7 @@ build/
 
 # 🏗️ Environment Variables - CRITICAL FOR SECURITY
 .env
+.env.production
 .env.local
 .env.development.local
 .env.test.local
@@ -144,6 +145,7 @@ docker-compose.override.yml
 
 # Fichiers Docker suivis pour ce projet
 !docker-compose.yml
+!docker-compose.prod.yml
 !backend/Dockerfile
 !backend/.dockerignore
 !backend/docker/init.sql

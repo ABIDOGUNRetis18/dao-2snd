@@ -77,11 +77,11 @@ export async function createTaskAssignment(req: AuthenticatedRequest, res: Respo
       });
     }
 
-    // Vérifier que l'id_task est entre 1 et 15 (les 15 tâches spécifiques)
-    if (Number(id_task) < 1 || Number(id_task) > 15) {
+    // Vérifier que l'id_task est un entier positif
+    if (!Number.isInteger(Number(id_task)) || Number(id_task) <= 0) {
       return res.status(400).json({
         success: false,
-        message: "L'ID du modèle de tâche doit être compris entre 1 et 15",
+        message: "L'ID du modèle de tâche est invalide",
       });
     }
 
@@ -161,11 +161,31 @@ export async function updateTaskAssignment(req: AuthenticatedRequest, res: Respo
     const { taskId } = req.params;
     const { userId } = req.body;
 
+    if (!Number.isInteger(Number(taskId)) || Number(taskId) <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "ID de tâche invalide",
+      });
+    }
+
+    // Vérifier que la tâche existe dans la table tasks (instance concrète)
+    const existingTask = await query(
+      'SELECT id FROM tasks WHERE id = $1',
+      [Number(taskId)]
+    );
+
+    if (existingTask.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Tâche non trouvée",
+      });
+    }
+
     // Si userId est null, désassigner la tâche
     if (userId === null || userId === '') {
       const result = await query(
         'UPDATE tasks SET assigned_to = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *',
-        [taskId]
+        [Number(taskId)]
       );
 
       return res.status(200).json({
@@ -177,8 +197,29 @@ export async function updateTaskAssignment(req: AuthenticatedRequest, res: Respo
       });
     }
 
-    // Sinon, réassigner à un nouvel utilisateur
-    return createTaskAssignment(req, res);
+    // Sinon, réassigner à un nouvel utilisateur existant
+    const userResult = await query(
+      'SELECT id FROM users WHERE id = $1',
+      [Number(userId)]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Utilisateur non trouvé",
+      });
+    }
+
+    const result = await query(
+      'UPDATE tasks SET assigned_to = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+      [Number(userId), Number(taskId)]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Assignation de tâche mise à jour avec succès",
+      data: result.rows[0],
+    });
   } catch (error) {
     console.error("Erreur lors de la mise à jour de l'assignation:", error);
     res.status(500).json({

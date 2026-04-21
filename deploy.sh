@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # ==========================================
-# 🚀 DAO Project - Script de Déploiement Docker
+# 🚀 DAO Project - Script de Déploiement Docker (production)
 # ==========================================
 
-set -e  # Arrêter le script en cas d'erreur
+set -euo pipefail
 
 # Couleurs pour les logs
 RED='\033[0;31m'
@@ -30,6 +30,9 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+ENV_FILE="${ENV_FILE:-.env.production}"
+COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
+
 # ==========================================
 # 📋 Vérifications pré-déploiement
 # ==========================================
@@ -42,18 +45,24 @@ check_prerequisites() {
         exit 1
     fi
     
-    # Vérifier Docker Compose
-    if ! command -v docker-compose &> /dev/null; then
-        log_error "Docker Compose n'est pas installé"
+    # Vérifier Docker Compose v2
+    if ! docker compose version &> /dev/null; then
+        log_error "Docker Compose (plugin v2) n'est pas installé"
         exit 1
     fi
     
-    # Vérifier le fichier .env.production
-    if [ ! -f ".env.production" ]; then
-        log_error "Fichier .env.production non trouvé"
+    if [ ! -f "$COMPOSE_FILE" ]; then
+        log_error "Fichier compose introuvable: $COMPOSE_FILE"
         exit 1
     fi
-    
+
+    if [ ! -f "$ENV_FILE" ]; then
+        log_error "Fichier d'environnement introuvable: $ENV_FILE"
+        log_info "Copiez le template puis adaptez les valeurs:"
+        log_info "cp .env.production.example .env.production"
+        exit 1
+    fi
+
     log_success "Prérequis vérifiés avec succès"
 }
 
@@ -61,13 +70,10 @@ check_prerequisites() {
 # 🧹 Nettoyage des anciens conteneurs
 # ==========================================
 cleanup() {
-    log_info "Nettoyage des anciens conteneurs et images..."
+    log_info "Nettoyage des anciens conteneurs..."
     
     # Arrêter et supprimer les conteneurs existants
-    docker-compose down --remove-orphans || true
-    
-    # Supprimer les images non utilisées
-    docker image prune -f || true
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" down --remove-orphans || true
     
     log_success "Nettoyage terminé"
 }
@@ -79,7 +85,7 @@ build_images() {
     log_info "Construction des images Docker..."
     
     # Construction avec cache pour optimiser
-    docker-compose build --parallel
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build --parallel
     
     log_success "Images construites avec succès"
 }
@@ -90,40 +96,50 @@ build_images() {
 start_services() {
     log_info "Démarrage des services..."
     
-    # Démarrer les services de base (MySQL + Backend)
-    docker-compose up -d mysql backend
-    
-    # Attendre que la base de données soit prête
-    log_info "Attente de la base de données..."
-    sleep 30
-    
-    # Vérifier que le backend répond
-    log_info "Vérification du backend..."
-    for i in {1..10}; do
-        if curl -f http://localhost:${APP_PORT:-1002}/api/test &> /dev/null; then
-            log_success "Backend opérationnel"
-            break
-        fi
-        if [ $i -eq 10 ]; then
-            log_error "Backend ne répond pas après 10 tentatives"
-            exit 1
-        fi
-        log_info "Tentative $i/10..."
-        sleep 5
-    done
-    
-    log_success "Services de base démarrés avec succès"
+    # Démarrer toute la stack (PostgreSQL + Backend + Frontend)
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans
+
+    wait_for_health "db" 30
+    wait_for_health "backend" 30
+    wait_for_health "frontend" 30
+
+    log_success "Services démarrés avec succès"
 }
 
-# ==========================================
-# 🌐 Démarrage optionnel du frontend
-# ==========================================
-start_frontend() {
-    if [ "$1" = "--with-frontend" ]; then
-        log_info "Démarrage du frontend..."
-        docker-compose --profile frontend up -d frontend
-        log_success "Frontend démarré sur http://localhost:3000"
-    fi
+wait_for_health() {
+    local service="$1"
+    local retries="$2"
+
+    log_info "Attente de la santé du service: $service"
+
+    for ((i=1; i<=retries; i++)); do
+        local cid
+        cid=$(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps -q "$service")
+        if [ -z "$cid" ]; then
+            sleep 2
+            continue
+        fi
+
+        local status
+        status=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$cid" 2>/dev/null || true)
+
+        if [ "$status" = "healthy" ] || [ "$status" = "running" ]; then
+            log_success "$service est prêt ($status)"
+            return 0
+        fi
+
+        if [ "$status" = "unhealthy" ] || [ "$status" = "exited" ]; then
+            log_error "$service en échec ($status)"
+            docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs --tail 120 "$service" || true
+            exit 1
+        fi
+
+        sleep 2
+    done
+
+    log_error "Timeout d'attente pour $service"
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs --tail 120 "$service" || true
+    exit 1
 }
 
 # ==========================================
@@ -131,39 +147,42 @@ start_frontend() {
 # ==========================================
 show_status() {
     log_info "Statut des services:"
-    docker-compose ps
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps
+
+    # Charger FRONTEND_PORT pour l'affichage
+    set -a
+    # shellcheck disable=SC1090
+    source "$ENV_FILE"
+    set +a
     
     echo ""
     log_info "URLs d'accès:"
-    echo "🔧 Backend API: http://localhost:${APP_PORT:-1002}"
-    echo "🗄️ MySQL: localhost:${MYSQL_PORT:-3306}"
-    
-    if [ "$1" = "--with-frontend" ]; then
-        echo "🌐 Frontend: http://localhost:3000"
-    fi
+    echo "🌐 Frontend: http://localhost:${FRONTEND_PORT:-80}"
+    echo "🔧 API (via proxy): http://localhost:${FRONTEND_PORT:-80}/api"
     
     echo ""
     log_info "Commandes utiles:"
-    echo "📋 Voir les logs: docker-compose logs -f"
-    echo "🛑 Arrêter: docker-compose down"
-    echo "🔄 Redémarrer: docker-compose restart"
+    echo "📋 Voir les logs: docker compose --env-file $ENV_FILE -f $COMPOSE_FILE logs -f"
+    echo "🛑 Arrêter: docker compose --env-file $ENV_FILE -f $COMPOSE_FILE down"
+    echo "🔄 Redémarrer: docker compose --env-file $ENV_FILE -f $COMPOSE_FILE restart"
 }
 
 # ==========================================
 # 🎯 Fonction principale
 # ==========================================
 main() {
-    log_info "Début du déploiement de l'application DAO..."
+    log_info "Début du déploiement de l'application DAO (production)..."
+    log_info "ENV_FILE=$ENV_FILE"
+    log_info "COMPOSE_FILE=$COMPOSE_FILE"
     
     check_prerequisites
     cleanup
     build_images
     start_services
-    start_frontend "$1"
-    show_status "$1"
+    show_status
     
     log_success "Déploiement terminé avec succès !"
-    log_warning "N'oubliez pas de changer les secrets par défaut dans .env.production"
+    log_warning "Vérifiez les secrets de production (JWT_SECRET / POSTGRES_PASSWORD)"
 }
 
 # ==========================================

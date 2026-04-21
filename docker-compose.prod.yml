@@ -26,8 +26,8 @@ services:
       db:
         condition: service_healthy
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      PORT: ${BACKEND_PORT:-3001}
+      NODE_ENV: production
+      PORT: 3001
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production-very-long-secret-key}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       DB_HOST: db
@@ -58,7 +58,7 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "${FRONTEND_PORT:-5173}:80"
+      - "${FRONTEND_PORT:-80}:80"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
       interval: 10s
