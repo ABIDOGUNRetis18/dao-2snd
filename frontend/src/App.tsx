@@ -22,6 +22,14 @@ import ChefProjetDAODetails from './pages/chef-projet/DAODetails'
 import MembreEquipe from './pages/membre-equipe/MembreEquipe'
 import MembreEquipeMyTasks from './pages/membre-equipe/MyTasks'
 import Lecteur from './pages/lecteur/Lecteur'
+import OrganisationLayout from './layouts/OrganisationLayout'
+import OrganisationDashboard from './pages/organisation/Dashboard'
+import Offres from './pages/organisation/Offres'
+import Candidatures from './pages/organisation/Candidatures'
+import Evenements from './pages/organisation/Evenements'
+import Partenariats from './pages/organisation/Partenariats'
+import Reporting from './pages/organisation/Reporting'
+import Calendrier from './pages/organisation/Calendrier'
 import AuthenticatedLayout from './components/AuthenticatedLayout'
 
 function App() {
@@ -65,6 +73,22 @@ function App() {
               <Lecteur />
             </AuthenticatedLayout>
           } />
+          
+          {/* Routes organisation pour les ONG */}
+          <Route path="/organisation" element={
+            <AuthenticatedLayout>
+              <OrganisationLayout />
+            </AuthenticatedLayout>
+          }>
+            <Route index element={<OrganisationDashboard />} />
+            <Route path="offres" element={<Offres />} />
+            <Route path="candidatures" element={<Candidatures />} />
+            <Route path="evenements" element={<Evenements />} />
+            <Route path="partenariats" element={<Partenariats />} />
+            <Route path="reporting" element={<Reporting />} />
+            <Route path="calendrier" element={<Calendrier />} />
+            <Route path="profile" element={<Profile />} />
+          </Route>
           
           {/* Routes admin pour l'administrateur */}
           <Route path="/admin" element={

@@ -33,6 +33,9 @@ export default function Login() {
         case 5: // Lecteur
           navigate('/lecteur')
           break
+        case 6: // Organisation
+          navigate('/organisation')
+          break
         default:
           navigate('/admin')
       }
@@ -76,6 +79,9 @@ export default function Login() {
           break
         case 5: // Lecteur
           navigate('/lecteur')
+          break
+        case 6: // Organisation
+          navigate('/organisation')
           break
         default:
           navigate('/admin')
